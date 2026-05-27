@@ -2,9 +2,13 @@ import { Worker, Queue } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { FetchJobData, NormalizeJobData } from '@mspbyte/shared';
 import type { AdapterContext } from '@mspbyte/shared';
+import { startStage, completeStage, failStage, recordFetchSuccess, recordFetchFailure, logRawRecords } from '@mspbyte/drizzle';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
+
+const RAW_LOG_ENABLED = process.env.PIPELINE_RAW_LOG === 'true';
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -32,6 +36,9 @@ export function createFetchWorker(redis: Redis) {
         'Fetch job started'
       );
 
+      let { db } = await getTenantServiceDb(data.orgId);
+      const stageId = await startStage(db, data.syncRunId, data.provider, 'fetch', data.facet, job.id ?? data.ingestRunId);
+
       let batchIndex = 0;
       try {
         for await (const page of adapter.fetchFacet(data.linkId, data.facet, data.cursor, ctx)) {
@@ -46,46 +53,45 @@ export function createFetchWorker(redis: Redis) {
                 provider: data.provider,
                 facet: data.facet,
                 ingestRunId: data.ingestRunId,
+                syncRunId: data.syncRunId,
                 rawRecords: batch
               }
             );
             batchIndex++;
           }
+
+          if (RAW_LOG_ENABLED) {
+            await logRawRecords(db, data.linkId, data.syncRunId, data.facet, page as unknown[]);
+          }
         }
+
+        if (data.mode !== 'replay') {
+          await recordFetchSuccess(db, data.linkId, data.provider, data.facet);
+        }
+
+        await completeStage(db, stageId, { recordsIn: batchIndex });
 
         logger.info(
           { linkId: data.linkId, provider: data.provider, facet: data.facet, batches: batchIndex },
           'Fetch job completed'
         );
       } catch (err) {
+        await failStage(db, stageId, err);
+
+        if (data.mode !== 'replay') {
+          await recordFetchFailure(db, data.linkId, data.provider, data.facet, err);
+        }
+
         const ingestErr = err as { kind?: string; message?: string; retriable?: boolean };
         if (ingestErr?.kind === 'auth_failure' || ingestErr?.kind === 'schema_violation') {
           logger.error(
-            {
-              linkId: data.linkId,
-              siteId: data.siteId,
-              provider: data.provider,
-              facet: data.facet,
-              kind: ingestErr.kind,
-              err
-            },
+            { linkId: data.linkId, siteId: data.siteId, provider: data.provider, facet: data.facet, kind: ingestErr.kind, err },
             'Non-retriable fetch error'
           );
-          await job.moveToFailed(
-            new Error(ingestErr.message ?? 'Non-retriable error'),
-            job.token ?? ''
-          );
+          await job.moveToFailed(new Error(ingestErr.message ?? 'Non-retriable error'), job.token ?? '');
           return;
         }
-        logger.warn(
-          {
-            linkId: data.linkId,
-            provider: data.provider,
-            facet: data.facet,
-            err
-          },
-          'Retriable fetch error'
-        );
+        logger.warn({ linkId: data.linkId, provider: data.provider, facet: data.facet, err }, 'Retriable fetch error');
         throw err;
       }
     },

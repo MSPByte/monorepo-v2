@@ -1,5 +1,7 @@
 import type { ProviderFacet } from '../libs/provider.js';
 
+export type SyncMode = 'full' | 'replay';
+
 export type FetchJobData = {
   linkId: string;
   siteId?: string;
@@ -7,6 +9,8 @@ export type FetchJobData = {
   provider: string;
   facet: ProviderFacet;
   ingestRunId: string;
+  syncRunId: string;
+  mode: SyncMode;
   cursor?: string;
   linkMeta?: Record<string, unknown>;
   integrationConfig?: Record<string, unknown>;
@@ -19,6 +23,7 @@ export type NormalizeJobData = {
   provider: string;
   facet: ProviderFacet;
   ingestRunId: string;
+  syncRunId: string;
   rawRecords: unknown[];
 };
 
@@ -27,6 +32,8 @@ export type AlertsJobData = {
   linkId?: string;
   orgId: string;
   ingestRunId: string;
+  syncRunId: string;
+  mode: SyncMode;
 };
 
 export type LinkJobData = {
@@ -34,6 +41,7 @@ export type LinkJobData = {
   orgId: string;
   provider: string;
   ingestRunId: string;
+  syncRunId: string;
   linkMeta?: Record<string, unknown>;
   integrationConfig?: Record<string, unknown>;
 };
@@ -43,6 +51,7 @@ export type EnrichJobData = {
   orgId: string;
   provider: string;
   ingestRunId: string;
+  syncRunId: string;
   linkMeta?: Record<string, unknown>;
   integrationConfig?: Record<string, unknown>;
 };

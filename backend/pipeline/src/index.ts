@@ -23,7 +23,7 @@ logger.info({ cron: env.SCHEDULE_CRON }, 'BullMQ repeatable job registered');
 
 // Also run immediately on startup
 try {
-  await scheduleIngestion(redis);
+  await scheduleIngestion(redis, 'scheduled');
   logger.info('Initial ingestion flows scheduled on startup');
 } catch (err) {
   logger.error({ err }, 'Initial scheduling failed');

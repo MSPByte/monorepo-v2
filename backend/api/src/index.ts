@@ -29,7 +29,8 @@ await app.register(fastifyTRPCPlugin, {
   prefix: '/trpc',
   trpcOptions: {
     router: appRouter,
-    createContext
+    createContext: (opts: { req: Parameters<typeof createContext>[0]['req'] }) =>
+      createContext({ req: opts.req, redis })
   }
 });
 

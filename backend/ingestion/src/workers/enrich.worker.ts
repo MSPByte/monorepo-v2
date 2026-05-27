@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { EnrichJobData } from '@mspbyte/shared';
+import { startStage, completeStage, failStage } from '@mspbyte/drizzle';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { enrichM365 } from '../adapters/m365/enricher.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
@@ -11,23 +13,26 @@ export function createEnrichWorker(redis: Redis) {
     async (job) => {
       const { data } = job;
 
-      logger.info(
-        { linkId: data.linkId, provider: data.provider, run: data.ingestRunId },
-        'Enrich job started'
-      );
+      logger.info({ linkId: data.linkId, provider: data.provider, run: data.ingestRunId }, 'Enrich job started');
 
-      switch (data.provider) {
-        case 'microsoft-365':
-          await enrichM365(data.linkId, data.orgId);
-          break;
-        default:
-          logger.info(
-            { linkId: data.linkId, provider: data.provider },
-            'No enrichment logic for provider'
-          );
+      const { db } = await getTenantServiceDb(data.orgId);
+      const stageId = await startStage(db, data.syncRunId, data.provider, 'enrich', data.provider, job.id ?? data.ingestRunId);
+
+      try {
+        switch (data.provider) {
+          case 'microsoft-365':
+            await enrichM365(data.linkId, data.orgId);
+            break;
+          default:
+            logger.info({ linkId: data.linkId, provider: data.provider }, 'No enrichment logic for provider');
+        }
+
+        await completeStage(db, stageId);
+        logger.info({ linkId: data.linkId, provider: data.provider }, 'Enrich job complete');
+      } catch (err) {
+        await failStage(db, stageId, err);
+        throw err;
       }
-
-      logger.info({ linkId: data.linkId, provider: data.provider }, 'Enrich job complete');
     },
     { connection: redis, concurrency: 2 }
   );

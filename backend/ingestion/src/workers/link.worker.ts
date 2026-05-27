@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { LinkJobData } from '@mspbyte/shared';
+import { startStage, completeStage, failStage } from '@mspbyte/drizzle';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { linkM365 } from '../adapters/m365/linker.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
@@ -11,23 +13,26 @@ export function createLinkWorker(redis: Redis) {
     async (job) => {
       const { data } = job;
 
-      logger.info(
-        { linkId: data.linkId, provider: data.provider, run: data.ingestRunId },
-        'Link job started'
-      );
+      logger.info({ linkId: data.linkId, provider: data.provider, run: data.ingestRunId }, 'Link job started');
 
-      switch (data.provider) {
-        case 'microsoft-365':
-          await linkM365(data.linkId, data.linkMeta ?? {}, data.orgId);
-          break;
-        default:
-          logger.info(
-            { linkId: data.linkId, provider: data.provider },
-            'No linking logic for provider'
-          );
+      const { db } = await getTenantServiceDb(data.orgId);
+      const stageId = await startStage(db, data.syncRunId, data.provider, 'link', data.provider, job.id ?? data.ingestRunId);
+
+      try {
+        switch (data.provider) {
+          case 'microsoft-365':
+            await linkM365(data.linkId, data.linkMeta ?? {}, data.orgId);
+            break;
+          default:
+            logger.info({ linkId: data.linkId, provider: data.provider }, 'No linking logic for provider');
+        }
+
+        await completeStage(db, stageId);
+        logger.info({ linkId: data.linkId, provider: data.provider }, 'Link job complete');
+      } catch (err) {
+        await failStage(db, stageId, err);
+        throw err;
       }
-
-      logger.info({ linkId: data.linkId, provider: data.provider }, 'Link job complete');
     },
     { connection: redis, concurrency: 2 }
   );

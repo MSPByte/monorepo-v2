@@ -6,3 +6,4 @@ export * from './config/alerts/index.js';
 export * from './connectors/index.js';
 export * from './utils/encryption.js';
 export * from './lib/auth.js';
+export * from './pipeline/flow-builder.js';

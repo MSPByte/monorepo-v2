@@ -9,6 +9,7 @@ import { integrationsRouter } from './routers/integrations.js';
 import { integrationLinksRouter } from './routers/integration-links.js';
 import { vendorRouter } from './routers/vendor.js';
 import { agentsRouter } from './routers/agents.js';
+import { pipelineRouter } from './routers/pipeline.js';
 
 export const appRouter = t.router({
   auth: authRouter,
@@ -20,7 +21,8 @@ export const appRouter = t.router({
   integrations: integrationsRouter,
   integrationLinks: integrationLinksRouter,
   vendor: vendorRouter,
-  agents: agentsRouter
+  agents: agentsRouter,
+  pipeline: pipelineRouter,
 });
 
 export type AppRouter = typeof appRouter;

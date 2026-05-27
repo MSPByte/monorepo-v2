@@ -2,13 +2,14 @@ import { verifyToken } from '@clerk/backend';
 import { TRPCError } from '@trpc/server';
 import { getTenantDbByClerkOrg } from '@mspbyte/drizzle-catalog';
 import { createMspServiceDb } from '@mspbyte/drizzle/clients';
+import type { Redis } from 'ioredis';
 
 // Generic enough for both Fastify and other HTTP frameworks
 interface IncomingRequest {
   headers: Record<string, string | string[] | undefined>;
 }
 
-export async function createContext({ req }: { req: IncomingRequest }) {
+export async function createContext({ req, redis }: { req: IncomingRequest; redis?: Redis }) {
   const authHeader = req.headers.authorization;
   const raw = Array.isArray(authHeader) ? authHeader[0] : authHeader;
   if (!raw?.startsWith('Bearer ')) {
@@ -46,7 +47,7 @@ export async function createContext({ req }: { req: IncomingRequest }) {
 
   const { org } = result;
   const db = await createMspServiceDb(org.serviceConnectionString);
-  return { userId, orgId, db, org, connectionString: org.serviceConnectionString };
+  return { userId, orgId, db, org, connectionString: org.serviceConnectionString, redis };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
