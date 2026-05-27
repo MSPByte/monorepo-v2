@@ -9,11 +9,25 @@ import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
 
 const RAW_LOG_ENABLED = process.env.PIPELINE_RAW_LOG === 'true';
+const PRE_FETCH_TIMEOUT_MS = 30_000;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const result: T[][] = [];
   for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
   return result;
+}
+
+async function withTimeout<T>(label: string, promise: Promise<T>, timeoutMs = PRE_FETCH_TIMEOUT_MS): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export function createFetchWorker(redis: Redis) {
@@ -36,12 +50,51 @@ export function createFetchWorker(redis: Redis) {
         'Fetch job started'
       );
 
-      let { db } = await getTenantServiceDb(data.orgId);
-      const stageId = await startStage(db, data.syncRunId, data.provider, 'fetch', data.facet, job.id ?? data.ingestRunId);
+      let tenant: Awaited<ReturnType<typeof getTenantServiceDb>>;
+      try {
+        tenant = await withTimeout(
+          'Tenant service DB lookup',
+          getTenantServiceDb(data.orgId)
+        );
+      } catch (err) {
+        logger.error(
+          { linkId: data.linkId, provider: data.provider, facet: data.facet, orgId: data.orgId, err },
+          'Fetch failed before tenant DB resolved'
+        );
+        throw err;
+      }
+      logger.info(
+        { linkId: data.linkId, provider: data.provider, facet: data.facet, orgId: data.orgId },
+        'Fetch tenant DB resolved'
+      );
+
+      const { db } = tenant;
+      let stageId: string;
+      try {
+        stageId = await withTimeout(
+          'Fetch stage start',
+          startStage(db, data.syncRunId, data.provider, 'fetch', data.facet, job.id ?? data.ingestRunId)
+        );
+      } catch (err) {
+        logger.error(
+          { linkId: data.linkId, provider: data.provider, facet: data.facet, syncRunId: data.syncRunId, err },
+          'Fetch failed before stage started'
+        );
+        throw err;
+      }
+      logger.info(
+        { linkId: data.linkId, provider: data.provider, facet: data.facet, stageId },
+        'Fetch stage started'
+      );
 
       let batchIndex = 0;
       try {
         for await (const page of adapter.fetchFacet(data.linkId, data.facet, data.cursor, ctx)) {
+          logger.info(
+            { linkId: data.linkId, provider: data.provider, facet: data.facet, records: (page as unknown[]).length },
+            'Fetch page received'
+          );
+
           const batches = chunk(page as unknown[], 100);
           for (const batch of batches) {
             await normalizeQueue.add(

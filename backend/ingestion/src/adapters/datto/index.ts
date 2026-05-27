@@ -78,6 +78,8 @@ export const dattoAdapter: ProviderAdapter<DattoDevice, Record<string, unknown>>
       apiKey,
       Encryption.decrypt(apiSecretKey, env.ENCRYPTION_KEY) ?? ''
     );
+
+    logger.info({ linkId, siteUid }, 'DattoRMM devices fetch requested');
     const devices = await connector.site.devices(siteUid);
 
     logger.info({ linkId, count: devices.length }, 'DattoRMM devices fetched');

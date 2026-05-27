@@ -1,5 +1,7 @@
 import { DattoHttpClient } from './http-client.js';
 
+const MAX_PAGES = 500;
+
 type PagedResponse<TKey extends string, TItem> = {
   [K in TKey]: TItem[];
 } & { pageDetails?: { nextPageUrl?: string } };
@@ -88,7 +90,20 @@ export class DattoConnector {
   ): Promise<T[]> {
     const items: T[] = [];
     let nextUrl: string | null = path;
+    const seenUrls = new Set<string>();
+    let pageCount = 0;
+
     while (nextUrl) {
+      if (seenUrls.has(nextUrl)) {
+        throw new Error(`DattoRMM pagination loop detected at ${nextUrl}`);
+      }
+      if (pageCount >= MAX_PAGES) {
+        throw new Error(`DattoRMM pagination exceeded ${MAX_PAGES} pages for ${path}`);
+      }
+
+      seenUrls.add(nextUrl);
+      pageCount++;
+
       const page: PagedResponse<TKey, T> = await this.client.get<PagedResponse<TKey, T>>(nextUrl);
       const pageItems = page[key];
       if (Array.isArray(pageItems)) items.push(...pageItems);

@@ -6,9 +6,9 @@ function makeDb(identities: unknown[]) {
   return {
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(identities),
-      }),
-    }),
+        where: vi.fn().mockResolvedValue(identities)
+      })
+    })
   } as unknown as CheckInput['db'];
 }
 
@@ -21,8 +21,14 @@ describe('mfaEnforcedCheck', () => {
 
   it('returns a detection for each user without MFA', async () => {
     const users = [
-      { externalId: 'u1', email: 'alice@example.com', name: 'Alice', enabled: true, mfaEnforced: false, tenantId: 'tenant-1' },
-      { externalId: 'u2', email: 'bob@example.com', name: 'Bob', enabled: true, mfaEnforced: false, tenantId: 'tenant-1' },
+      {
+        externalId: 'u1',
+        email: 'alice@example.com',
+        name: 'Alice',
+        enabled: true,
+        mfaEnforced: false
+      },
+      { externalId: 'u2', email: 'bob@example.com', name: 'Bob', enabled: true, mfaEnforced: false }
     ];
     const db = makeDb(users);
     const results = await mfaEnforcedCheck.evaluate({ db });
@@ -44,7 +50,13 @@ describe('mfaEnforcedCheck', () => {
 
   it('detection includes correct entity details', async () => {
     const users = [
-      { externalId: 'u3', email: 'carol@example.com', name: 'Carol', enabled: true, mfaEnforced: false, tenantId: 'tenant-1' },
+      {
+        externalId: 'u3',
+        email: 'carol@example.com',
+        name: 'Carol',
+        enabled: true,
+        mfaEnforced: false
+      }
     ];
     const db = makeDb(users);
     const [detection] = await mfaEnforcedCheck.evaluate({ db });

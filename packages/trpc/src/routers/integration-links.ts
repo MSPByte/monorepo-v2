@@ -3,7 +3,7 @@ import { integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
 import { eq, and, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { FlowProducer } from 'bullmq';
-import { PROVIDER_FACETS, buildLinkFlow } from '@mspbyte/shared';
+import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
 import { t, authProcedure } from '../trpc.js';
 
 type IntegrationLinkRow = typeof integrationLinks.$inferSelect;
@@ -112,8 +112,8 @@ async function triggerLinkSync(
   meta: Record<string, unknown> | null
 ): Promise<void> {
   try {
-    const facets = PROVIDER_FACETS[integrationId] ?? [];
-    if (facets.length === 0) return;
+    const providerFacets = getProviderFacets(integrationId);
+    if (providerFacets.length === 0) return;
 
     const [integrationRow] = await ctx.db
       .select({ config: integrations.config })
@@ -122,6 +122,14 @@ async function triggerLinkSync(
       .limit(1);
 
     const integrationConfig = (integrationRow?.config as Record<string, unknown> | null) ?? {};
+    const { facets } = resolveFacetPlan({
+      providerId: integrationId,
+      integrationConfig,
+      linkMeta: meta ?? {},
+      force: true,
+    });
+    if (facets.length === 0) return;
+
     const ingestRunId = crypto.randomUUID();
 
     const [syncRunRow] = await ctx.db

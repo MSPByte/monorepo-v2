@@ -1,6 +1,6 @@
 import { QUEUES } from '../types/queues.js';
 import { PROVIDER_IDS } from '../constants.js';
-import type { ProviderFacet } from '../libs/provider.js';
+import { ProviderFacet } from '../libs/provider.js';
 import type {
   FetchJobData,
   AlertsJobData,
@@ -70,11 +70,20 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
 
   const rootOpts = { jobId: `ingest_${linkId}`, removeOnComplete: 5, removeOnFail: 10 };
 
-  if (provider === PROVIDER_IDS.M365) {
+  const needsM365IdentityPostProcess =
+    provider === PROVIDER_IDS.M365 &&
+    facets.some((facet) => [
+      ProviderFacet.M365Identities,
+      ProviderFacet.M365Groups,
+      ProviderFacet.M365CAPolicies,
+    ].includes(facet));
+
+  if (needsM365IdentityPostProcess) {
     const linkData: LinkJobData = {
       linkId,
       orgId,
       provider,
+      facets,
       ingestRunId,
       syncRunId,
       linkMeta: resolvedMeta,
@@ -84,6 +93,7 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
       linkId,
       orgId,
       provider,
+      facets,
       ingestRunId,
       syncRunId,
       linkMeta: resolvedMeta,

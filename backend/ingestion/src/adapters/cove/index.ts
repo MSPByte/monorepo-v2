@@ -80,6 +80,8 @@ export const coveAdapter: ProviderAdapter<CoveAccountStatistics, Record<string, 
       clientId,
       Encryption.decrypt(clientSecret, env.ENCRYPTION_KEY) ?? ''
     );
+
+    logger.info({ linkId, partnerId }, 'Cove endpoints fetch requested');
     const rows = await connector.account.statistics(partnerId);
 
     logger.info({ linkId, count: rows.length }, 'Cove endpoints fetched');

@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '../http-timeout.js';
+
 // Hardcoded per Datto RMM OAuth spec — the client always uses public-client:public
 const BASIC_AUTH = 'Basic ' + btoa('public-client:public');
 
@@ -35,7 +37,7 @@ export class DattoHttpClient {
   }
 
   private async fetchToken(): Promise<TokenEntry> {
-    const res = await fetch(`${this.baseUrl}/auth/oauth/token`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/auth/oauth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -64,7 +66,7 @@ export class DattoHttpClient {
   async get<T>(url: string): Promise<T> {
     const token = await this.getToken();
     const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
-    const res = await fetch(fullUrl, {
+    const res = await fetchWithTimeout(fullUrl, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     });
     if (res.status === 401) {
@@ -85,7 +87,7 @@ export class DattoHttpClient {
   async post<T>(url: string, body: unknown): Promise<T> {
     const token = await this.getToken();
     const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
-    const res = await fetch(fullUrl, {
+    const res = await fetchWithTimeout(fullUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -97,7 +99,7 @@ export class DattoHttpClient {
   async put<T>(url: string, body: unknown): Promise<T> {
     const token = await this.getToken();
     const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
-    const res = await fetch(fullUrl, {
+    const res = await fetchWithTimeout(fullUrl, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

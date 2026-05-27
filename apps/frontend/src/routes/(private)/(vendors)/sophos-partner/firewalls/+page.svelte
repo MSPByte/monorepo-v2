@@ -68,7 +68,6 @@
   <div class="flex flex-col size-full overflow-hidden p-4">
     <VendorDataTable
       table="sophos_firewalls"
-      tenantId={scopeStore.currentSite}
       linkId={currentLink}
       {columns}
       onrowclick={(row) => (drawerFirewall = drawerFirewall?.['id'] === row['id'] ? null : row)}

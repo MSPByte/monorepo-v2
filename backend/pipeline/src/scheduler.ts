@@ -3,9 +3,8 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { createCatalogDb } from '@mspbyte/drizzle-catalog';
 import { orgs } from '@mspbyte/drizzle-catalog/catalog';
 import { createMspDb, integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
-import { PROVIDER_FACETS } from '@mspbyte/shared';
-import { buildLinkFlow } from '@mspbyte/shared';
-import type { PipelineFlowJob } from '@mspbyte/shared';
+import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
+import type { PipelineFlowJob, ProviderFacet } from '@mspbyte/shared';
 import { logger } from './logger.js';
 import { hasActiveRun, getSyncContexts, isLinkHealthy, decideFacetMode } from './sync-context.js';
 import type { Redis } from 'ioredis';
@@ -31,8 +30,8 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
 
     for (const { link, integrationConfig, credentialExpiration } of rows) {
       const providerId = link.integrationId;
-      const facets = PROVIDER_FACETS[providerId] ?? [];
-      if (facets.length === 0) continue;
+      const providerFacets = getProviderFacets(providerId);
+      if (providerFacets.length === 0) continue;
 
       // Skip if credentials are expired
       if (credentialExpiration && credentialExpiration < new Date()) {
@@ -55,15 +54,26 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
         continue;
       }
 
+      const ingestRunId = crypto.randomUUID();
+      const linkMeta = (link.meta as Record<string, unknown> | null) ?? {};
+      const config = (integrationConfig as Record<string, unknown> | null) ?? {};
+      const { facets, skipped } = resolveFacetPlan({
+        providerId,
+        contexts,
+        integrationConfig: config,
+        linkMeta,
+      });
+
+      if (facets.length === 0) {
+        logger.debug({ orgId: org.id, linkId: link.id, provider: providerId, skipped }, 'Skipping link: no facets due');
+        continue;
+      }
+
       const facetCursors: Record<string, string | undefined> = {};
       for (const facet of facets) {
         const { cursor } = decideFacetMode(contexts, facet);
         facetCursors[facet] = cursor;
       }
-
-      const ingestRunId = crypto.randomUUID();
-      const linkMeta = (link.meta as Record<string, unknown> | null) ?? {};
-      const config = (integrationConfig as Record<string, unknown> | null) ?? {};
 
       // Create a sync_runs record before enqueuing so workers can reference it
       const [syncRunRow] = await mspDb
@@ -114,7 +124,8 @@ export async function scheduleLink(
   mspConnectionString: string,
   orgId: string,
   linkId: string,
-  mode: 'full' | 'replay' = 'full'
+  mode: 'full' | 'replay' = 'full',
+  options: { facets?: ProviderFacet[]; includeDependencies?: boolean; force?: boolean } = {}
 ) {
   const mspDb = createMspDb(mspConnectionString);
   const flow = new FlowProducer({ connection: redis });
@@ -130,12 +141,21 @@ export async function scheduleLink(
   if (!row) throw new Error(`Integration link not found: ${linkId}`);
 
   const providerId = row.link.integrationId;
-  const facets = PROVIDER_FACETS[providerId] ?? [];
-  if (facets.length === 0) throw new Error(`No facets registered for provider: ${providerId}`);
+  const providerFacets = getProviderFacets(providerId);
+  if (providerFacets.length === 0) throw new Error(`No facets registered for provider: ${providerId}`);
 
   const ingestRunId = crypto.randomUUID();
   const linkMeta = (row.link.meta as Record<string, unknown> | null) ?? {};
   const config = (row.integrationConfig as Record<string, unknown> | null) ?? {};
+  const { facets } = resolveFacetPlan({
+    providerId,
+    integrationConfig: config,
+    linkMeta,
+    requestedFacets: options.facets,
+    includeDependencies: options.includeDependencies,
+    force: options.force ?? true,
+  });
+  if (facets.length === 0) throw new Error(`No enabled facets selected for provider: ${providerId}`);
 
   const [syncRunRow] = await mspDb
     .insert(syncRuns)

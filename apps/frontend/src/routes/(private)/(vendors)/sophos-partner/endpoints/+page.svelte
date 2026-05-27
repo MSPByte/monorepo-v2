@@ -72,7 +72,6 @@
   <div class="flex flex-col size-full overflow-hidden p-4">
     <VendorDataTable
       table="sophos_endpoints"
-      tenantId={scopeStore.currentSite}
       linkId={currentLink}
       {columns}
       onrowclick={(row) => (drawerEndpoint = row)}

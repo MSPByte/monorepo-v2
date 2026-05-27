@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '../http-timeout.js';
+
 export interface CoveRpcError {
   code: number;
   message: string;
@@ -36,7 +38,7 @@ export class CoveHttpClient {
   }
 
   private async fetchVisa(): Promise<string> {
-    const res = await fetch(this.server, {
+    const res = await fetchWithTimeout(this.server, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -67,7 +69,7 @@ export class CoveHttpClient {
 
   async rpc<T>(method: string, params: unknown): Promise<T> {
     const visa = await this.getVisa();
-    const res = await fetch(this.server, {
+    const res = await fetchWithTimeout(this.server, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 'jsonrpc', visa, method, params })

@@ -40,6 +40,7 @@ export type LinkJobData = {
   linkId: string;
   orgId: string;
   provider: string;
+  facets?: ProviderFacet[];
   ingestRunId: string;
   syncRunId: string;
   linkMeta?: Record<string, unknown>;
@@ -50,6 +51,7 @@ export type EnrichJobData = {
   linkId: string;
   orgId: string;
   provider: string;
+  facets?: ProviderFacet[];
   ingestRunId: string;
   syncRunId: string;
   linkMeta?: Record<string, unknown>;

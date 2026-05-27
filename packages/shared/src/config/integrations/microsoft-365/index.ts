@@ -19,6 +19,10 @@ export const M365_INTEGRATION_CONFIG: Integration = {
       facet: ProviderFacet.M365Identities,
       scopeLevel: 'link',
       db: { table: 'm365Identities', shape: {} },
+      sync: {
+        intervalMs: 60 * 60 * 1000,
+        dependencies: [ProviderFacet.M365CAPolicies, ProviderFacet.M365Groups],
+      },
     },
     {
       facet: ProviderFacet.M365AuthMethods,
@@ -64,6 +68,7 @@ export const M365_INTEGRATION_CONFIG: Integration = {
       facet: ProviderFacet.M365TeamsConfig,
       scopeLevel: 'link',
       db: { table: 'm365TeamsConfig', shape: {} },
+      sync: { intervalMs: 24 * 60 * 60 * 1000 },
     },
     {
       facet: ProviderFacet.M365RiskyUsers,

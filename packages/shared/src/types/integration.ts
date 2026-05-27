@@ -10,10 +10,17 @@ export type DbRoute = {
   shape: SchemaFields;
 };
 
+export type FacetSyncConfig = {
+  enabled?: boolean;
+  intervalMs?: number;
+  dependencies?: ProviderFacet[];
+};
+
 export type IngestTypeConfig = {
   facet: ProviderFacet;
   scopeLevel: IntegrationScope;
   db?: DbRoute;
+  sync?: FacetSyncConfig;
 };
 
 export type IntegrationNavItem = {

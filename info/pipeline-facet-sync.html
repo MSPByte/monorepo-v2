@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pipeline Facet Sync Scheduling</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        line-height: 1.55;
+      }
+
+      body {
+        margin: 0;
+        background: Canvas;
+        color: CanvasText;
+      }
+
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 48px 24px 72px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 2rem;
+      }
+
+      h2 {
+        margin-top: 40px;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+      }
+
+      h3 {
+        margin-top: 28px;
+      }
+
+      p,
+      li {
+        max-width: 78ch;
+      }
+
+      code,
+      pre {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.95em;
+      }
+
+      code {
+        padding: 0.1rem 0.25rem;
+        border-radius: 4px;
+        background: color-mix(in srgb, CanvasText 9%, transparent);
+      }
+
+      pre {
+        overflow-x: auto;
+        padding: 16px;
+        border-radius: 8px;
+        background: color-mix(in srgb, CanvasText 8%, transparent);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: color-mix(in srgb, CanvasText 7%, transparent);
+      }
+
+      .summary {
+        margin: 0 0 28px;
+        color: color-mix(in srgb, CanvasText 72%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Pipeline Facet Sync Scheduling</h1>
+      <p class="summary">
+        Notes for how integration facets are scheduled, how dependencies are included, and how
+        per-integration or per-link cadence overrides are configured.
+      </p>
+
+      <h2>What Changed</h2>
+      <p>
+        The pipeline no longer has to enqueue every facet for an integration link on every
+        scheduler tick. Scheduled runs now resolve a facet plan first, using each facet's
+        configured interval, dependency list, previous <code>sync_context.last_success_at</code>,
+        and any JSON overrides stored on the integration or integration link.
+      </p>
+      <p>
+        Manual queueing through the development dashboard can target a specific integration link
+        and a specific set of facets. When dependency inclusion is enabled, the planner adds the
+        required upstream facets automatically.
+      </p>
+
+      <h2>Important Files</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>packages/shared/src/pipeline/sync-plan.ts</code></td>
+            <td>Shared planner that decides which facets should run.</td>
+          </tr>
+          <tr>
+            <td><code>packages/shared/src/types/integration.ts</code></td>
+            <td>Defines <code>FacetSyncConfig</code> and the optional <code>sync</code> field.</td>
+          </tr>
+          <tr>
+            <td><code>packages/shared/src/config/integrations/*/index.ts</code></td>
+            <td>Provider-level facet definitions and default sync policy.</td>
+          </tr>
+          <tr>
+            <td><code>backend/pipeline/src/scheduler.ts</code></td>
+            <td>Scheduled pipeline entry point; calls <code>resolveFacetPlan</code>.</td>
+          </tr>
+          <tr>
+            <td><code>packages/trpc/src/routers/pipeline.ts</code></td>
+            <td>Manual queue API for targeted facet runs.</td>
+          </tr>
+          <tr>
+            <td><code>apps/frontend/src/routes/(private)/(core)/setup/pipeline/+page.svelte</code></td>
+            <td>Development dashboard for selecting links and facets.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Provider Defaults</h2>
+      <p>
+        Provider defaults live beside the integration config. Add <code>sync</code> to an item in
+        <code>supportedFacets</code>.
+      </p>
+      <pre><code>{
+  facet: ProviderFacet.M365Identities,
+  scopeLevel: 'link',
+  db: { table: 'm365Identities', shape: {} },
+  sync: {
+    intervalMs: 60 * 60 * 1000,
+    dependencies: [ProviderFacet.M365CAPolicies, ProviderFacet.M365Groups],
+  },
+}</code></pre>
+
+      <p>
+        If a facet does not define <code>sync.intervalMs</code>, the planner uses
+        <code>FULL_SYNC_INTERVAL_MS</code>, currently 24 hours.
+      </p>
+
+      <h2>Override Precedence</h2>
+      <p>The planner merges configuration in this order:</p>
+      <ol>
+        <li>Provider default from <code>supportedFacets[].sync</code>.</li>
+        <li>Integration-level JSON from <code>integrations.config.pipeline</code>.</li>
+        <li>Link/customer-level JSON from <code>integration_links.meta.pipeline</code>.</li>
+      </ol>
+      <p>
+        Later values override earlier values. This lets the platform define sane defaults while a
+        specific customer link can run more or less often.
+      </p>
+
+      <h2>Integration-Level Override</h2>
+      <p>
+        Use <code>integrations.config</code> when all links for a provider should share the same
+        cadence.
+      </p>
+      <pre><code>{
+  "pipeline": {
+    "facets": {
+      "m365_identities": {
+        "intervalMs": 3600000,
+        "dependencies": ["m365_ca_policies", "m365_groups"]
+      },
+      "m365_teams_config": {
+        "intervalMs": 86400000
+      }
+    }
+  }
+}</code></pre>
+
+      <h2>Per-Customer / Per-Link Override</h2>
+      <p>
+        Use <code>integration_links.meta</code> when one customer or one link needs different timing.
+        This is the preferred place for customer-specific exceptions.
+      </p>
+      <pre><code>{
+  "pipeline": {
+    "facets": {
+      "m365_identities": {
+        "intervalMs": 900000
+      },
+      "m365_teams_config": {
+        "intervalMs": 172800000
+      }
+    }
+  }
+}</code></pre>
+
+      <h2>Disabling A Facet</h2>
+      <p>
+        A facet can be disabled at the integration or link level. Disabled facets are skipped by
+        scheduled runs and are filtered out of manual plans.
+      </p>
+      <pre><code>{
+  "pipeline": {
+    "facets": {
+      "m365_teams_config": {
+        "enabled": false
+      }
+    }
+  }
+}</code></pre>
+
+      <h2>Dependency Behavior</h2>
+      <p>
+        Dependencies are declared by the facet that needs upstream data. For example,
+        <code>m365_identities</code> depends on <code>m365_ca_policies</code> and
+        <code>m365_groups</code> so MFA enrichment has the policy and group data it needs.
+      </p>
+      <p>
+        During scheduled runs, if a facet is due, its dependencies are added to the same run. During
+        manual runs from the development dashboard, dependencies are added when the
+        <code>Include dependencies</code> option is enabled.
+      </p>
+
+      <h2>Manual Development Queueing</h2>
+      <p>
+        The development dashboard is available at <code>/setup/pipeline</code>. It lets a developer:
+      </p>
+      <ul>
+        <li>Select an integration provider.</li>
+        <li>Select an active integration link.</li>
+        <li>Select one or more facets.</li>
+        <li>Choose whether dependencies should be included.</li>
+        <li>Force a run regardless of the configured interval.</li>
+      </ul>
+
+      <p>The TRPC mutation accepts the same inputs:</p>
+      <pre><code>trpc.pipeline.replay.mutate({
+  linkId,
+  mode: 'full',
+  facets: ['m365_identities'],
+  includeDependencies: true,
+  force: true
+});</code></pre>
+
+      <h2>Operational Notes</h2>
+      <ul>
+        <li>
+          The scheduler still respects link-wide active-run protection. A pending or running sync
+          run for the same link can prevent another scheduled run from being queued.
+        </li>
+        <li>
+          Facet completion is tracked in <code>sync_context</code>. The scheduler uses
+          <code>last_success_at</code> to decide whether a scheduled facet is due.
+        </li>
+        <li>
+          Current sync mode is still effectively full sync. Cursor/incremental support is scaffolded
+          but not active.
+        </li>
+        <li>
+          After changing shared package code used by workers, rebuild the relevant packages and
+          restart the running worker process.
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>

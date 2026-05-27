@@ -43,7 +43,6 @@
     queryFn: () =>
       trpc.vendor.tableData.query({
         table: 'sophos_licenses',
-        tenantId: scopeStore.currentSite!,
         linkId: currentLink!,
         page: 1,
         pageSize: 500,
@@ -192,7 +191,6 @@
     <div class="flex-1 overflow-hidden p-4 min-h-0">
       <VendorDataTable
         table="sophos_licenses"
-        tenantId={scopeStore.currentSite}
         linkId={currentLink}
         {columns}
       />

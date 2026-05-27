@@ -37,7 +37,6 @@
     queryFn: () =>
       trpc.vendor.tableData.query({
         table: 'datto_endpoints',
-        tenantId: scopeStore.currentSite!,
         linkId: currentLink!,
         page: 1,
         pageSize: 1000,
