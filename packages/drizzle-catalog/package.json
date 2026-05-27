@@ -1,0 +1,36 @@
+{
+  "name": "@mspbyte/drizzle-catalog",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./*": {
+      "types": "./src/*/index.ts",
+      "import": "./src/*/index.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc --noEmit",
+    "db:pull": "drizzle-kit pull",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "npx run src/migrate.ts",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@mspbyte/drizzle": "*",
+    "@neondatabase/serverless": "^1.0.2",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "typescript": "^5.4.0"
+  }
+}

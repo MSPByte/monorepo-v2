@@ -1,0 +1,30 @@
+{
+  "name": "@mspbyte/trpc",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "tsc --watch -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mspbyte/drizzle": "*",
+    "@mspbyte/drizzle-catalog": "*",
+    "@mspbyte/shared": "*",
+    "@clerk/backend": "^1.26.0",
+    "@trpc/server": "^11.4.2",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "typescript": "^5.4.0"
+  }
+}
