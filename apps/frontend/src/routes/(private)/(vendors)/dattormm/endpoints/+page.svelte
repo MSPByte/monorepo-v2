@@ -7,6 +7,8 @@
   import type { DataTableColumn } from '$lib/components/data-table/types';
   import VendorDataTable from '$lib/components/data-table/VendorDataTable.svelte';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
+    import { relativeDateColumn } from "$lib/components/data-table";
+    import { boolBadgeColumn, nullableTextColumn, stateColumn, textColumn } from "$lib/components/data-table/column-defs";
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -26,14 +28,13 @@
   const currentLink = $derived(siteLinkQuery.data?.[0]?.id ?? null);
 
   const columns: DataTableColumn<EndpointRow>[] = [
-    { key: 'online', title: 'Status', width: '80px' },
-    { key: 'hostname', title: 'Hostname', sortable: true },
-    { key: 'category', title: 'Category', width: '120px', sortable: true },
-    { key: 'os', title: 'OS', width: '160px', sortable: true },
-    { key: 'ip_address', title: 'IP Address', width: '130px' },
-    { key: 'ext_address', title: 'External IP', width: '130px' },
-    { key: 'last_heartbeat_at', title: 'Last Heartbeat', width: '140px', sortable: true },
-    { key: 'last_reboot_at', title: 'Last Reboot', width: '130px', sortable: true },
+    textColumn('hostname', 'Hostname'),
+    textColumn('category', 'Category'),
+    textColumn('os', 'OS'),
+    nullableTextColumn('ipAddress', 'IP Address'),
+    nullableTextColumn('extAddress', 'External IP'),
+    relativeDateColumn('lastHeartbeatAt', 'Last Heartbeat'),
+    relativeDateColumn('lastRebootAt', 'Last Reboot')
   ];
 
   let drawerEndpoint = $state<EndpointRow | null>(null);
@@ -76,7 +77,6 @@
   <div class="flex flex-col size-full overflow-hidden p-4">
     <VendorDataTable
       table="datto_endpoints"
-      tenantId={scopeStore.currentSite}
       linkId={currentLink}
       {columns}
       onrowclick={(row) => (drawerEndpoint = row)}
@@ -139,10 +139,10 @@
             {#each [
               { label: 'OS', value: ep['os'] },
               { label: 'Category', value: ep['category'] },
-              { label: 'IP Address', value: ep['ip_address'] },
-              { label: 'External IP', value: ep['ext_address'] },
-              { label: 'Last Heartbeat', value: absoluteDate(ep['last_heartbeat_at'] as string | null) },
-              { label: 'Last Reboot', value: absoluteDate(ep['last_reboot_at'] as string | null) },
+              { label: 'IP Address', value: ep['ipAddress'] },
+              { label: 'External IP', value: ep['extAddress'] },
+              { label: 'Last Heartbeat', value: absoluteDate(ep['lastHeartbeatAt'] as string | null) },
+              { label: 'Last Reboot', value: absoluteDate(ep['lastReboootAt'] as string | null) },
             ] as item}
               <div>
                 <div class="text-muted-foreground mb-0.5">{item.label}</div>

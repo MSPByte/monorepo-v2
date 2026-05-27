@@ -6,6 +6,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
 
+  const integrationIds = new Set(Object.keys(INTEGRATIONS) as ProviderId[]);
+
   const options = $derived(
     scopeStore.activeIntegrations
       .filter((a) => INTEGRATIONS[a.id as ProviderId]?.navigation?.length > 0)
@@ -21,17 +23,22 @@
       goto(`/${v}`);
     } else {
       scopeStore.currentIntegration = null;
-      goto('/home')
+      goto('/home');
     }
-  }
+  };
+
+  const getRouteIntegration = (pathname: string) => {
+    const urlPart = pathname.split('/')[1] as ProviderId | undefined;
+
+    return urlPart && integrationIds.has(urlPart) ? urlPart : null;
+  };
+
+  const syncIntegrationFromPath = (pathname: string) => {
+    scopeStore.currentIntegration = getRouteIntegration(pathname);
+  };
 
   $effect(() => {
-    const urlPart = page.url.pathname.split('/')[1];
-    if (!Object.keys(INTEGRATIONS).includes(urlPart)) {
-      scopeStore.currentIntegration = null;
-    } else {
-      scopeStore.currentIntegration = urlPart as ProviderId;
-    }
+    syncIntegrationFromPath(page.url.pathname);
   });
 </script>
 

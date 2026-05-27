@@ -41,7 +41,7 @@ function createScopeStore() {
       return currentSiteId.current;
     },
     get currentIntegration() {
-      return currentIntegration.current;
+      return currentIntegration.current || null;
     },
     get activeIntegrations() {
       return activeIntegrations.current;
@@ -53,7 +53,7 @@ function createScopeStore() {
       currentLinkId.current = v;
     },
     set currentIntegration(v: ProviderId | null) {
-      currentIntegration.current = v;
+      currentIntegration.current = (v ?? '') as ProviderId;
     },
     set activeIntegrations(v: Integration[]) {
       activeIntegrations.current = v;
