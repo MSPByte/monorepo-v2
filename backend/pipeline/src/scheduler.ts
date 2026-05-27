@@ -71,7 +71,7 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
         .values({
           linkId: link.id,
           integrationId: providerId,
-          bullmqJobId: `ingest:${link.id}`,
+          bullmqJobId: `ingest_${link.id}`,
           type: triggerType,
           status: 'pending',
           mode: 'full',
@@ -142,7 +142,7 @@ export async function scheduleLink(
     .values({
       linkId,
       integrationId: providerId,
-      bullmqJobId: `ingest:${linkId}`,
+      bullmqJobId: `ingest_${linkId}`,
       type: mode === 'replay' ? 'replay' : 'manual',
       status: 'pending',
       mode: 'full',

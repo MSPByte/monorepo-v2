@@ -68,7 +68,7 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
     mode,
   };
 
-  const rootOpts = { jobId: `ingest:${linkId}`, removeOnComplete: 5, removeOnFail: 10 };
+  const rootOpts = { jobId: `ingest_${linkId}`, removeOnComplete: 5, removeOnFail: 10 };
 
   if (provider === PROVIDER_IDS.M365) {
     const linkData: LinkJobData = {

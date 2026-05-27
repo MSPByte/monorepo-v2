@@ -62,7 +62,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       }
     } catch { /* non-fatal — fall back to env vars */ }
 
-    // Scoped to GDAP tenant (MSP client credentials + target tenantId)
+    // Scoped to the selected customer tenant (MSP client credentials + target tenantId)
     const connector = new M365Connector(clientId, clientSecret, gdapTenantId);
 
     // 1. Assign directory roles (non-fatal)

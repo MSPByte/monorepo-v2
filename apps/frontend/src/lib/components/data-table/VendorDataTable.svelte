@@ -1,5 +1,6 @@
 <script lang="ts" generics="TData extends Record<string, unknown>">
   import { getContext } from 'svelte';
+  import { useQueryClient } from '@tanstack/svelte-query';
   import type { DataTableColumn, PaginationInput, TableFilter } from './types';
   import DataTable from './data-table.svelte';
   import type { createTrpcClient } from '$lib/trpc';
@@ -32,6 +33,7 @@
   }: Props = $props();
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
   function mapOperator(op: TableFilter['operator']): FilterOperatorMapped | null {
     switch (op) {
@@ -61,7 +63,7 @@
 
     const searchableColumns = columns.filter((c) => c.searchable).map((c) => c.key);
 
-    const result = await trpc.vendor.tableData.query({
+    const queryInput = {
       table,
       linkId,
       page: input.page + 1,
@@ -71,6 +73,11 @@
       filters: mappedFilters,
       globalSearch: input.globalSearch || undefined,
       globalSearchColumns: searchableColumns.length > 0 ? searchableColumns : undefined,
+    };
+
+    const result = await queryClient.fetchQuery({
+      queryKey: ['vendor.tableData', queryInput],
+      queryFn: () => trpc.vendor.tableData.query(queryInput),
     });
 
     return { rows: result.rows as TData[], total: result.total };

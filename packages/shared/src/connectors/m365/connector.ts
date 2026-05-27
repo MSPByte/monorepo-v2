@@ -162,7 +162,7 @@ export class M365Connector {
       delegatedAdminRelationships: {
         listAll: () =>
           this.client.getAll<DelegatedAdminRelationship>(
-            "https://graph.microsoft.com/v1.0/tenantRelationships/delegatedAdminRelationships?$filter=status eq 'Active'&$select=id,customer,status"
+            'https://graph.microsoft.com/v1.0/tenantRelationships/delegatedAdminRelationships'
           )
       }
     };

@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import { Queue } from 'bullmq';
 import { scheduleIngestion } from './scheduler.js';
+import { recoverOrphanedRuns } from './recovery.js';
 import { logger } from './logger.js';
 import { env } from './env.js';
 
@@ -20,6 +21,14 @@ await schedulerQueue.upsertJobScheduler(
 );
 
 logger.info({ cron: env.SCHEDULE_CRON }, 'BullMQ repeatable job registered');
+
+// Recover any sync_runs orphaned by a Redis reset or crash before scheduling
+try {
+  await recoverOrphanedRuns(redis);
+  logger.info('Orphaned run recovery complete');
+} catch (err) {
+  logger.error({ err }, 'Orphaned run recovery failed — proceeding with scheduling');
+}
 
 // Also run immediately on startup
 try {

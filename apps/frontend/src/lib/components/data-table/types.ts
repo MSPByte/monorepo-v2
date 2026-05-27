@@ -106,6 +106,7 @@ export interface DataTableProps<TData> {
     opts: PaginationInput,
   ) => Promise<{ rows: TData[]; total: number }>;
   columns: DataTableColumn<TData>[];
+  loading?: boolean;
 
   // Features
   enableRowSelection?: boolean;

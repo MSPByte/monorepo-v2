@@ -1,17 +1,12 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { useQueryClient } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
   import { DataTable } from '$lib/components/data-table';
   import type { DataTableColumn, PaginationInput } from '$lib/components/data-table/types';
 
-  // TODO: Initial load shows nothing
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
-
-  const rolesQuery = createQuery(() => ({
-    queryKey: ['roles.list'],
-    queryFn: () => trpc.roles.list.query(),
-  }));
+  const queryClient = useQueryClient();
 
   type RoleRow = {
     id: string;
@@ -25,8 +20,12 @@
     { key: 'description', title: 'Description', searchable: true },
   ];
 
-  function fetchData(opts: PaginationInput): Promise<{ rows: RoleRow[]; total: number }> {
-    const raw = rolesQuery.data ?? [];
+  async function fetchData(opts: PaginationInput): Promise<{ rows: RoleRow[]; total: number }> {
+    const raw = await queryClient.fetchQuery({
+      queryKey: ['roles.list'],
+      queryFn: () => trpc.roles.list.query(),
+    });
+
     const rows: RoleRow[] = raw.map((r) => ({
       id: r.id,
       name: r.name,
