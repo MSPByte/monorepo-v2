@@ -7,6 +7,7 @@ export type IntegrationScope = 'site' | 'link';
 
 export type DbRoute = {
   table: string;
+  name: string;
   shape: SchemaFields;
 };
 

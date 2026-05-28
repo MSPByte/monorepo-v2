@@ -7,7 +7,7 @@ export const M365PoliciesShape: SchemaFields = {
     modality: 'single',
     trackable: true,
     ingestPath: 'name',
-    required: true,
+    required: true
   },
   description: {
     label: 'Description',
@@ -15,7 +15,7 @@ export const M365PoliciesShape: SchemaFields = {
     modality: 'single',
     trackable: false,
     ingestPath: 'description',
-    required: false,
+    required: false
   },
   state: {
     label: 'State',
@@ -27,8 +27,8 @@ export const M365PoliciesShape: SchemaFields = {
     options: [
       { label: 'Enabled', value: 'enabled' },
       { label: 'Disabled', value: 'disabled' },
-      { label: 'Reporting Only', value: 'enabledForReportingButNotEnforced' },
-    ],
+      { label: 'Reporting Only', value: 'enabledForReportingButNotEnforced' }
+    ]
   },
   grantControls: {
     label: 'Grant Controls',
@@ -44,7 +44,7 @@ export const M365PoliciesShape: SchemaFields = {
         modality: 'single',
         trackable: true,
         ingestPath: 'grantControls.operator',
-        required: true,
+        required: true
       },
       builtInControls: {
         label: 'Built-In Controls',
@@ -60,10 +60,10 @@ export const M365PoliciesShape: SchemaFields = {
           { value: 'domainJoinedDevice', label: 'Require Hybrid Azure AD Join' },
           { value: 'approvedApplication', label: 'Require Approved Client App' },
           { value: 'compliantApplication', label: 'Require App Protection Policy' },
-          { value: 'passwordChange', label: 'Require Password Change' },
-        ],
-      },
-    },
+          { value: 'passwordChange', label: 'Require Password Change' }
+        ]
+      }
+    }
   },
   sessionControls: {
     label: 'Session Controls',
@@ -87,7 +87,7 @@ export const M365PoliciesShape: SchemaFields = {
             modality: 'single',
             trackable: true,
             ingestPath: 'sessionControls.signInFrequency.isEnabled',
-            required: true,
+            required: true
           },
           type: {
             label: 'Type',
@@ -98,8 +98,8 @@ export const M365PoliciesShape: SchemaFields = {
             required: true,
             options: [
               { label: 'Days', value: 'days' },
-              { label: 'Hours', value: 'hours' },
-            ],
+              { label: 'Hours', value: 'hours' }
+            ]
           },
           value: {
             label: 'Value',
@@ -107,7 +107,7 @@ export const M365PoliciesShape: SchemaFields = {
             modality: 'single',
             trackable: true,
             ingestPath: 'sessionControls.signInFrequency.value',
-            required: true,
+            required: true
           },
           frequencyInterval: {
             label: 'Interval',
@@ -118,10 +118,10 @@ export const M365PoliciesShape: SchemaFields = {
             required: true,
             options: [
               { label: 'Time Based', value: 'timeBased' },
-              { label: 'Every Time', value: 'everyTime' },
-            ],
-          },
-        },
+              { label: 'Every Time', value: 'everyTime' }
+            ]
+          }
+        }
       },
       persistentBrowser: {
         label: 'Persistent Browser',
@@ -140,8 +140,8 @@ export const M365PoliciesShape: SchemaFields = {
             required: false,
             options: [
               { label: 'Always', value: 'always' },
-              { label: 'Never', value: 'never' },
-            ],
+              { label: 'Never', value: 'never' }
+            ]
           },
           isEnabled: {
             label: 'Enabled',
@@ -149,11 +149,11 @@ export const M365PoliciesShape: SchemaFields = {
             modality: 'single',
             trackable: true,
             ingestPath: 'sessionControls.persistentBrowser.isEnabled',
-            required: true,
-          },
-        },
-      },
-    },
+            required: true
+          }
+        }
+      }
+    }
   },
   conditions: {
     label: 'Conditions',
@@ -173,75 +173,70 @@ export const M365PoliciesShape: SchemaFields = {
         fields: {
           includeUsers: {
             label: 'Include Users',
-            type: 'string',
-            modality: 'array',
+            type: 'enum',
+            modality: 'single',
             trackable: true,
             ingestPath: 'conditions.users.includeUsers',
             required: true,
-            reference: {
-              table: 'm365Identities',
-              valueColumn: 'externalId',
-              labelColumn: 'email',
-              specialValues: [{ value: 'All', label: 'All Users' }],
-            },
+            options: [{ value: 'All', label: 'All Users' }]
           },
           excludeUsers: {
             label: 'Exclude Users',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.users.excludeUsers',
             required: false,
             reference: {
               table: 'm365Identities',
               valueColumn: 'externalId',
               labelColumn: 'name',
-              specialValues: [{ value: 'GuestsOrExternalUsers', label: 'Guests / External Users' }],
-            },
+              specialValues: [{ value: 'GuestsOrExternalUsers', label: 'Guests / External Users' }]
+            }
           },
           includeGroups: {
             label: 'Include Groups',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.users.includeGroups',
             required: false,
             reference: {
               table: 'm365Groups',
               valueColumn: 'externalId',
-              labelColumn: 'name',
-            },
+              labelColumn: 'name'
+            }
           },
           excludeGroups: {
             label: 'Exclude Groups',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.users.excludeGroups',
             required: false,
             reference: {
               table: 'm365Groups',
               valueColumn: 'externalId',
-              labelColumn: 'name',
-            },
+              labelColumn: 'name'
+            }
           },
           includeRoles: {
             label: 'Include Roles',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.users.includeRoles',
-            required: false,
+            required: false
           },
           excludeRoles: {
             label: 'Exclude Roles',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.users.excludeRoles',
-            required: false,
-          },
-        },
+            required: false
+          }
+        }
       },
       applications: {
         label: 'Applications',
@@ -255,10 +250,10 @@ export const M365PoliciesShape: SchemaFields = {
             label: 'Include Applications',
             type: 'enum',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.applications.includeApplications',
             required: true,
-            options: [{ label: 'All', value: 'All' }],
+            options: [{ label: 'All', value: 'All' }]
           },
           excludeApplications: {
             label: 'Exclude Applications',
@@ -266,7 +261,7 @@ export const M365PoliciesShape: SchemaFields = {
             modality: 'array',
             trackable: false,
             ingestPath: 'conditions.applications.excludeApplications',
-            required: false,
+            required: false
           },
           includeUserActions: {
             label: 'Include User Actions',
@@ -275,9 +270,9 @@ export const M365PoliciesShape: SchemaFields = {
             trackable: false,
             ingestPath: 'conditions.applications.includeUserActions',
             required: false,
-            options: [{ label: 'Register Device', value: 'urn:user:registerdevice' }],
-          },
-        },
+            options: [{ label: 'Register Device', value: 'urn:user:registerdevice' }]
+          }
+        }
       },
       clientAppTypes: {
         label: 'Client App Types',
@@ -290,8 +285,8 @@ export const M365PoliciesShape: SchemaFields = {
           { label: 'Mobile Apps and Desktop Clients', value: 'mobileAppsAndDesktopClients' },
           { label: 'Exchange Active Sync', value: 'exchangeActiveSync' },
           { label: 'Browser', value: 'browser' },
-          { label: 'Other', value: 'other' },
-        ],
+          { label: 'Other', value: 'other' }
+        ]
       },
       userRiskLevels: {
         label: 'User Risk Levels',
@@ -299,7 +294,7 @@ export const M365PoliciesShape: SchemaFields = {
         modality: 'array',
         trackable: true,
         ingestPath: 'conditions.userRiskLevels',
-        required: false,
+        required: false
       },
       signInRiskLevels: {
         label: 'Sign-in Risk Levels',
@@ -307,7 +302,7 @@ export const M365PoliciesShape: SchemaFields = {
         modality: 'array',
         trackable: true,
         ingestPath: 'conditions.signInRiskLevels',
-        required: false,
+        required: false
       },
       locations: {
         label: 'Locations',
@@ -319,21 +314,22 @@ export const M365PoliciesShape: SchemaFields = {
         fields: {
           includeLocations: {
             label: 'Include Locations',
-            type: 'string',
-            modality: 'array',
+            type: 'enum',
+            modality: 'single',
             trackable: true,
             ingestPath: 'conditions.locations.includeLocations',
             required: true,
+            options: [{ label: 'All', value: 'All' }]
           },
           excludeLocations: {
             label: 'Exclude Locations',
             type: 'string',
             modality: 'array',
-            trackable: true,
+            trackable: false,
             ingestPath: 'conditions.locations.excludeLocations',
-            required: false,
-          },
-        },
+            required: false
+          }
+        }
       },
       platforms: {
         label: 'Platforms',
@@ -356,8 +352,8 @@ export const M365PoliciesShape: SchemaFields = {
               { label: 'Linux', value: 'linux' },
               { label: 'Android', value: 'android' },
               { label: 'iOS', value: 'iOS' },
-              { label: 'Windows Phone', value: 'windowsPhone' },
-            ],
+              { label: 'Windows Phone', value: 'windowsPhone' }
+            ]
           },
           excludePlatforms: {
             label: 'Exclude Platforms',
@@ -372,11 +368,11 @@ export const M365PoliciesShape: SchemaFields = {
               { label: 'Linux', value: 'linux' },
               { label: 'Android', value: 'android' },
               { label: 'iOS', value: 'iOS' },
-              { label: 'Windows Phone', value: 'windowsPhone' },
-            ],
-          },
-        },
-      },
-    },
-  },
+              { label: 'Windows Phone', value: 'windowsPhone' }
+            ]
+          }
+        }
+      }
+    }
+  }
 };

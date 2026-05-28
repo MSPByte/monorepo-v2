@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { ComplianceJobData } from '@mspbyte/shared';
-import { getTenantDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { complianceFrameworkChecks, complianceResults } from '@mspbyte/drizzle';
 import { eq, and } from 'drizzle-orm';
 import { checkTypeRegistry } from '../evaluators/registry.js';
@@ -15,9 +15,9 @@ export function createComplianceWorker(redis: Redis) {
     async (job) => {
       const { siteId, orgId, frameworkId, linkId } = job.data;
 
-      let db: Awaited<ReturnType<typeof getTenantDb>>['db'];
+      let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
       try {
-        ({ db } = await getTenantDb(orgId));
+        ({ db } = await getTenantServiceDb(orgId));
       } catch (err) {
         logger.error({ orgId, err }, 'Org not found — skipping compliance job');
         return;
@@ -66,25 +66,32 @@ export function createComplianceWorker(redis: Redis) {
           detail = { error: 'linkId required for evaluation' };
         }
 
-        await db
-          .insert(complianceResults)
-          .values({
-            frameworkCheckId: check.id,
-            siteId: siteId ?? null,
-            linkId: linkId ?? null,
-            status,
-            detail,
-            evaluatedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: [
-              complianceResults.frameworkCheckId,
-              complianceResults.siteId,
-              complianceResults.linkId
-            ],
-            set: { status, detail, evaluatedAt: new Date() }
-          });
-
+        try {
+          await db
+            .insert(complianceResults)
+            .values({
+              frameworkCheckId: check.id,
+              siteId: siteId ?? null,
+              linkId: linkId ?? null,
+              status,
+              detail,
+              evaluatedAt: new Date()
+            })
+            .onConflictDoUpdate({
+              target: [
+                complianceResults.frameworkCheckId,
+                complianceResults.siteId,
+                complianceResults.linkId
+              ],
+              set: { status, detail, evaluatedAt: new Date() }
+            });
+        } catch (err) {
+          logger.error(
+            { linkId, siteId, frameworkId, checkTypeId: check.checkTypeId, err },
+            'Compliance check failed'
+          );
+          return;
+        }
         results.push({ status });
         logger.info(
           { frameworkId, checkTypeId: check.checkTypeId, status },

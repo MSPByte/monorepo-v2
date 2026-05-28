@@ -7,7 +7,6 @@
     { href: '/setup/users', label: 'Users' },
     { href: '/setup/roles', label: 'Roles' },
     { href: '/setup/integrations', label: 'Integrations' },
-    { href: '/setup/pipeline', label: 'Pipeline' },
   ];
 </script>
 

@@ -66,9 +66,10 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
     ingestRunId,
     syncRunId,
     mode,
+    facets,
   };
 
-  const rootOpts = { jobId: `ingest_${linkId}`, removeOnComplete: 5, removeOnFail: 10 };
+  const rootOpts = { jobId: `ingest_${linkId}_${ingestRunId}`, removeOnComplete: 5, removeOnFail: 10 };
 
   const needsM365IdentityPostProcess =
     provider === PROVIDER_IDS.M365 &&

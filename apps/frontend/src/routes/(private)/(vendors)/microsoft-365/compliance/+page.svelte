@@ -7,10 +7,10 @@
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
   const frameworksQuery = createQuery(() => ({
-    queryKey: ['compliance.frameworks', scopeStore.currentSite],
+    queryKey: ['compliance.frameworks', scopeStore.currentLink],
     queryFn: () =>
       trpc.compliance.frameworks.query({
-        siteId: scopeStore.currentSite ?? undefined,
+        linkId: scopeStore.currentLink ?? undefined
       }),
   }));
 
@@ -34,11 +34,12 @@
   });
 
   const resultsQuery = createQuery(() => ({
-    queryKey: ['compliance.results', selectedFrameworkId, scopeStore.currentSite],
+    queryKey: ['compliance.results', selectedFrameworkId, scopeStore.currentSite, scopeStore.currentLink],
     queryFn: () =>
       trpc.compliance.results.query({
         frameworkId: selectedFrameworkId!,
         siteId: scopeStore.currentSite ?? undefined,
+        linkId: scopeStore.currentLink ?? undefined,
       }),
     enabled: !!selectedFrameworkId,
   }));

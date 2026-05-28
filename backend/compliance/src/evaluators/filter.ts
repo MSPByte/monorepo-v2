@@ -28,23 +28,41 @@ import type { ConditionOperator } from '@mspbyte/shared';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const TABLE_MAP: Record<string, any> = {
   m365Identities,
+  m365_identities: m365Identities,
   m365Groups,
+  m365_groups: m365Groups,
   m365Policies,
+  m365_policies: m365Policies,
   m365Licenses,
+  m365_licenses: m365Licenses,
   m365ExchangeConfigs,
+  m365_exchange_configs: m365ExchangeConfigs,
   m365AuthMethods,
+  m365_auth_methods: m365AuthMethods,
   m365Devices,
+  m365_devices: m365Devices,
   m365OAuthGrants,
+  m365_oauth_grants: m365OAuthGrants,
   m365DomainConfig,
+  m365_domain_config: m365DomainConfig,
   m365TeamsConfig,
+  m365_teams_config: m365TeamsConfig,
   m365RiskyUsers,
+  m365_risky_users: m365RiskyUsers,
   m365MailboxForwarding,
+  m365_mailbox_forwarding: m365MailboxForwarding,
   m365InboxRules,
+  m365_inbox_rules: m365InboxRules,
   sophosEndpoints,
+  sophos_endpoints: sophosEndpoints,
   sophosFirewalls,
+  sophos_firewalls: sophosFirewalls,
   sophosLicenses,
+  sophos_licenses: sophosLicenses,
   dattoEndpoints,
+  datto_endpoints: dattoEndpoints,
   coveEndpoints,
+  cove_endpoints: coveEndpoints,
 };
 
 // ─── Config schema ────────────────────────────────────────────────────────────
@@ -126,5 +144,15 @@ export async function resolveRows(
   const table = TABLE_MAP[tableName] as any;
   if (!table) throw new Error(`Unknown vendor table: ${tableName}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (db as any).select().from(table).where(eq(table.linkId, linkId));
+  const rows = await (db as any).select().from(table).where(eq(table.linkId, linkId));
+
+  if (tableName === 'm365Policies' || tableName === 'm365_policies') {
+    return rows.map((row: Record<string, unknown>) => ({
+      ...row,
+      state: row.state ?? row.policyState,
+      policy_state: row.policy_state ?? row.policyState,
+    }));
+  }
+
+  return rows;
 }

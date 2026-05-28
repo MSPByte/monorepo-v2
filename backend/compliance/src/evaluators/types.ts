@@ -1,8 +1,8 @@
-import type { MspDb } from '@mspbyte/drizzle';
+import type { MspServiceDb } from '@mspbyte/drizzle';
 
 export type EvalContext = {
   linkId: string;
-  db: MspDb;
+  db: MspServiceDb;
 };
 
 export type EvalResult = {

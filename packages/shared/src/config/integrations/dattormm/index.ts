@@ -10,10 +10,8 @@ export const DATTO_RMM_CONFIG: Integration = {
     {
       facet: ProviderFacet.DattoEndpoints,
       scopeLevel: 'link',
-      db: { table: 'dattoEndpoints', shape: {} },
-    },
+      db: { table: 'dattoEndpoints', name: 'Datto Endpoints', shape: {} }
+    }
   ],
-  navigation: [
-    { label: 'Endpoints', route: '/endpoints', isNullable: true },
-  ],
+  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: true }]
 };

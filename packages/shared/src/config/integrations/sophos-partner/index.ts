@@ -10,22 +10,22 @@ export const SOPHOS_PARTNER_CONFIG: Integration = {
     {
       facet: ProviderFacet.SophosEndpoints,
       scopeLevel: 'link',
-      db: { table: 'sophosEndpoints', shape: {} },
+      db: { table: 'sophosEndpoints', name: 'Sophos Endpoints', shape: {} }
     },
     {
       facet: ProviderFacet.SophosFirewalls,
       scopeLevel: 'link',
-      db: { table: 'sophosFirewalls', shape: {} },
+      db: { table: 'sophosFirewalls', name: 'Sophos Firewalls', shape: {} }
     },
     {
       facet: ProviderFacet.SophosLicenses,
       scopeLevel: 'link',
-      db: { table: 'sophosLicenses', shape: {} },
-    },
+      db: { table: 'sophosLicenses', name: 'Sophos Licenses', shape: {} }
+    }
   ],
   navigation: [
     { label: 'Endpoints', route: '/endpoints', isNullable: true },
     { label: 'Firewalls', route: '/firewalls', isNullable: true },
-    { label: 'Licenses', route: '/licenses', isNullable: true },
-  ],
+    { label: 'Licenses', route: '/licenses', isNullable: true }
+  ]
 };

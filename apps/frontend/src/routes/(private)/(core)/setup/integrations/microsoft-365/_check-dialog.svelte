@@ -107,13 +107,9 @@
     integration.supportedFacets
       .filter((t) => t.db && getFlatTrackableFields(t.db.shape).length > 0)
       .map((t) => {
-        const raw = String(t.facet);
-        const parts = raw.split('-');
-        const label =
-          parts.slice(1).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || raw;
         return {
           tableKey: t.db!.table,
-          label,
+          label: t.db!.name,
           fields: getFlatTrackableFields(t.db!.shape),
         } satisfies Source;
       })
@@ -643,7 +639,7 @@
         {/if}
       </div>
 
-      <Dialog.Footer class="p-4 border-t shrink-0">
+      <Dialog.Footer class="border-t shrink-0">
         <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
         <Button
           onclick={handleSubmit}

@@ -34,6 +34,7 @@ export type AlertsJobData = {
   ingestRunId: string;
   syncRunId: string;
   mode: SyncMode;
+  facets?: ProviderFacet[];
 };
 
 export type LinkJobData = {

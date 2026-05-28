@@ -10,10 +10,8 @@ export const COVE_CONFIG: Integration = {
     {
       facet: ProviderFacet.CoveEndpoints,
       scopeLevel: 'link',
-      db: { table: 'coveEndpoints', shape: {} },
-    },
+      db: { table: 'coveEndpoints', name: 'Cove Endpoints', shape: {} }
+    }
   ],
-  navigation: [
-    { label: 'Endpoints', route: '/endpoints', isNullable: true },
-  ],
+  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: true }]
 };

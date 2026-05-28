@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { eq, and, inArray, isNull } from 'drizzle-orm';
+import { eq, and, inArray, isNull, or } from 'drizzle-orm';
 import {
   complianceFrameworks,
   complianceAssignments,
   complianceResults,
   complianceFrameworkChecks,
+  integrationLinks
 } from '@mspbyte/drizzle';
 import type { JsonValue } from '@mspbyte/drizzle';
 import { t, authProcedure } from '../trpc.js';
@@ -18,32 +19,84 @@ export const complianceRouter = t.router({
   // ── Existing procedures ─────────────────────────────────────────────────────
 
   frameworks: authProcedure
-    .input(z.object({ siteId: z.string().optional() }))
+    .input(z.object({ siteId: z.string().optional(), linkId: z.string().optional() }))
     .query(async ({ ctx, input }): Promise<FrameworkRow[]> => {
-      const siteCondition = input.siteId
-        ? eq(complianceAssignments.siteId, input.siteId)
-        : isNull(complianceAssignments.siteId);
+      let siteId = input.siteId;
+      let integrationId: string | undefined;
+
+      if (input.linkId) {
+        const [link] = await ctx.db
+          .select({ integrationId: integrationLinks.integrationId, siteId: integrationLinks.siteId })
+          .from(integrationLinks)
+          .where(eq(integrationLinks.id, input.linkId))
+          .limit(1);
+
+        integrationId = link?.integrationId;
+        siteId ??= link?.siteId ?? undefined;
+      }
+
+      if (!integrationId) return [];
+
+      const assignmentConditions = [
+        and(isNull(complianceAssignments.siteId), isNull(complianceAssignments.linkId))
+      ];
+      if (input.linkId) assignmentConditions.push(eq(complianceAssignments.linkId, input.linkId));
+      if (siteId) {
+        assignmentConditions.push(
+          and(eq(complianceAssignments.siteId, siteId), isNull(complianceAssignments.linkId))
+        );
+      }
 
       const assignments = await ctx.db
-        .select({ frameworkId: complianceAssignments.frameworkId })
+        .select({
+          frameworkId: complianceAssignments.frameworkId,
+          siteId: complianceAssignments.siteId,
+          linkId: complianceAssignments.linkId
+        })
         .from(complianceAssignments)
-        .where(siteCondition);
+        .innerJoin(complianceFrameworks, eq(complianceFrameworks.id, complianceAssignments.frameworkId))
+        .where(
+          and(
+            eq(complianceFrameworks.integrationId, integrationId),
+            or(
+              eq(complianceAssignments.integrationId, integrationId),
+              isNull(complianceAssignments.integrationId)
+            ),
+            or(...assignmentConditions)
+          )
+        );
 
       if (assignments.length === 0) return [];
+
+      const assignmentsByFramework = new Map<string, typeof assignments>();
+      for (const assignment of assignments) {
+        const rows = assignmentsByFramework.get(assignment.frameworkId) ?? [];
+        rows.push(assignment);
+        assignmentsByFramework.set(assignment.frameworkId, rows);
+      }
+
+      const frameworkIds = [...assignmentsByFramework.entries()]
+        .filter(([, rows]) => {
+          const hasGlobal = rows.some((row) => row.siteId === null && row.linkId === null);
+          const hasCurrentSpecific = rows.some(
+            (row) =>
+              (input.linkId && row.linkId === input.linkId) || (siteId && row.siteId === siteId)
+          );
+
+          return hasGlobal ? !hasCurrentSpecific : hasCurrentSpecific;
+        })
+        .map(([frameworkId]) => frameworkId);
+
+      if (frameworkIds.length === 0) return [];
 
       return ctx.db
         .select()
         .from(complianceFrameworks)
-        .where(
-          inArray(
-            complianceFrameworks.id,
-            assignments.map((a) => a.frameworkId),
-          ),
-        );
+        .where(inArray(complianceFrameworks.id, frameworkIds));
     }),
 
   results: authProcedure
-    .input(z.object({ siteId: z.string().optional(), frameworkId: z.string() }))
+    .input(z.object({ siteId: z.string().optional(), linkId: z.string().optional(), frameworkId: z.string() }))
     .query(
       async ({ ctx, input }): Promise<Array<{ check: CheckRow; result: ResultRow | null }>> => {
         const checks = await ctx.db
@@ -53,28 +106,30 @@ export const complianceRouter = t.router({
 
         if (checks.length === 0) return [];
 
-        const siteCondition = input.siteId
-          ? eq(complianceResults.siteId, input.siteId)
-          : isNull(complianceResults.siteId);
+        const scopeCondition = input.linkId
+          ? eq(complianceResults.linkId, input.linkId)
+          : input.siteId
+            ? and(eq(complianceResults.siteId, input.siteId), isNull(complianceResults.linkId))
+            : and(isNull(complianceResults.siteId), isNull(complianceResults.linkId));
 
         const results = await ctx.db
           .select()
           .from(complianceResults)
           .where(
             and(
-              siteCondition,
+              scopeCondition,
               inArray(
                 complianceResults.frameworkCheckId,
-                checks.map((c) => c.id),
-              ),
-            ),
+                checks.map((c) => c.id)
+              )
+            )
           );
 
         return checks.map((check) => ({
           check,
-          result: results.find((r) => r.frameworkCheckId === check.id) ?? null,
+          result: results.find((r) => r.frameworkCheckId === check.id) ?? null
         }));
-      },
+      }
     ),
 
   // ── Framework management ────────────────────────────────────────────────────
@@ -95,8 +150,8 @@ export const complianceRouter = t.router({
         name: z.string().min(1),
         description: z.string().optional(),
         integrationId: z.string(),
-        parentId: z.string().uuid().optional(),
-      }),
+        parentId: z.string().uuid().optional()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<FrameworkRow> => {
       const [row] = await ctx.db
@@ -105,7 +160,7 @@ export const complianceRouter = t.router({
           name: input.name,
           description: input.description,
           integrationId: input.integrationId,
-          parentId: input.parentId,
+          parentId: input.parentId
         })
         .returning();
       return row!;
@@ -117,8 +172,8 @@ export const complianceRouter = t.router({
         id: z.string().uuid(),
         name: z.string().min(1).optional(),
         description: z.string().optional().nullable(),
-        parentId: z.string().uuid().optional().nullable(),
-      }),
+        parentId: z.string().uuid().optional().nullable()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<FrameworkRow> => {
       const { id, ...rest } = input;
@@ -133,9 +188,7 @@ export const complianceRouter = t.router({
   deleteFramework: authProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<void> => {
-      await ctx.db
-        .delete(complianceFrameworks)
-        .where(eq(complianceFrameworks.id, input.id));
+      await ctx.db.delete(complianceFrameworks).where(eq(complianceFrameworks.id, input.id));
     }),
 
   // ── Check management ────────────────────────────────────────────────────────
@@ -158,8 +211,8 @@ export const complianceRouter = t.router({
         description: z.string().optional(),
         severity: z.string(),
         checkTypeId: z.string(),
-        checkConfig: z.record(z.unknown()),
-      }),
+        checkConfig: z.record(z.unknown())
+      })
     )
     .mutation(async ({ ctx, input }): Promise<CheckRow> => {
       const [row] = await ctx.db
@@ -170,7 +223,7 @@ export const complianceRouter = t.router({
           description: input.description,
           severity: input.severity,
           checkTypeId: input.checkTypeId,
-          checkConfig: input.checkConfig as JsonValue,
+          checkConfig: input.checkConfig as JsonValue
         })
         .returning();
       return row!;
@@ -184,14 +237,18 @@ export const complianceRouter = t.router({
         description: z.string().optional().nullable(),
         severity: z.string().optional(),
         checkTypeId: z.string().optional(),
-        checkConfig: z.record(z.unknown()).optional(),
-      }),
+        checkConfig: z.record(z.unknown()).optional()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<CheckRow> => {
       const { id, checkConfig, ...rest } = input;
       const [row] = await ctx.db
         .update(complianceFrameworkChecks)
-        .set({ ...rest, ...(checkConfig !== undefined ? { checkConfig: checkConfig as JsonValue } : {}), updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(checkConfig !== undefined ? { checkConfig: checkConfig as JsonValue } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(complianceFrameworkChecks.id, id))
         .returning();
       return row!;
@@ -220,8 +277,8 @@ export const complianceRouter = t.router({
     .input(
       z.object({
         frameworkId: z.string().uuid(),
-        integrationId: z.string(),
-      }),
+        integrationId: z.string()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<void> => {
       const existing = await ctx.db
@@ -232,8 +289,8 @@ export const complianceRouter = t.router({
             eq(complianceAssignments.frameworkId, input.frameworkId),
             eq(complianceAssignments.integrationId, input.integrationId),
             isNull(complianceAssignments.linkId),
-            isNull(complianceAssignments.siteId),
-          ),
+            isNull(complianceAssignments.siteId)
+          )
         )
         .limit(1);
 
@@ -244,7 +301,7 @@ export const complianceRouter = t.router({
       } else {
         await ctx.db.insert(complianceAssignments).values({
           frameworkId: input.frameworkId,
-          integrationId: input.integrationId,
+          integrationId: input.integrationId
         });
       }
     }),
@@ -254,8 +311,8 @@ export const complianceRouter = t.router({
       z.object({
         frameworkId: z.string().uuid(),
         integrationId: z.string(),
-        linkId: z.string().uuid(),
-      }),
+        linkId: z.string().uuid()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<AssignmentRow> => {
       const [row] = await ctx.db
@@ -263,7 +320,7 @@ export const complianceRouter = t.router({
         .values({
           frameworkId: input.frameworkId,
           integrationId: input.integrationId,
-          linkId: input.linkId,
+          linkId: input.linkId
         })
         .returning();
       return row!;
@@ -273,8 +330,8 @@ export const complianceRouter = t.router({
     .input(
       z.object({
         frameworkId: z.string().uuid(),
-        linkId: z.string().uuid(),
-      }),
+        linkId: z.string().uuid()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<void> => {
       await ctx.db
@@ -282,8 +339,8 @@ export const complianceRouter = t.router({
         .where(
           and(
             eq(complianceAssignments.frameworkId, input.frameworkId),
-            eq(complianceAssignments.linkId, input.linkId),
-          ),
+            eq(complianceAssignments.linkId, input.linkId)
+          )
         );
-    }),
+    })
 });
