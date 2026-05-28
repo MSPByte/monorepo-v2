@@ -10,6 +10,12 @@
   const NOW = Date.now();
 
   // ── Global overview ──────────────────────────────────────────────────────
+  const sitesQuery = createQuery(() => ({
+    queryKey: ['sites.list'],
+    queryFn: () => trpc.sites.list.query(),
+    enabled: !scopeStore.currentSite,
+  }));
+
   const linksQuery = createQuery(() => ({
     queryKey: ['integrationLinks.list', 'mspagent'],
     queryFn: () => trpc.integrationLinks.list.query({ integrationId: 'mspagent' }),
@@ -47,6 +53,12 @@
   });
 
   // ── Global overview helpers ───────────────────────────────────────────────
+  const siteNameById = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const site of sitesQuery.data ?? []) map.set(site.id, site.name);
+    return map;
+  });
+
   const links = $derived(linksQuery.data ?? []);
 
   function relativeTime(ts: Date | string | null | undefined) {
@@ -168,7 +180,7 @@
             >
               <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-success"></span>
               <span class="font-medium text-sm flex-1">
-                {link.name ?? link.externalId ?? link.id}
+                {(link.siteId ? siteNameById.get(link.siteId) : null) ?? link.name ?? link.externalId ?? link.id}
               </span>
               <span class="text-xs text-muted-foreground">{relativeTime(link.updatedAt)}</span>
             </button>

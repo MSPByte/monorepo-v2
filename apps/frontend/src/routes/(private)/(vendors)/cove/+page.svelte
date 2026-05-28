@@ -29,6 +29,12 @@
     enabled: !scopeStore.currentSite,
   }));
 
+  const sitesQuery = createQuery(() => ({
+    queryKey: ['sites.list'],
+    queryFn: () => trpc.sites.list.query(),
+    enabled: !scopeStore.currentSite,
+  }));
+
   const alertSummaryQuery = createQuery(() => ({
     queryKey: ['alerts.summaryByLink', 'cove', 'active'],
     queryFn: () => trpc.alerts.summaryByLink.query({ integrationId: 'cove', status: 'active' }),
@@ -83,6 +89,12 @@
   });
 
   // ── Global overview helpers ───────────────────────────────────────────────
+  const siteNameById = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const site of sitesQuery.data ?? []) map.set(site.id, site.name);
+    return map;
+  });
+
   const links = $derived(linksQuery.data ?? []);
 
   const alertSummaryMap = $derived.by(() => {
@@ -100,9 +112,10 @@
 
   const filteredLinks = $derived(
     searchQuery.trim()
-      ? links.filter((l) =>
-          (l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
-        )
+      ? links.filter((l) => {
+          const siteName = l.siteId ? siteNameById.get(l.siteId) : null;
+          return (siteName ?? l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+        })
       : links,
   );
 
@@ -313,6 +326,7 @@
             <ScopedRow
               {link}
               label="Site"
+              displayName={link.siteId ? siteNameById.get(link.siteId) : null}
               onclick={selectSite}
               alertCount={summary?.alertCount ?? 0}
               highestSeverity={summary?.highestSeverity ?? null}

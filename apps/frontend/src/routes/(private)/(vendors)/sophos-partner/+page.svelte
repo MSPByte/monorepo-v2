@@ -32,6 +32,12 @@
     enabled: !scopeStore.currentSite,
   }));
 
+  const sitesQuery = createQuery(() => ({
+    queryKey: ['sites.list'],
+    queryFn: () => trpc.sites.list.query(),
+    enabled: !scopeStore.currentSite,
+  }));
+
   const alertSummaryQuery = createQuery(() => ({
     queryKey: ['alerts.summaryByLink', 'sophos-partner', 'active'],
     queryFn: () =>
@@ -94,6 +100,12 @@
   });
 
   // ── Global overview helpers ───────────────────────────────────────────────
+  const siteNameById = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const site of sitesQuery.data ?? []) map.set(site.id, site.name);
+    return map;
+  });
+
   const links = $derived(linksQuery.data ?? []);
 
   const alertSummaryMap = $derived.by(() => {
@@ -145,9 +157,10 @@
 
   const filteredLinks = $derived(
     searchQuery.trim()
-      ? links.filter((l) =>
-          (l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
-        )
+      ? links.filter((l) => {
+          const siteName = l.siteId ? siteNameById.get(l.siteId) : null;
+          return (siteName ?? l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+        })
       : links,
   );
 
@@ -438,10 +451,7 @@
               </td>
               <td class="px-4 py-3">
                 <div class="flex flex-col min-w-0">
-                  <span class="font-medium text-sm truncate">{link.name ?? link.externalId ?? link.id}</span>
-                  {#if link.externalId}
-                    <span class="text-xs text-muted-foreground font-mono truncate">{link.externalId}</span>
-                  {/if}
+                  <span class="font-medium text-sm truncate">{(link.siteId ? siteNameById.get(link.siteId) : null) ?? link.name ?? link.externalId ?? link.id}</span>
                 </div>
               </td>
               {#each [tiers?.serverTier, tiers?.endpointTier] as tier}

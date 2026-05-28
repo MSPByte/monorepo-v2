@@ -14,6 +14,7 @@
   let {
     link,
     label = 'Site',
+    displayName,
     onclick,
     alertCount,
     highestSeverity,
@@ -21,6 +22,7 @@
   }: {
     link: LinkRow;
     label?: string;
+    displayName?: string | null;
     onclick: (link: LinkRow) => void;
     alertCount?: number;
     highestSeverity?: number | null;
@@ -61,7 +63,7 @@
     {/if}
   </td>
   <td class="px-4 py-3">
-    <span class="font-medium text-sm">{link.name ?? link.externalId ?? link.id}</span>
+    <span class="font-medium text-sm">{displayName ?? link.name ?? link.externalId ?? link.id}</span>
   </td>
   <td class="px-4 py-3 text-center">
     {#if isLoading}

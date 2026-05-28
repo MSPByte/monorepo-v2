@@ -24,8 +24,8 @@ export const SOPHOS_PARTNER_CONFIG: Integration = {
     }
   ],
   navigation: [
-    { label: 'Endpoints', route: '/endpoints', isNullable: true },
-    { label: 'Firewalls', route: '/firewalls', isNullable: true },
-    { label: 'Licenses', route: '/licenses', isNullable: true }
+    { label: 'Endpoints', route: '/endpoints', isNullable: false },
+    { label: 'Firewalls', route: '/firewalls', isNullable: false },
+    { label: 'Licenses', route: '/licenses', isNullable: false }
   ]
 };

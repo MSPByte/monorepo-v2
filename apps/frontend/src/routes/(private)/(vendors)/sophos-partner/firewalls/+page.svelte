@@ -49,11 +49,6 @@
       sortable: true,
       searchable: true,
     }),
-    nullableTextColumn<FirewallRow>('model', 'Model', {
-      width: '130px',
-      sortable: true,
-      searchable: true,
-    }),
     nullableTextColumn<FirewallRow>('serialNumber', 'Serial', {
       width: '150px',
       searchable: true,
