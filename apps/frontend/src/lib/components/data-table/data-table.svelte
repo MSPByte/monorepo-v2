@@ -381,12 +381,12 @@
   </div>
 
   <!-- Table -->
-  <div class="flex size-full rounded-md border overflow-hidden bg-card/10">
+  <div class="flex relative size-full rounded-md border overflow-hidden bg-card/10">
     <Table.Root>
       <Table.Header>
         <Table.Row>
           {#if enableRowSelection}
-            <Table.Head class="w-10">
+            <Table.Head class="sticky top-0 z-10 w-10 bg-background">
               <Checkbox
                 checked={allRowsSelected}
                 indeterminate={someRowsSelected}
@@ -395,7 +395,7 @@
             </Table.Head>
           {/if}
           {#each visibleColumns as column (column.key)}
-            <Table.Head style={column.width ? `width: ${column.width}` : undefined}>
+            <Table.Head class="sticky top-0 z-10 w-10 bg-background" style={column.width ? `width: ${column.width}` : undefined}>
               {#if column.sortable}
                 <button
                   type="button"

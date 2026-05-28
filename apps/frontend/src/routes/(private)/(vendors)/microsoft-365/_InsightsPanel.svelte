@@ -297,7 +297,7 @@
                         </div>
 
                         <div class="min-w-0">
-                          <div class="break-words text-sm leading-snug">
+                          <div class="wrap-break-word text-sm leading-snug">
                             {hydratedAlertMessage(alert)}
                           </div>
                           {#if detailEntries.length > 0}

@@ -186,7 +186,7 @@
               <td class="px-4 py-2">{context.type}</td>
               <td class="px-4 py-2">{formatDate(context.lastSuccessAt)}</td>
               <td class="px-4 py-2">{context.consecutiveFailures}</td>
-              <td class="max-w-[32rem] truncate px-4 py-2">{context.lastErrorMessage ?? ''}</td>
+              <td class="max-w-lg truncate px-4 py-2">{context.lastErrorMessage ?? ''}</td>
             </tr>
           {:else}
             <tr>

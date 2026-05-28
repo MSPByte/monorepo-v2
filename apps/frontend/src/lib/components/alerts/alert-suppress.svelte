@@ -123,7 +123,7 @@
             <dl class="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 p-3 text-xs">
               {#each detailEntries as [key, value]}
                 <dt class="text-muted-foreground">{metadataLabel(key)}</dt>
-                <dd class="min-w-0 break-words">{formatAlertValue(value)}</dd>
+                <dd class="min-w-0 wrap-break-word">{formatAlertValue(value)}</dd>
               {/each}
             </dl>
           {/if}
