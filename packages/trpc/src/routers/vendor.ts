@@ -57,8 +57,16 @@ function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 
+function normalizeColumnIdentifier(column: string): string | null {
+  const normalized = camelToSnake(column);
+  return /^[a-z][a-z0-9_]*$/.test(normalized) ? normalized : null;
+}
+
 function buildFilterCondition(column: string, operator: string, value: string | undefined) {
-  const col = sql.identifier(column);
+  const normalizedColumn = normalizeColumnIdentifier(column);
+  if (!normalizedColumn) return null;
+
+  const col = sql.identifier(normalizedColumn);
   switch (operator) {
     case 'eq':
       return sql`${col} = ${value ?? null}`;
@@ -146,8 +154,9 @@ export const vendorRouter = t.router({
 
       // Sort
       let orderClause: ReturnType<typeof sql> | undefined;
-      if (input.sortColumn) {
-        const colId = sql.identifier(input.sortColumn);
+      const sortColumn = input.sortColumn ? normalizeColumnIdentifier(input.sortColumn) : null;
+      if (sortColumn) {
+        const colId = sql.identifier(sortColumn);
         orderClause =
           input.sortDirection === 'desc'
             ? sql`${colId} desc nulls last`
