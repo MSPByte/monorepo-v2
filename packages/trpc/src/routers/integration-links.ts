@@ -71,6 +71,7 @@ export const integrationLinksRouter = t.router({
     .input(
       z.object({
         id: z.string().uuid(),
+        externalId: z.string().optional().nullable(),
         name: z.string().optional().nullable(),
         siteId: z.string().uuid().optional().nullable(),
         status: z.enum(['active', 'error', 'disabled']).optional(),

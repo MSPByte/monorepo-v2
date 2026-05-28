@@ -6,13 +6,18 @@
   import type { createTrpcClient } from '$lib/trpc';
   import type { DataTableColumn } from '$lib/components/data-table/types';
   import VendorDataTable from '$lib/components/data-table/VendorDataTable.svelte';
+  import {
+    boolBadgeColumn,
+    nullableTextColumn,
+    relativeDateColumn,
+    textColumn,
+  } from '$lib/components/data-table/column-defs';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
   type FirewallRow = Record<string, unknown>;
 
-  // ── Resolve the link for this site ──────────────────────────────────────
   const siteLinkQuery = createQuery(() => ({
     queryKey: ['integrationLinks.list', 'sophos-partner', scopeStore.currentSite],
     queryFn: () =>
@@ -23,18 +28,59 @@
     enabled: !!scopeStore.currentSite,
   }));
 
-  const currentLink = $derived(siteLinkQuery.data?.[0]?.id ?? null);
+  const currentLinkId = $derived(
+    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined,
+  );
 
   const columns: DataTableColumn<FirewallRow>[] = [
-    { key: 'connected', title: '', width: '32px' },
-    { key: 'name', title: 'Name', sortable: true },
-    { key: 'hostname', title: 'Hostname', width: '160px', sortable: true },
-    { key: 'model', title: 'Model', width: '120px', sortable: true },
-    { key: 'serial_number', title: 'Serial', width: '140px' },
-    { key: 'external_ip', title: 'External IP', width: '130px' },
-    { key: 'firmware_version', title: 'Firmware', width: '110px' },
-    { key: 'upgrade_to_version', title: 'Upgrade', width: '90px' },
-    { key: 'last_change_at', title: 'Last Change', width: '130px', sortable: true },
+    boolBadgeColumn<FirewallRow>(
+      'connected',
+      'Status',
+      {
+        trueLabel: 'Online',
+        falseLabel: 'Offline',
+        falseVariant: 'destructive',
+      },
+      { width: '100px' },
+    ),
+    textColumn<FirewallRow>('name', 'Name'),
+    nullableTextColumn<FirewallRow>('hostname', 'Hostname', {
+      width: '170px',
+      sortable: true,
+      searchable: true,
+    }),
+    nullableTextColumn<FirewallRow>('model', 'Model', {
+      width: '130px',
+      sortable: true,
+      searchable: true,
+    }),
+    nullableTextColumn<FirewallRow>('serialNumber', 'Serial', {
+      width: '150px',
+      searchable: true,
+    }),
+    nullableTextColumn<FirewallRow>('externalIp', 'External IP', {
+      width: '140px',
+      searchable: true,
+    }),
+    nullableTextColumn<FirewallRow>('firmwareVersion', 'Firmware', {
+      width: '130px',
+      sortable: true,
+      searchable: true,
+    }),
+    boolBadgeColumn<FirewallRow>(
+      'upgradeToVersion',
+      'Upgrade',
+      {
+        trueLabel: 'Current',
+        falseLabel: 'Available',
+        falseVariant: 'destructive',
+        evaluate: (value) => !value,
+      },
+      { width: '110px' },
+    ),
+    relativeDateColumn<FirewallRow>('lastChangeAt', 'Last Change', {
+      width: '140px',
+    }),
   ];
 
   let drawerFirewall = $state<FirewallRow | null>(null);
@@ -51,28 +97,23 @@
   }
 </script>
 
-{#if !scopeStore.currentSite}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a site to view firewalls</div>
-    <div class="text-xs">Use the site selector in the navigation bar</div>
-  </div>
-{:else if siteLinkQuery.isLoading}
+{#if scopeStore.currentSite && siteLinkQuery.isLoading}
   <div class="flex items-center justify-center size-full text-sm text-muted-foreground">
     Loading…
   </div>
-{:else if !currentLink}
+{:else if scopeStore.currentSite && !currentLinkId}
   <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
     <div class="text-sm font-medium">No Sophos Partner integration for this site.</div>
   </div>
 {:else}
-  <div class="flex flex-col size-full overflow-hidden p-4">
-    <VendorDataTable
-      table="sophos_firewalls"
-      linkId={currentLink}
-      {columns}
-      onrowclick={(row) => (drawerFirewall = drawerFirewall?.['id'] === row['id'] ? null : row)}
-    />
-  </div>
+  <VendorDataTable
+    table="sophos_firewalls"
+    linkId={currentLinkId ?? undefined}
+    integrationId="sophos-partner"
+    scopeColumn="site"
+    {columns}
+    onrowclick={(row) => (drawerFirewall = drawerFirewall?.['id'] === row['id'] ? null : row)}
+  />
 {/if}
 
 <!-- Firewall detail sheet -->
@@ -91,14 +132,12 @@
           <span
             class={cn(
               'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-              fw['connected']
-                ? 'bg-success/15 text-success'
-                : 'bg-muted text-muted-foreground',
+              fw['connected'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground',
             )}
           >
             {fw['connected'] ? 'Online' : 'Offline'}
           </span>
-          {#if fw['upgrade_to_version']}
+          {#if fw['upgradeToVersion']}
             <span
               class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning"
             >
@@ -115,14 +154,14 @@
         {#each [
           { label: 'Hostname', value: fw['hostname'] },
           { label: 'Model', value: fw['model'] },
-          { label: 'Serial', value: fw['serial_number'] },
-          { label: 'External IP', value: fw['external_ip'] },
-          { label: 'Firmware', value: fw['firmware_version'] },
-          { label: 'Upgrade To', value: fw['upgrade_to_version'] },
+          { label: 'Serial', value: fw['serialNumber'] },
+          { label: 'External IP', value: fw['externalIp'] },
+          { label: 'Firmware', value: fw['firmwareVersion'] },
+          { label: 'Upgrade To', value: fw['upgradeToVersion'] },
           { label: 'Managing', value: fw['managing'] },
           { label: 'Reporting', value: fw['reporting'] },
           { label: 'Suspended', value: fw['suspended'] ? 'Yes' : null },
-          { label: 'Last Change', value: relativeTime(fw['last_change_at'] as string | null) },
+          { label: 'Last Change', value: relativeTime(fw['lastChangeAt'] as string | null) },
         ] as item}
           {#if item.value}
             <div class="flex justify-between text-xs gap-2">

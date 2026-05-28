@@ -330,7 +330,17 @@ export const alertsRouter = t.router({
       const conditions = [];
 
       if (input.linkId) conditions.push(eq(alerts.linkId, input.linkId));
-      if (input.integrationId) conditions.push(ilike(alerts.definitionId, `${input.integrationId}.%`));
+      if (input.integrationId) {
+        conditions.push(
+          inArray(
+            alerts.linkId,
+            ctx.db
+              .select({ id: integrationLinks.id })
+              .from(integrationLinks)
+              .where(eq(integrationLinks.integrationId, input.integrationId))
+          )
+        );
+      }
 
       if (input.globalSearch) {
         const q = `%${input.globalSearch}%`;

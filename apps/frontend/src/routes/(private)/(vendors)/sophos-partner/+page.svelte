@@ -6,13 +6,23 @@
   import { AlertSeverity } from '@mspbyte/shared';
   import { goto } from '$app/navigation';
   import type { createTrpcClient } from '$lib/trpc';
-  import ScopedRow from '../_ScopedRow.svelte';
   import VendorInsightsPanel from '$lib/components/alerts/vendor-insights-panel.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const queryClient = useQueryClient();
 
   const NOW = Date.now();
+
+  const SERVER_TIER_MAP: Record<string, string> = {
+    'SVRCIXAMTR-STD-MSP': 'MDR',
+    SVRCIXAXDR: 'XDR',
+    'SVRCLOUDADV-MSP': 'Endpoint',
+  };
+  const ENDPOINT_TIER_MAP: Record<string, string> = {
+    'CIXAMTR-STD-MSP': 'MDR',
+    CIXAXDR: 'XDR',
+    'CIXA-MSP': 'Endpoint',
+  };
 
   // ── Global overview ──────────────────────────────────────────────────────
   const linksQuery = createQuery(() => ({
@@ -26,6 +36,17 @@
     queryKey: ['alerts.summaryByLink', 'sophos-partner', 'active'],
     queryFn: () =>
       trpc.alerts.summaryByLink.query({ integrationId: 'sophos-partner', status: 'active' }),
+    enabled: !scopeStore.currentSite,
+  }));
+
+  const licenseTiersQuery = createQuery(() => ({
+    queryKey: ['vendor.tableData', 'sophos_licenses', 'sophos-partner', 'tiers'],
+    queryFn: () =>
+      trpc.vendor.tableData.query({
+        table: 'sophos_licenses',
+        page: 1,
+        pageSize: 1000,
+      }),
     enabled: !scopeStore.currentSite,
   }));
 
@@ -62,12 +83,12 @@
     return {
       total: eps.length,
       healthIssues: eps.filter((e) => e['health'] !== 'good').length,
-      tamperDisabled: eps.filter((e) => !e['tamper_protection_enabled']).length,
-      needsUpgrade: eps.filter((e) => e['needs_upgrade']).length,
+      tamperDisabled: eps.filter((e) => !e['tamperProtectionEnabled']).length,
+      needsUpgrade: eps.filter((e) => e['needsUpgrade']).length,
       stale60d: eps.filter(
         (e) =>
-          !e['last_heartbeat_at'] ||
-          NOW - Number(e['last_heartbeat_at']) > 60 * 86_400_000,
+          !e['lastHeartbeatAt'] ||
+          NOW - new Date(e['lastHeartbeatAt'] as string).getTime() > 60 * 86_400_000,
       ).length,
     };
   });
@@ -84,6 +105,40 @@
       if (row.linkId) map.set(row.linkId, row);
     }
     return map;
+  });
+
+  const licenseTierMap = $derived.by(() => {
+    const byLink = new Map<string, { serverTier: string | null; endpointTier: string | null }>();
+    const serverCodesByLink = new Map<string, Set<string>>();
+    const endpointCodesByLink = new Map<string, Set<string>>();
+
+    for (const row of (licenseTiersQuery.data?.rows ?? []) as Record<string, unknown>[]) {
+      const linkId = typeof row['linkId'] === 'string' ? row['linkId'] : null;
+      const code = typeof row['code'] === 'string' ? row['code'] : null;
+      const endsAt = row['endsAt'];
+      if (!linkId || !code) continue;
+      if (endsAt && new Date(endsAt as string).getTime() <= NOW) continue;
+
+      if (SERVER_TIER_MAP[code]) {
+        const codes = serverCodesByLink.get(linkId) ?? new Set<string>();
+        codes.add(code);
+        serverCodesByLink.set(linkId, codes);
+      }
+      if (ENDPOINT_TIER_MAP[code]) {
+        const codes = endpointCodesByLink.get(linkId) ?? new Set<string>();
+        codes.add(code);
+        endpointCodesByLink.set(linkId, codes);
+      }
+    }
+
+    for (const link of links) {
+      byLink.set(link.id, {
+        serverTier: resolveTier(serverCodesByLink.get(link.id), SERVER_TIER_MAP),
+        endpointTier: resolveTier(endpointCodesByLink.get(link.id), ENDPOINT_TIER_MAP),
+      });
+    }
+
+    return byLink;
   });
 
   let searchQuery = $state('');
@@ -123,6 +178,28 @@
   function selectSite(link: { siteId?: string | null }) {
     if (link.siteId) scopeStore.currentSite = link.siteId;
     goto('/sophos-partner');
+  }
+
+  function resolveTier(codes: Set<string> | undefined, map: Record<string, string>) {
+    if (!codes) return null;
+    for (const tier of ['MDR', 'XDR', 'Endpoint']) {
+      if ([...codes].some((code) => map[code] === tier)) return tier;
+    }
+    return null;
+  }
+
+  function tierBadge(tier: string | null | undefined) {
+    if (tier === 'MDR') return 'bg-primary/15 text-primary';
+    if (tier === 'XDR') return 'bg-warning/20 text-warning';
+    if (tier === 'Endpoint') return 'bg-success/15 text-success';
+    return 'bg-muted text-muted-foreground';
+  }
+
+  function dispositionLabel(disposition: unknown) {
+    if (disposition === 'third_party') return 'Third Party';
+    if (disposition === 'not_managed') return 'Not Managed';
+    if (disposition === 'managed') return 'Managed';
+    return null;
   }
 
   function refreshSiteAlerts() {
@@ -322,22 +399,105 @@
             <tr class="border-b text-xs text-muted-foreground uppercase tracking-wide">
               <th class="px-4 py-2 text-left w-8"></th>
               <th class="px-4 py-2 text-left">Site</th>
+              <th class="px-4 py-2 text-center w-28">Server</th>
+              <th class="px-4 py-2 text-center w-28">Endpoint</th>
+              <th class="px-4 py-2 text-center w-32">Disposition</th>
+              <th class="px-4 py-2 text-left">Notes</th>
               <th class="px-4 py-2 text-center w-24">Alerts</th>
-              <th class="px-4 py-2 text-center w-40">Compliance Failures</th>
               <th class="px-4 py-2 text-center w-28">Status</th>
             </tr>
           </thead>
           <tbody>
           {#each filteredLinks as link (link.id)}
             {@const summary = alertSummaryMap.get(link.id)}
-            <ScopedRow
-              {link}
-              label="Site"
-              onclick={selectSite}
-              alertCount={summary?.alertCount ?? 0}
-              highestSeverity={summary?.highestSeverity ?? null}
-              loading={alertSummaryQuery.isPending}
-            />
+            {@const tiers = licenseTierMap.get(link.id)}
+            {@const disposition = dispositionLabel(link.disposition)}
+            <tr
+              class="border-b transition-colors hover:bg-muted/50 cursor-pointer"
+              onclick={() => selectSite(link)}
+            >
+              <td class="px-4 py-3">
+                {#if alertSummaryQuery.isPending}
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-muted animate-pulse"></span>
+                {:else}
+                  <span
+                    class={cn(
+                      'inline-block w-2.5 h-2.5 rounded-full shrink-0',
+                      (summary?.highestSeverity ?? null) === AlertSeverity.Critical
+                        ? 'bg-destructive'
+                        : (summary?.highestSeverity ?? null) === AlertSeverity.High
+                          ? 'bg-destructive/80'
+                          : (summary?.highestSeverity ?? null) === AlertSeverity.Medium
+                            ? 'bg-warning'
+                            : (summary?.highestSeverity ?? null) === AlertSeverity.Low
+                              ? 'bg-muted-foreground/40'
+                              : 'bg-success',
+                    )}
+                  ></span>
+                {/if}
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex flex-col min-w-0">
+                  <span class="font-medium text-sm truncate">{link.name ?? link.externalId ?? link.id}</span>
+                  {#if link.externalId}
+                    <span class="text-xs text-muted-foreground font-mono truncate">{link.externalId}</span>
+                  {/if}
+                </div>
+              </td>
+              {#each [tiers?.serverTier, tiers?.endpointTier] as tier}
+                <td class="px-4 py-3 text-center">
+                  {#if licenseTiersQuery.isPending}
+                    <span class="inline-block w-14 h-5 rounded bg-muted animate-pulse"></span>
+                  {:else if tier}
+                    <span class={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', tierBadge(tier))}>
+                      {tier}
+                    </span>
+                  {:else}
+                    <span class="text-xs text-muted-foreground">-</span>
+                  {/if}
+                </td>
+              {/each}
+              <td class="px-4 py-3 text-center">
+                {#if disposition}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-warning/15 text-warning">
+                    {disposition}
+                  </span>
+                {:else}
+                  <span class="text-xs text-muted-foreground">-</span>
+                {/if}
+              </td>
+              <td class="px-4 py-3">
+                <span class="block max-w-72 truncate text-xs text-muted-foreground">
+                  {link.note ? String(link.note) : '-'}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-center">
+                {#if alertSummaryQuery.isPending}
+                  <span class="inline-block w-8 h-4 rounded bg-muted animate-pulse"></span>
+                {:else if (summary?.alertCount ?? 0) > 0}
+                  <span class="inline-flex items-center justify-center min-w-6 px-1.5 py-0.5 rounded-full text-xs font-medium bg-destructive/15 text-destructive">
+                    {summary?.alertCount}
+                  </span>
+                {:else}
+                  <span class="text-xs text-muted-foreground">-</span>
+                {/if}
+              </td>
+              <td class="px-4 py-3 text-center">
+                {#if alertSummaryQuery.isPending}
+                  <span class="inline-block w-16 h-5 rounded bg-muted animate-pulse"></span>
+                {:else if (summary?.highestSeverity ?? null) === AlertSeverity.Critical}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-destructive/15 text-destructive">Critical</span>
+                {:else if (summary?.highestSeverity ?? null) === AlertSeverity.High}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-destructive/10 text-destructive/80">High</span>
+                {:else if (summary?.highestSeverity ?? null) === AlertSeverity.Medium}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning">Medium</span>
+                {:else if (summary?.highestSeverity ?? null) === AlertSeverity.Low}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">Low</span>
+                {:else}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-success/15 text-success">Healthy</span>
+                {/if}
+              </td>
+            </tr>
           {/each}
           </tbody>
         </table>

@@ -243,19 +243,22 @@
           } else {
             await updateLinkMutation.mutateAsync({
               id: existingLink.id,
+              externalId: externalId ?? null,
+              name: external?.name ?? s.name,
               status: 'active',
-              disposition: pendingDispositions[s.id] ?? undefined,
-              note: pendingNotes[s.id] ?? undefined,
+              disposition: externalId ? null : (pendingDispositions[s.id] ?? null),
+              note: pendingNotes[s.id] || null,
+              meta: external?.meta ?? null,
             });
           }
-        } else if (externalId) {
+        } else if (externalId || pendingDispositions[s.id] || pendingNotes[s.id]) {
           await createLinkMutation.mutateAsync({
             integrationId: integration,
             siteId: s.id,
             externalId,
             name: external?.name ?? s.name,
             status: 'active',
-            disposition: pendingDispositions[s.id] ?? undefined,
+            disposition: externalId ? undefined : (pendingDispositions[s.id] ?? undefined),
             note: pendingNotes[s.id] ?? undefined,
             meta: external?.meta,
           });
