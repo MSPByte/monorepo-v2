@@ -4,13 +4,13 @@ import type { AppRouter } from "@mspbyte/trpc";
 // CRITICAL: AppRouter is imported as a type only — no server-side implementation
 // is bundled into the client. Never change this to a runtime import.
 
-export function createTrpcClient(getToken: () => Promise<string | null>) {
+export function createTrpcClient(getToken?: () => Promise<string | null>) {
   return createTRPCClient<AppRouter>({
     links: [
       httpBatchLink({
         url: `${import.meta.env.PUBLIC_API_URL ?? "http://localhost:3000"}/trpc`,
         headers: async () => {
-          const token = await getToken();
+          const token = getToken ? await getToken() : null;
           return token ? { Authorization: `Bearer ${token}` } : {};
         },
         fetch(url, options) {

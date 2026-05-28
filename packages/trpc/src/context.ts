@@ -1,53 +1,91 @@
-import { verifyToken } from '@clerk/backend';
 import { TRPCError } from '@trpc/server';
-import { getTenantDbByClerkOrg } from '@mspbyte/drizzle-catalog';
+import { getTenantDbByAuthOrg } from '@mspbyte/drizzle-catalog';
 import { createMspServiceDb } from '@mspbyte/drizzle/clients';
+import { roles, users } from '@mspbyte/drizzle';
+import { eq } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
+import { auth } from './auth.js';
 
 // Generic enough for both Fastify and other HTTP frameworks
 interface IncomingRequest {
   headers: Record<string, string | string[] | undefined>;
 }
 
+function toHeaders(headers: IncomingRequest['headers']) {
+  const result = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) result.append(key, item);
+    } else if (value !== undefined) {
+      result.set(key, value);
+    }
+  }
+  return result;
+}
+
 export async function createContext({ req, redis }: { req: IncomingRequest; redis?: Redis }) {
-  const authHeader = req.headers.authorization;
-  const raw = Array.isArray(authHeader) ? authHeader[0] : authHeader;
-  if (!raw?.startsWith('Bearer ')) {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Missing authorization header' });
+  if (!process.env.BETTER_AUTH_SECRET || !process.env.BETTER_AUTH_URL) {
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Better Auth is not configured' });
   }
 
-  const token = raw.slice(7);
-
-  let payload: Awaited<ReturnType<typeof verifyToken>>;
-  try {
-    payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
-  } catch {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid session token' });
+  const headers = toHeaders(req.headers);
+  const session = await auth.api.getSession({ headers });
+  if (!session) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or missing session' });
   }
 
-  const userId = payload.sub;
-  // Clerk JWT v1 uses a flat `org_id` claim; v2 uses a compact `o` object with `id`.
-  const payloadAny = payload as Record<string, unknown>;
-  const o = payloadAny.o as Record<string, unknown> | string | undefined;
-  const orgId =
-    (payloadAny.org_id as string | undefined) ??
-    (typeof o === 'string' ? o : (o as Record<string, unknown> | undefined)?.id as string | undefined);
+  const userId = session.user.id;
+  let authOrgId = session.session.activeOrganizationId;
 
-  if (!orgId) {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No organization in session' });
+  if (!authOrgId) {
+    const organizations = await auth.api.listOrganizations({ headers }).catch(() => []);
+    if (organizations.length === 1) {
+      authOrgId = organizations[0]!.id;
+      await auth.api
+        .setActiveOrganization({ headers, body: { organizationId: authOrgId } })
+        .catch(() => null);
+    }
   }
 
-  const result = await getTenantDbByClerkOrg(orgId).catch(() => null);
+  if (!authOrgId) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No active organization in session' });
+  }
+
+  const result = await getTenantDbByAuthOrg(authOrgId).catch(() => null);
   if (!result) {
     throw new TRPCError({
       code: 'NOT_FOUND',
-      message: 'Organization not provisioned — contact support'
+      message: 'Organization not provisioned - contact support'
     });
   }
 
   const { org } = result;
+  if (org.status !== 'active') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Organization is not active' });
+  }
+
   const db = await createMspServiceDb(org.serviceConnectionString);
-  return { userId, orgId, db, org, connectionString: org.serviceConnectionString, redis };
+  const [tenantUser] = await db.select().from(users).where(eq(users.authUserId, userId)).limit(1);
+  if (!tenantUser?.roleId) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'User is not provisioned for this organization' });
+  }
+
+  const [role] = await db.select().from(roles).where(eq(roles.id, tenantUser.roleId)).limit(1);
+  if (!role) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'User role is not provisioned' });
+  }
+
+  return {
+    userId,
+    orgId: org.id,
+    authOrgId,
+    db,
+    org,
+    user: tenantUser,
+    role,
+    connectionString: org.serviceConnectionString,
+    redis
+  };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

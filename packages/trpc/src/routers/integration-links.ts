@@ -39,7 +39,7 @@ export const integrationLinksRouter = t.router({
         status: z.enum(['active', 'error', 'disabled']).default('active'),
         disposition: z.enum(['managed', 'third_party', 'not_managed']).optional(),
         note: z.string().optional(),
-        meta: z.record(z.unknown()).optional(),
+        meta: z.record(z.string(), z.unknown()).optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<IntegrationLinkRow> => {
@@ -77,7 +77,7 @@ export const integrationLinksRouter = t.router({
         status: z.enum(['active', 'error', 'disabled']).optional(),
         disposition: z.enum(['managed', 'third_party', 'not_managed']).optional().nullable(),
         note: z.string().optional().nullable(),
-        meta: z.record(z.unknown()).optional().nullable(),
+        meta: z.record(z.string(), z.unknown()).optional().nullable(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<IntegrationLinkRow> => {

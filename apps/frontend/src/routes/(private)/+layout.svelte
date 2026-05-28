@@ -6,7 +6,6 @@
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { buildRouteMap } from '$lib/config/routes';
   import { createTrpcClient } from '$lib/trpc';
-  import { useClerkContext } from 'svelte-clerk';
   import { createQuery } from '@tanstack/svelte-query';
   import { Aperture, ChevronDown } from '@lucide/svelte';
   import { cn } from '$lib/utils';
@@ -18,15 +17,8 @@
 
   const { data, children }: LayoutProps = $props();
 
-  const clerkCtx = useClerkContext();
-  const trpc = createTrpcClient(() => clerkCtx.session?.getToken() ?? Promise.resolve(null));
+  const trpc = createTrpcClient();
   setContext('trpc', trpc);
-
-  $effect(() => {
-    if (clerkCtx.isLoaded && clerkCtx.clerk && !clerkCtx.auth.orgId) {
-      clerkCtx.clerk.setActive({ organization: data.clerkOrgId });
-    }
-  });
 
   const routeMap = buildRouteMap();
   const linkClass =
@@ -37,7 +29,7 @@
   const integrationsQuery = createQuery(() => ({
     queryKey: ['integrations.list'],
     queryFn: () => trpc.integrations.list.query(),
-    enabled: !!clerkCtx.auth.orgId,
+    enabled: !!data.authOrgId,
   }));
 
   $effect(() => {
@@ -119,8 +111,6 @@
     </div>
   </div>
   <div class="flex flex-col relative size-full overflow-hidden">
-    {#if clerkCtx.auth.orgId}
-      {@render children()}
-    {/if}
+    {@render children()}
   </div>
 </div>

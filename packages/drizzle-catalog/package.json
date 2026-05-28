@@ -19,14 +19,16 @@
     "db:pull": "drizzle-kit pull",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "npx run src/migrate.ts",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "seed:better-auth-org": "bun run src/seeds/provision-better-auth-org.ts"
   },
   "dependencies": {
     "@mspbyte/drizzle": "*",
     "@neondatabase/serverless": "^1.0.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-beta.22",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",

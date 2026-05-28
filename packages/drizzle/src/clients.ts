@@ -4,7 +4,8 @@ export function createMspDb(connectionString: string) {
   return drizzleNeon(connectionString);
 }
 
-// Service role — use only in worker context, never in request handlers
+// Service role. Request handlers may use this only after server-side auth, org membership,
+// and tenant-user authorization have been verified.
 export async function createMspServiceDb(connectionString: string) {
   const { default: postgres } = await import('postgres');
   const { drizzle } = await import('drizzle-orm/postgres-js');

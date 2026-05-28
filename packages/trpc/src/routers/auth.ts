@@ -12,7 +12,7 @@ export const authRouter = t.router({
       const [user] = await ctx.db
         .select()
         .from(users)
-        .where(eq(users.clerkUserId, ctx.userId))
+        .where(eq(users.authUserId, ctx.userId))
         .limit(1);
       return { user, org: ctx.org };
     },

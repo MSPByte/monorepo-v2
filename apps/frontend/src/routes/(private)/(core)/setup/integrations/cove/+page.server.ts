@@ -13,7 +13,7 @@ const CoveConfigSchema = z.object({
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadCustomers(connectionString: string, auth: (...args: any[]) => any, org: any) {
+async function loadCustomers(connectionString: string, auth: App.Locals['auth'], org: any) {
   try {
     const caller = createServerCaller({ auth, org, connectionString });
     const integration = await caller.integrations.get({ id: 'cove' });

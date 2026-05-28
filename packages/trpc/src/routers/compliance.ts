@@ -211,7 +211,7 @@ export const complianceRouter = t.router({
         description: z.string().optional(),
         severity: z.string(),
         checkTypeId: z.string(),
-        checkConfig: z.record(z.unknown())
+        checkConfig: z.record(z.string(), z.unknown())
       })
     )
     .mutation(async ({ ctx, input }): Promise<CheckRow> => {
@@ -237,7 +237,7 @@ export const complianceRouter = t.router({
         description: z.string().optional().nullable(),
         severity: z.string().optional(),
         checkTypeId: z.string().optional(),
-        checkConfig: z.record(z.unknown()).optional()
+        checkConfig: z.record(z.string(), z.unknown()).optional()
       })
     )
     .mutation(async ({ ctx, input }): Promise<CheckRow> => {

@@ -12,7 +12,7 @@ const SophosConfigSchema = z.object({
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadTenants(connectionString: string, auth: (...args: any[]) => any, org: any): Promise<{ id: string; name: string; meta: { apiHost: string | null } }[]> {
+async function loadTenants(connectionString: string, auth: App.Locals['auth'], org: any): Promise<{ id: string; name: string; meta: { apiHost: string | null } }[]> {
   try {
     const caller = createServerCaller({ auth, org, connectionString });
     const integration = await caller.integrations.get({ id: 'sophos-partner' });

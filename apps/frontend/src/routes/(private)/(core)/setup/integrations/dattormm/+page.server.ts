@@ -14,7 +14,7 @@ const DattoConfigSchema = z.object({
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadSites(connectionString: string, auth: (...args: any[]) => any, org: any): Promise<DattoSite[]> {
+async function loadSites(connectionString: string, auth: App.Locals['auth'], org: any): Promise<DattoSite[]> {
   try {
     const caller = createServerCaller({ auth, org, connectionString });
     const integration = await caller.integrations.get({ id: 'dattormm' });

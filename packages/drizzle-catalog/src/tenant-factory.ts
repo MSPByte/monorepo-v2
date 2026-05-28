@@ -1,7 +1,7 @@
 import { eq, type EmptyRelations } from 'drizzle-orm';
 import { createCatalogDb } from './clients.js';
 import { createMspDb, createMspServiceDb } from '@mspbyte/drizzle/clients';
-import type { MspDb } from '@mspbyte/drizzle/clients';
+import type { MspDb, MspServiceDb } from '@mspbyte/drizzle/clients';
 import { orgs } from './catalog/schema.js';
 import type { Org } from './catalog/schema.js';
 import type { NeonQueryFunction } from '@neondatabase/serverless';
@@ -29,12 +29,15 @@ export async function getTenantDb(orgId: string): Promise<{ org: Org; db: MspDb 
   return { org, db: createMspDb(org.neonConnectionString) };
 }
 
-export async function getTenantDbByClerkOrg(clerkOrgId: string): Promise<{ org: Org; db: MspDb }> {
-  const catalogDb = getCatalogDb();
+export async function getTenantServiceDbByAuthOrg(
+  authOrgId: string,
+  connectionString?: string
+): Promise<{ org: Org; db: MspServiceDb }> {
+  const catalogDb = getCatalogDb(connectionString);
 
-  const [org] = await catalogDb.select().from(orgs).where(eq(orgs.clerkOrgId, clerkOrgId)).limit(1);
-  if (!org) throw new Error(`Org not found for Clerk org: ${clerkOrgId}`);
-  return { org, db: createMspDb(org.neonConnectionString) };
+  const [org] = await catalogDb.select().from(orgs).where(eq(orgs.authOrgId, authOrgId)).limit(1);
+  if (!org) throw new Error(`Org not found for auth org: ${authOrgId}`);
+  return { org, db: await createMspServiceDb(org.serviceConnectionString) };
 }
 
 export async function getTenantServiceDb(orgId: string) {

@@ -6,12 +6,17 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { appRouter } from '@mspbyte/trpc';
 import type { AppRouter } from '@mspbyte/trpc';
 
-// Mock context: bypass Clerk JWT, inject test DB
+// Mock context: bypass Better Auth session lookup, inject test DB
 const mockContext = async () => ({
   userId: 'user_test_123',
   orgId: 'org_test_123',
+  authOrgId: 'org_test_123',
   db: null as unknown as Awaited<ReturnType<typeof import('@mspbyte/drizzle').createMspDb>>,
   org: null as unknown as import('@mspbyte/drizzle-catalog').Org,
+  user: null as never,
+  role: null as never,
+  connectionString: '',
+  redis: undefined,
 });
 
 let serverUrl: string;

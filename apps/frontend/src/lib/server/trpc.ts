@@ -1,22 +1,29 @@
 import { appRouter } from '@mspbyte/trpc';
 import { createMspDb } from '@mspbyte/drizzle';
 import type { Org } from '@mspbyte/drizzle-catalog';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AuthFn = (...args: any[]) => any;
+import type { db } from '$lib/db';
 
 export function createServerCaller(locals: {
-  auth: AuthFn;
+  auth: {
+    userId: string;
+    orgId: string;
+    authOrgId: string;
+    email: string;
+  };
   org: Org;
+  user?: db.User;
+  role?: db.Role;
   connectionString: string;
 }) {
-  const auth = locals.auth() as { userId?: string | null; orgId?: string | null };
   const db = createMspDb(locals.connectionString);
   return appRouter.createCaller({
-    userId: auth.userId ?? '',
-    orgId: auth.orgId ?? '',
+    userId: locals.auth.userId,
+    orgId: locals.auth.orgId,
+    authOrgId: locals.auth.authOrgId,
     db: db as never,
     org: locals.org,
+    user: locals.user as never,
+    role: locals.role as never,
     connectionString: locals.connectionString,
     redis: undefined,
   });

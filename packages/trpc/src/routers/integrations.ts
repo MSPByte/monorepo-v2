@@ -26,7 +26,7 @@ export const integrationsRouter = t.router({
     .input(
       z.object({
         id: z.string(),
-        config: z.record(z.unknown()),
+        config: z.record(z.string(), z.unknown()),
         credentialExpiration: z.string().datetime().optional()
       })
     )

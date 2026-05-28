@@ -15,7 +15,7 @@ const HaloConfigSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadSites(
   connectionString: string,
-  auth: (...args: any[]) => any,
+  auth: App.Locals['auth'],
   org: any,
 ): Promise<HaloPSASite[]> {
   try {

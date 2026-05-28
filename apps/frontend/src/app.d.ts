@@ -1,10 +1,15 @@
-/// <reference types="svelte-clerk/env" />
 import { db, dbCatalog } from "$lib/db";
 
 declare global {
   namespace App {
     // interface Error {}
     interface Locals {
+      auth: {
+        userId: string;
+        orgId: string;
+        authOrgId: string;
+        email: string;
+      };
       user: db.User;
       role: db.Role;
       org: dbCatalog.Org;

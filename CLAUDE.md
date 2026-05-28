@@ -23,7 +23,7 @@ infra/                 ← Docker Compose (Redis)
 
 ## Database Architecture — Two Tiers
 
-**Catalog DB** (`CATALOG_DATABASE_URL`): Single Neon project. Contains only the `orgs` table — maps a Clerk org ID to the MSP's dedicated Neon project connection strings. Never store MSP operational data here.
+**Catalog DB** (`CATALOG_DATABASE_URL`): Single Neon project. Contains Better Auth tables plus `orgs`, which maps a Better Auth organization ID to the MSP's dedicated Neon project connection strings. Never store MSP operational data here.
 
 **MSP DB** (per org): One Neon project per MSP organization. Contains all operational data: tenants, sites, users, integrations, vendor data, alerts, compliance. Connection string comes from `orgs.neon_connection_string` in the catalog DB.
 
@@ -31,13 +31,13 @@ infra/                 ← Docker Compose (Redis)
 
 - `createCatalogDb()` — neon-http driver. For API request context only. Reads `CATALOG_DATABASE_URL`.
 - `createMspDb(connectionString)` — neon-http driver. For API/tRPC request handlers. Connection string from catalog lookup.
-- `createMspServiceDb(connectionString)` — postgres-js driver. **Workers only.** Never use in request handlers.
+- `createMspServiceDb(connectionString)` — postgres-js driver. Workers and trusted request handlers may use it only after server-side auth, org membership, and tenant-user authorization are verified.
 
-Never trust client-supplied connection strings. Always resolve them from the catalog lookup using the Clerk JWT's `o: { id }` claim.
+Never trust client-supplied connection strings. Always resolve them from the catalog lookup using the Better Auth session's active organization ID.
 
 ### Schema Locations
 
-- Catalog schema: `packages/drizzle/src/catalog/schema.ts` — `orgs` table only
+- Catalog schema: `packages/drizzle-catalog/src/catalog/schema.ts` — Better Auth tables plus `orgs`
 - MSP public schema: `packages/drizzle/src/msp/schema.ts`
 - MSP vendors schema: `packages/drizzle/src/msp/vendors.ts` (uses `pgSchema('vendors')`)
 
@@ -48,15 +48,15 @@ Never query MSP DB tables from catalog schema code and vice versa.
 - Router defined in `packages/trpc/src/router.ts`
 - `packages/trpc/src/index.ts` exports `appRouter` (implementation) and `export type { AppRouter }` (type only)
 - `apps/frontend` must **only** use `import type { AppRouter } from '@mspbyte/trpc'` — never import the implementation
-- Every tRPC procedure validates the Clerk session via the context factory in `packages/trpc/src/context.ts`
-- `o: { id }` comes from the Clerk JWT claim — never trust client-supplied org IDs
+- Every tRPC procedure validates the Better Auth session via the context factory in `packages/trpc/src/context.ts`
+- The active organization comes from the Better Auth session — never trust client-supplied org IDs
 
-## Auth (Clerk)
+## Auth (Better Auth)
 
-- Clerk organizations model: one Clerk org = one MSP
-- JWT `org_id` claim maps to `orgs.clerk_org_id` in the catalog DB
-- Every API request must have a valid Clerk session token in the Authorization header
-- tRPC context verifies the token and resolves the MSP DB connection before any procedure runs
+- Better Auth organizations model: one Better Auth org = one MSP
+- Better Auth `session.activeOrganizationId` maps to `orgs.auth_org_id` in the catalog DB
+- Browser requests authenticate with Better Auth session cookies
+- tRPC context validates the session, verifies tenant user/role provisioning, and resolves the MSP DB connection before any procedure runs
 
 ## BullMQ Workers
 

@@ -1,14 +1,20 @@
 <script lang="ts">
   import { authStore } from '$lib/stores/auth.store.svelte';
+  import { authClient } from '$lib/auth-client';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
   import { Power, Sun, Moon } from '@lucide/svelte';
   import { toggleMode, mode } from 'mode-watcher';
-  import { useClerkContext } from 'svelte-clerk';
-
-  const ctx = useClerkContext();
 
   function handleLogout() {
-    authStore.logout(() => ctx.clerk?.signOut({ redirectUrl: '/' }));
+    authStore.logout(() => {
+      void authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            window.location.href = '/';
+          },
+        },
+      });
+    });
   }
 
   const initials = $derived(

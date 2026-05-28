@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { clerkPlugin } from '@clerk/fastify';
 import { fastifyTRPCPlugin } from '@trpc/server/adapters/fastify';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
@@ -22,8 +21,6 @@ await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
   credentials: true
 });
-
-await app.register(clerkPlugin);
 
 await app.register(fastifyTRPCPlugin, {
   prefix: '/trpc',

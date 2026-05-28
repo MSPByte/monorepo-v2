@@ -22,12 +22,12 @@ describe('catalog schema integration', () => {
     });
   });
 
-  it('enforces unique constraint on clerk_org_id', async () => {
+  it('enforces unique constraint on auth_org_id', async () => {
     await withTestTransaction(db.catalogDb, async (tx) => {
-      const clerkOrgId = `org_test_unique_${crypto.randomUUID()}`;
-      await seedOrg(tx as Parameters<typeof seedOrg>[0], { clerkOrgId });
+      const authOrgId = `org_test_unique_${crypto.randomUUID()}`;
+      await seedOrg(tx as Parameters<typeof seedOrg>[0], { authOrgId });
       await expect(
-        seedOrg(tx as Parameters<typeof seedOrg>[0], { clerkOrgId }),
+        seedOrg(tx as Parameters<typeof seedOrg>[0], { authOrgId }),
       ).rejects.toThrow();
     });
   });

@@ -2,7 +2,6 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { ModeWatcher } from 'mode-watcher';
-	import { ClerkProvider } from 'svelte-clerk';
 	import { createQueryClient } from '$lib/query';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
@@ -26,11 +25,9 @@
 			<rect width="100%" height="100%" fill="url(#dot-grid)"></rect>
 		</svg>
 	</div>
-	<ClerkProvider>
-		<QueryClientProvider client={queryClient}>
-			<div class="flex flex-col size-full">
-				{@render children()}
-			</div>
-		</QueryClientProvider>
-	</ClerkProvider>
+	<QueryClientProvider client={queryClient}>
+		<div class="flex flex-col size-full">
+			{@render children()}
+		</div>
+	</QueryClientProvider>
 </main>

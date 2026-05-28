@@ -83,9 +83,9 @@ const M365CAPolicySchema = z
     id: z.string(),
     displayName: z.string(),
     state: z.enum(['enabled', 'disabled', 'enabledForReportingButNotEnforced']),
-    conditions: z.record(z.unknown()).optional(),
-    grantControls: z.record(z.unknown()).nullable().optional(),
-    sessionControls: z.record(z.unknown()).nullable().optional()
+    conditions: z.record(z.string(), z.unknown()).optional(),
+    grantControls: z.record(z.string(), z.unknown()).nullable().optional(),
+    sessionControls: z.record(z.string(), z.unknown()).nullable().optional()
   })
   .passthrough();
 

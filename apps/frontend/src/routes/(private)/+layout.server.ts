@@ -9,6 +9,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   return {
     user: locals.user,
     role: locals.role,
-    clerkOrgId: locals.org.clerkOrgId,
+    orgId: locals.org.id,
+    authOrgId: locals.auth.authOrgId,
   };
 };

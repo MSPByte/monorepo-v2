@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { orgs } from './catalog/schema.js';
+import { organization, orgs } from './catalog/schema.js';
 import { users, integrations, integrationLinks } from '@mspbyte/drizzle';
 
 export function setupTestDb() {
@@ -41,10 +41,19 @@ export async function seedOrg(
   db: ReturnType<typeof drizzle>,
   overrides: Partial<typeof orgs.$inferInsert> = {}
 ) {
+  const authOrgId = overrides.authOrgId ?? `org_${crypto.randomUUID()}`;
+  await (db as ReturnType<typeof drizzle>)
+    .insert(organization)
+    .values({
+      id: authOrgId,
+      name: overrides.name ?? 'Test Org',
+      slug: overrides.slug ?? `test-org-${crypto.randomUUID().slice(0, 8)}`
+    });
+
   const [org] = await (db as ReturnType<typeof drizzle>)
     .insert(orgs)
     .values({
-      clerkOrgId: `org_test_${crypto.randomUUID()}`,
+      authOrgId,
       name: 'Test Org',
       slug: `test-org-${crypto.randomUUID().slice(0, 8)}`,
       neonProjectId: 'test-project',
@@ -63,7 +72,7 @@ export async function seedUser(
   const [user] = await (db as ReturnType<typeof drizzle>)
     .insert(users)
     .values({
-      clerkUserId: `user_test_${crypto.randomUUID()}`,
+      authUserId: `user_test_${crypto.randomUUID()}`,
       email: 'test@example.com',
       name: 'Test User',
       ...overrides
