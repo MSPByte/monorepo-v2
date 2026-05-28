@@ -7,6 +7,7 @@ const STALE_DAYS = 30;
 export const staleIdentityCheck: CheckEvaluator = {
   checkId: 'stale_identity',
   definitionId: 'microsoft-365.identities.stale',
+  sourceTables: ['m365_identities'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);

@@ -5,6 +5,7 @@ import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
 export const sophosTamperProtectionCheck: CheckEvaluator = {
   checkId: 'sophos_tamper_protection',
   definitionId: 'sophos.endpoint.tamper_protection',
+  sourceTables: ['sophos_endpoints'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const conditions = [eq(sophosEndpoints.tamperProtectionEnabled, false)];

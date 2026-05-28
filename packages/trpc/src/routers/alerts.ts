@@ -93,7 +93,15 @@ export const alertsRouter = t.router({
 
       if (input.globalSearch) {
         const q = `%${input.globalSearch}%`;
-        conditions.push(or(ilike(alerts.message, q), ilike(alerts.entityId, q))!);
+        conditions.push(
+          or(
+            ilike(alerts.message, q),
+            ilike(alerts.definitionId, q),
+            ilike(alerts.entityId, q),
+            ilike(alerts.entityRef, q),
+            ilike(sql`${alerts.metadata}::text`, q)
+          )!
+        );
       }
 
       for (const f of input.filters ?? []) {

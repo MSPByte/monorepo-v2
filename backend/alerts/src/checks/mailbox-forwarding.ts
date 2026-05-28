@@ -5,6 +5,7 @@ import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
 export const mailboxExternalSmtpCheck: CheckEvaluator = {
   checkId: 'mailbox_external_smtp',
   definitionId: 'microsoft-365.mailboxForwarding.externalSmtp',
+  sourceTables: ['m365_mailbox_forwarding'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const conditions = [isNotNull(m365MailboxForwarding.forwardingSmtpAddress)];
@@ -35,6 +36,7 @@ export const mailboxExternalSmtpCheck: CheckEvaluator = {
 export const mailboxInternalForwardCheck: CheckEvaluator = {
   checkId: 'mailbox_internal_forward',
   definitionId: 'microsoft-365.mailboxForwarding.internalForward',
+  sourceTables: ['m365_mailbox_forwarding'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const conditions = [isNotNull(m365MailboxForwarding.forwardingAddress)];

@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import dns from 'node:dns';
-import { ProviderFacet, M365Connector } from '@mspbyte/shared';
+import {
+  ProviderFacet,
+  M365Connector,
+  SkuCatalogService,
+  externalInboxRuleRecipients
+} from '@mspbyte/shared';
 import type { ProviderAdapter, AdapterContext } from '@mspbyte/shared';
 import { logger } from '../../logger.js';
 import { env } from '../../env.js';
@@ -433,8 +438,23 @@ export const m365Adapter: ProviderAdapter = {
       }
 
       case ProviderFacet.M365Licenses: {
-        const skus = await connector.subscribedSkus.listAll();
-        if (skus.length > 0) yield skus;
+        const [skus, skuNames] = await Promise.all([
+          connector.subscribedSkus.listAll(),
+          SkuCatalogService.resolve()
+        ]);
+        if (skus.length > 0) {
+          yield skus.map((sku) => {
+            const record = sku as Record<string, unknown>;
+            const skuPartNumber =
+              typeof record.skuPartNumber === 'string' ? record.skuPartNumber : undefined;
+            return {
+              ...record,
+              _friendlyName: skuPartNumber
+                ? (skuNames.get(skuPartNumber) ?? skuPartNumber)
+                : record.skuId
+            };
+          });
+        }
         break;
       }
 
@@ -886,9 +906,17 @@ export const m365Adapter: ProviderAdapter = {
         const JUNK_FOLDERS = ['Deleted Items', 'Junk Email', 'RSS Feeds', 'Trash'];
         const suspicionReasons: string[] = [];
         if (rule.DeleteMessage === true) suspicionReasons.push('deletesMessages');
-        if ((rule.ForwardTo?.filter(Boolean).length ?? 0) > 0)
-          suspicionReasons.push('forwardsExternally');
-        if ((rule.ForwardAsAttachmentTo?.filter(Boolean).length ?? 0) > 0)
+        const forwardTo = rule.ForwardTo?.filter(Boolean) ?? null;
+        const forwardAsAttachmentTo = rule.ForwardAsAttachmentTo?.filter(Boolean) ?? null;
+        const externalForwardTo = externalInboxRuleRecipients(
+          forwardTo,
+          rule.MailboxUserPrincipalName
+        );
+        const externalForwardAsAttachmentTo = externalInboxRuleRecipients(
+          forwardAsAttachmentTo,
+          rule.MailboxUserPrincipalName
+        );
+        if (externalForwardTo.length > 0 || externalForwardAsAttachmentTo.length > 0)
           suspicionReasons.push('forwardsExternally');
         if ((rule.RedirectTo?.filter(Boolean).length ?? 0) > 0)
           suspicionReasons.push('redirectsMessages');
@@ -902,12 +930,12 @@ export const m365Adapter: ProviderAdapter = {
           enabled: rule.Enabled ?? null,
           deleteMessage: rule.DeleteMessage ?? null,
           moveToFolder: rule.MoveToFolder ?? null,
-          forwardTo: rule.ForwardTo?.filter(Boolean) ?? null,
-          forwardAsAttachmentTo: rule.ForwardAsAttachmentTo?.filter(Boolean) ?? null,
+          forwardTo,
+          forwardAsAttachmentTo,
           redirectTo: rule.RedirectTo?.filter(Boolean) ?? null,
           markAsRead: rule.MarkAsRead ?? null,
           subjectContainsWords: rule.SubjectContainsWords?.filter(Boolean) ?? null,
-          isSuspicious: true,
+          isSuspicious: suspicionReasons.length > 0,
           suspicionReasons: [...new Set(suspicionReasons)]
         };
       }

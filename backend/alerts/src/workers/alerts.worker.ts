@@ -15,7 +15,7 @@ import {
   failStage
 } from '@mspbyte/drizzle';
 import { checkRegistry } from '../checks/registry.js';
-import { upsertAlert } from '../upsert.js';
+import { resolveMissingAlerts, upsertAlert } from '../upsert.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
 
@@ -57,6 +57,26 @@ function checkConfigTable(checkConfig: unknown): string | undefined {
 
   const table = (checkConfig as Record<string, unknown>).table;
   return typeof table === 'string' ? canonicalTableName(table) : undefined;
+}
+
+function touchedTablesForFacets(facets?: ProviderFacet[]): Set<string> {
+  return new Set(
+    facets
+      ?.map((facet) => facetTableMap.get(facet))
+      .filter((table): table is string => table !== undefined)
+  );
+}
+
+function checkMatchesTouchedTables(
+  check: ReturnType<typeof checkRegistry.getAll>[number],
+  touchedTables: Set<string>
+): boolean {
+  if (touchedTables.size === 0) return true;
+
+  const sourceTables = check.sourceTables?.map(canonicalTableName) ?? [];
+  if (sourceTables.length === 0) return true;
+
+  return sourceTables.some((table) => touchedTables.has(table));
 }
 
 async function enqueueAssignedComplianceJobs(params: {
@@ -151,11 +171,7 @@ async function enqueueAssignedComplianceJobs(params: {
       return;
     }
 
-    const touchedTables = new Set(
-      facets
-        ?.map((facet) => facetTableMap.get(facet))
-        .filter((table): table is string => table !== undefined)
-    );
+    const touchedTables = touchedTablesForFacets(facets);
 
     const checks = await db
       .select({
@@ -261,9 +277,19 @@ export function createAlertsWorker(redis: Redis) {
         job.id ?? ingestRunId
       );
 
-      const checks = checkRegistry.getAll();
+      const touchedTables = touchedTablesForFacets(facets);
+      const checks = checkRegistry
+        .getAll()
+        .filter((check) => checkMatchesTouchedTables(check, touchedTables));
       logger.info(
-        { orgId, siteId, linkId, run: ingestRunId, checks: checks.length },
+        {
+          orgId,
+          siteId,
+          linkId,
+          run: ingestRunId,
+          checks: checks.length,
+          touchedTables: [...touchedTables]
+        },
         'Alerts job started'
       );
 
@@ -298,6 +324,17 @@ export function createAlertsWorker(redis: Redis) {
                 'Alert upsert failed'
               );
             }
+          }
+
+          for (const definitionId of check.definitionIds ?? [check.definitionId]) {
+            await resolveMissingAlerts(db, {
+              definitionIds: [definitionId],
+              siteId,
+              linkId,
+              seenEntityRefs: detections
+                .filter((detection) => detection.definitionId === definitionId)
+                .map((detection) => detection.entityRef)
+            });
           }
 
           logger.info(

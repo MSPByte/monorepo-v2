@@ -64,6 +64,40 @@ describe('m365Adapter.normalize groups', () => {
   });
 });
 
+describe('m365Adapter.normalize inbox rules', () => {
+  it('does not mark internal Exchange DN forwards as external', () => {
+    const normalized = m365Adapter.normalize(
+      {
+        Name: 'No-Reply@SupplySourceGlobal.com',
+        Identity: 'rule-identity',
+        MailboxUserPrincipalName: 'kevin@redrhinoindustrial.com',
+        ForwardTo: [
+          '"Mary McGill" [EX:/o=ExchangeLabs/ou=Exchange Administrative Group (FYDIBOHF23SPDLT)/cn=Recipients/cn=8dc66ddd95d24b059bb3b380a386549a-mary]'
+        ]
+      },
+      ProviderFacet.M365InboxRules
+    ) as Record<string, unknown>;
+
+    expect(normalized.isSuspicious).toBe(false);
+    expect(normalized.suspicionReasons).toEqual([]);
+  });
+
+  it('marks external SMTP forwards as external', () => {
+    const normalized = m365Adapter.normalize(
+      {
+        Name: 'External forward',
+        Identity: 'rule-identity',
+        MailboxUserPrincipalName: 'kevin@redrhinoindustrial.com',
+        ForwardTo: ['SMTP:no-reply@supplysourceglobal.com']
+      },
+      ProviderFacet.M365InboxRules
+    ) as Record<string, unknown>;
+
+    expect(normalized.isSuspicious).toBe(true);
+    expect(normalized.suspicionReasons).toEqual(['forwardsExternally']);
+  });
+});
+
 describe('getM365FacetSchema', () => {
   it('parses a valid user object without error', () => {
     const schema = getM365FacetSchema(ProviderFacet.M365Identities);
@@ -81,6 +115,7 @@ describe('getM365FacetSchema', () => {
       ProviderFacet.M365Identities, ProviderFacet.M365Groups, ProviderFacet.M365Licenses,
       ProviderFacet.M365CAPolicies, ProviderFacet.M365AuthMethods, ProviderFacet.M365Devices,
       ProviderFacet.M365OAuthGrants, ProviderFacet.M365RiskyUsers,
+      ProviderFacet.M365InboxRules,
     ];
     for (const facet of supported) {
       expect(() => getM365FacetSchema(facet)).not.toThrow();

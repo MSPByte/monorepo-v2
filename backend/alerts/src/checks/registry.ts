@@ -4,10 +4,13 @@ import { staleIdentityCheck } from './stale-identity.js';
 import { mailboxExternalSmtpCheck, mailboxInternalForwardCheck } from './mailbox-forwarding.js';
 import { inboxRulesCheck } from './inbox-rules.js';
 import { sophosTamperProtectionCheck } from './sophos-tamper-protection.js';
+import { licenseExpiringSoonCheck, licenseUnusedSeatsCheck } from './license-utilization.js';
 
 const checks = new Map<string, CheckEvaluator>([
   [mfaEnforcedCheck.checkId, mfaEnforcedCheck],
   [staleIdentityCheck.checkId, staleIdentityCheck],
+  [licenseUnusedSeatsCheck.checkId, licenseUnusedSeatsCheck],
+  [licenseExpiringSoonCheck.checkId, licenseExpiringSoonCheck],
   [mailboxExternalSmtpCheck.checkId, mailboxExternalSmtpCheck],
   [mailboxInternalForwardCheck.checkId, mailboxInternalForwardCheck],
   [inboxRulesCheck.checkId, inboxRulesCheck],

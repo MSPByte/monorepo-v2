@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { upsertAlert, type Detection } from './upsert.js';
+import { resolveMissingAlerts, upsertAlert, type Detection } from './upsert.js';
 
 const detection: Detection = {
   definitionId: 'microsoft-365.identities.noMfa',
@@ -141,5 +141,29 @@ describe('upsertAlert state machine', () => {
     await upsertAlert(db, detection);
     expect(db.insert).toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('resolves active alerts missing from the latest check detections', async () => {
+    const where = vi.fn().mockResolvedValue([]);
+    const set = vi.fn().mockReturnValue({ where });
+    const db = {
+      update: vi.fn().mockReturnValue({ set })
+    } as unknown as Parameters<typeof resolveMissingAlerts>[0];
+
+    await resolveMissingAlerts(db, {
+      definitionIds: ['microsoft-365.licenses.unusedSeats'],
+      linkId: 'link-1',
+      seenEntityRefs: ['Business Premium']
+    });
+
+    expect(db.update).toHaveBeenCalled();
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'resolved',
+        resolvedAt: expect.any(Date),
+        updatedAt: expect.any(Date)
+      })
+    );
+    expect(where).toHaveBeenCalled();
   });
 });

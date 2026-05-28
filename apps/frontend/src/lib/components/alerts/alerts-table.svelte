@@ -2,9 +2,9 @@
   import { getContext } from 'svelte';
   import type { createTrpcClient } from '$lib/trpc';
   import { DataTable, type DataTableColumn, type PaginationInput, type TableView } from '$lib/components/data-table';
-  import { ALERT_DEFINITIONS, hydrateMessageTemplate } from '@mspbyte/shared/config/alerts';
   import { AlertSeverity } from '@mspbyte/shared/types/alerts';
   import { cn } from '$lib/utils';
+  import { alertEntityLabel, alertTitle, hydratedAlertMessage } from './display';
 
   function capitalize(s: string) {
     return s.charAt(0).toUpperCase() + s.slice(1);
@@ -31,9 +31,11 @@
 
   let suppressId = $state<string | null>(null);
   let suppressOpen = $state(false);
+  let suppressAlertRow = $state<AlertRow | null>(null);
 
-  function openSuppress(id: string) {
-    suppressId = id;
+  function openSuppress(alert: AlertRow) {
+    suppressId = alert.id;
+    suppressAlertRow = alert;
     suppressOpen = true;
   }
 
@@ -138,19 +140,14 @@
 {/snippet}
 
 {#snippet definitionCell({ row }: { row: AlertRow; value: unknown })}
-  {@const def = row.definitionId ? ALERT_DEFINITIONS[row.definitionId] : undefined}
   <div class="flex flex-col gap-0.5">
-    <span class="font-medium text-sm">{def?.name ?? row.definitionId ?? '—'}</span>
-    {#if row.metadata && def?.messageTemplate}
-      <span class="text-xs text-muted-foreground">
-        {hydrateMessageTemplate(def.messageTemplate, row.metadata as Record<string, unknown>)}
-      </span>
-    {/if}
+    <span class="font-medium text-sm">{alertTitle(row)}</span>
+    <span class="text-xs text-muted-foreground">{hydratedAlertMessage(row)}</span>
   </div>
 {/snippet}
 
 {#snippet entityCell({ row }: { row: AlertRow; value: unknown })}
-  <span class="font-mono text-xs text-muted-foreground">{row.entityId ?? '—'}</span>
+  <span class="text-sm">{alertEntityLabel(row)}</span>
 {/snippet}
 
 {#snippet scopeCell({ row }: { row: AlertRow; value: unknown })}
@@ -175,7 +172,7 @@
 {#snippet actionsCell({ row }: { row: AlertRow; value: unknown })}
   <div class="relative flex justify-end z-50">
     <button
-      onclick={(e) => { e.stopPropagation(); openSuppress(row.id); }}
+      onclick={(e) => { e.stopPropagation(); openSuppress(row); }}
       class="text-xs text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
     >
       Suppress
@@ -192,4 +189,4 @@
   />
 {/key}
 
-<AlertSuppress id={suppressId ?? ''} bind:open={suppressOpen} />
+<AlertSuppress id={suppressId ?? ''} alert={suppressAlertRow ?? undefined} bind:open={suppressOpen} />

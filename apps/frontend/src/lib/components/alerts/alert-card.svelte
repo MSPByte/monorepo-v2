@@ -2,11 +2,12 @@
   import Button from "$lib/components/ui/button/button.svelte";
   import { cn } from "$lib/utils";
   import { EyeOff } from "@lucide/svelte";
-  import { ALERT_DEFINITIONS, AlertSeverity, hydrateMessageTemplate } from '@mspbyte/shared';
+  import { ALERT_DEFINITIONS, AlertSeverity } from '@mspbyte/shared';
   import AlertSuppress from "$lib/components/alerts/alert-suppress.svelte";
-  import type { db } from "$lib/db";
+  import type { UiAlert } from "$lib/components/alerts/types";
+  import { hydratedAlertMessage } from './display';
 
-  const { alert }: { alert: db.Alert } = $props();
+  const { alert }: { alert: UiAlert } = $props();
 
   const definition = $derived(ALERT_DEFINITIONS[alert.definitionId!]);
   
@@ -32,8 +33,8 @@
     <span class="text-xs text-muted-foreground">{definition.description}</span>
   </div>
   {#if alert.metadata}
-    <span>{hydrateMessageTemplate(definition.messageTemplate, Object(alert.metadata))}</span>
+    <span>{hydratedAlertMessage(alert)}</span>
   {/if}
 </div>
 
-<AlertSuppress id={alert.id} bind:open={open} />
+<AlertSuppress id={alert.id} {alert} bind:open={open} />

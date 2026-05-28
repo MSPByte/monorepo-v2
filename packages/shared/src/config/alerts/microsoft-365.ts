@@ -20,6 +20,24 @@ export const MICROSOFT_365_ALERT_DEFINITIONS: Record<string, AlertDefinition> = 
     messageTemplate: '{{email}} does not have MFA enforced.',
     severity: AlertSeverity.High
   },
+  'microsoft-365.licenses.unusedSeats': {
+    id: 'microsoft-365.licenses.unusedSeats',
+    integrationId: 'microsoft-365',
+    name: 'Unused License Seats',
+    tag: 'Unused Seats',
+    description: 'License SKU has unassigned seats and low utilization.',
+    messageTemplate: '{{friendlyName}} has {{unusedUnits}} of {{totalUnits}} seats unassigned.',
+    severity: AlertSeverity.High
+  },
+  'microsoft-365.licenses.expiringSoon': {
+    id: 'microsoft-365.licenses.expiringSoon',
+    integrationId: 'microsoft-365',
+    name: 'License Seats Expiring Soon',
+    tag: 'Expiring',
+    description: 'License SKU has seats in warning or expiring state.',
+    messageTemplate: '{{friendlyName}} has {{warningUnits}} seats expiring soon.',
+    severity: AlertSeverity.Medium
+  },
   'microsoft-365.mailboxForwarding.externalSmtp': {
     id: 'microsoft-365.mailboxForwarding.externalSmtp',
     integrationId: 'microsoft-365',
@@ -44,7 +62,7 @@ export const MICROSOFT_365_ALERT_DEFINITIONS: Record<string, AlertDefinition> = 
     name: 'Inbox Rule: Delete Message',
     tag: 'Rule: Delete',
     description: 'Suspicious inbox rule configured to delete messages.',
-    messageTemplate: '{{mailboxUpn}} has a delete-message inbox rule.',
+    messageTemplate: '{{mailboxUpn}} has a delete-message inbox rule: {{ruleName}}.',
     severity: AlertSeverity.High
   },
   'microsoft-365.inboxRules.externalForward': {
@@ -53,7 +71,7 @@ export const MICROSOFT_365_ALERT_DEFINITIONS: Record<string, AlertDefinition> = 
     name: 'Inbox Rule: External Forward',
     tag: 'Rule: Ext Fwd',
     description: 'Suspicious inbox rule configured to forward messages externally.',
-    messageTemplate: '{{mailboxUpn}} has an external-forward inbox rule.',
+    messageTemplate: '{{mailboxUpn}} has an external-forward inbox rule: {{ruleName}}.',
     severity: AlertSeverity.Medium
   },
   'microsoft-365.inboxRules.redirectsMessage': {
@@ -62,7 +80,7 @@ export const MICROSOFT_365_ALERT_DEFINITIONS: Record<string, AlertDefinition> = 
     name: 'Inbox Rule: Redirect Messages',
     tag: 'Rule: Redirect',
     description: 'Suspicious inbox rule configured to redirect messages.',
-    messageTemplate: '{{mailboxUpn}} has a redirect-messages inbox rule.',
+    messageTemplate: '{{mailboxUpn}} has a redirect-messages inbox rule: {{ruleName}}.',
     severity: AlertSeverity.Medium
   }
 };

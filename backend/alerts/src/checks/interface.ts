@@ -21,5 +21,7 @@ export type Detection = {
 export interface CheckEvaluator {
   readonly checkId: string;
   readonly definitionId: string;
+  readonly definitionIds?: readonly string[];
+  readonly sourceTables?: readonly string[];
   evaluate(input: CheckInput): Promise<Detection[]>;
 }

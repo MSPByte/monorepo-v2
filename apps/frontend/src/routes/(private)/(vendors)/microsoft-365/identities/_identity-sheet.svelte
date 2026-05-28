@@ -5,8 +5,8 @@
   import { cn } from '$lib/utils';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
   import { ALERT_DEFINITIONS } from '@mspbyte/shared';
-    import AlertCard from "$lib/components/alerts/alert-card.svelte";
-    import type { db } from "$lib/db";
+  import AlertCard from '$lib/components/alerts/alert-card.svelte';
+  import type { UiAlert } from '$lib/components/alerts/types';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -24,7 +24,7 @@
   interface Props {
     identity: IdentityRow | null;
     linkId: string;
-    alerts: db.Alert[];
+    alerts: UiAlert[];
     onclose: () => void;
   }
 

@@ -1,13 +1,16 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { goto } from '$app/navigation';
   import { SvelteMap } from 'svelte/reactivity';
+  import { cn } from '$lib/utils';
   import TenantRow from './_TenantRow.svelte';
+  import InsightsPanel from './_InsightsPanel.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
   // ── Global overview ──────────────────────────────────────────────────────
   const linksQuery = createQuery(() => ({
@@ -54,17 +57,32 @@
     enabled: !!scopeStore.currentLink,
   }));
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
-  const NOW = Date.now();
+  const alertsQuery = createQuery(() => ({
+    queryKey: ['alerts.list', 'microsoft-365', scopeStore.currentLink, 'active'],
+    queryFn: () =>
+      trpc.alerts.list.query({
+        linkId: scopeStore.currentLink!,
+        status: 'active',
+      }),
+    enabled: !!scopeStore.currentLink,
+  }));
 
+  function refreshTenantAlerts() {
+    queryClient.invalidateQueries({
+      queryKey: ['alerts.list', 'microsoft-365', scopeStore.currentLink, 'active'],
+    });
+  }
+
+  // ── Derived stats ─────────────────────────────────────────────────────────
   const identityStats = $derived.by(() => {
     const ids = (identitiesQuery.data?.rows ?? []) as Array<{
       mfaEnforced: boolean;
       lastSignInAt: string | null;
     }>;
+    const now = Date.now();
     const noMfa = ids.filter((u) => u.mfaEnforced === false).length;
     const stale = ids.filter(
-      (u) => !u.lastSignInAt || NOW - new Date(u.lastSignInAt).getTime() > 30 * 86_400_000,
+      (u) => !u.lastSignInAt || now - new Date(u.lastSignInAt).getTime() > 30 * 86_400_000,
     ).length;
     return { total: ids.length, noMfa, stale };
   });
@@ -96,27 +114,9 @@
     return Math.round((ids.filter((u) => u.mfaEnforced !== false).length / ids.length) * 100);
   });
 
-  const staleRanges = $derived.by(() => {
-    const ids = (identitiesQuery.data?.rows ?? []) as Array<{ lastSignInAt: string | null }>;
-    const buckets = [
-      { label: '< 7d', min: 0, max: 7, color: 'var(--success)' },
-      { label: '7–30d', min: 7, max: 30, color: 'var(--warning)' },
-      { label: '30–90d', min: 30, max: 90, color: 'oklch(0.65 0.18 40)' },
-      { label: '> 90d', min: 90, max: Infinity, color: 'var(--destructive)' },
-    ];
-    return buckets.map((b) => {
-      const count = ids.filter((u) => {
-        if (!u.lastSignInAt) return b.max === Infinity;
-        const days = (NOW - new Date(u.lastSignInAt).getTime()) / 86_400_000;
-        return days >= b.min && days < b.max;
-      }).length;
-      return {
-        ...b,
-        count,
-        pct: ids.length ? Math.round((count / ids.length) * 100) : 0,
-      };
-    });
-  });
+  const metricsLoading = $derived(
+    identitiesQuery.isPending || licensesQuery.isPending || policiesQuery.isPending,
+  );
 
   // ── Global overview helpers ───────────────────────────────────────────────
   const metricsMap = new SvelteMap<string, { alertCount: number; complianceFailures: number }>();
@@ -170,140 +170,90 @@
 
 {#if scopeStore.currentLink}
   <!-- ── Per-tenant dashboard ──────────────────────────────────────────── -->
-  <div class="flex flex-col size-full overflow-y-auto p-4 gap-4">
-    <!-- KPI strip -->
-    <div class="grid grid-cols-4 gap-3">
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Total Identities
+  <div class="flex flex-col size-full overflow-hidden">
+    <!-- Compact metrics strip -->
+    <div class="flex items-center gap-5 px-4 py-2.5 border-b shrink-0 flex-wrap">
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-lg font-semibold tabular-nums">
+            {metricsLoading ? '—' : identityStats.total}
+          </span>
+          <span class="text-xs text-muted-foreground">Identities</span>
         </div>
-        <div class="text-3xl font-bold tabular-nums">
-          {identitiesQuery.isPending ? '—' : identityStats.total}
-        </div>
-        <div class="text-xs text-muted-foreground">{identityStats.stale} stale</div>
+        {#if !metricsLoading && identityStats.stale > 0}
+          <span class="text-[11px] text-warning tabular-nums">{identityStats.stale} stale</span>
+        {/if}
       </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          No MFA
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-destructive">
-          {identitiesQuery.isPending ? '—' : identityStats.noMfa}
-        </div>
-        <div class="text-xs text-muted-foreground">require enabling</div>
-      </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Unused Seats
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-destructive">
-          {licensesQuery.isPending ? '—' : licenseStats.unused}
-        </div>
-        <div class="text-xs text-muted-foreground">across {licenseStats.skus} SKUs</div>
-      </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Active Policies
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-primary">
-          {policiesQuery.isPending ? '—' : policyStats.enabled}
-        </div>
-        <div class="text-xs text-muted-foreground">of {policyStats.total} total</div>
-      </div>
-    </div>
 
-    <!-- Charts row -->
-    <div class="grid grid-cols-2 gap-3">
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          MFA Status
+      <div class="w-px h-8 bg-border shrink-0"></div>
+
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-baseline gap-1.5">
+          <span
+            class={cn(
+              'text-lg font-semibold tabular-nums',
+              !metricsLoading && identityStats.noMfa > 0 && 'text-destructive',
+            )}
+          >
+            {metricsLoading ? '—' : identityStats.noMfa}
+          </span>
+          <span class="text-xs text-muted-foreground">No MFA</span>
         </div>
-        {#if identitiesQuery.isPending}
-          <div class="h-24 bg-muted rounded animate-pulse"></div>
-        {:else}
-          <div class="flex items-center gap-4">
-            <div class="relative shrink-0" style="width:72px;height:72px">
-              <svg width="72" height="72" style="transform:rotate(-90deg)">
-                <circle cx="36" cy="36" r="31" fill="none" stroke="var(--border)" stroke-width="8" />
-                <circle
-                  cx="36"
-                  cy="36"
-                  r="31"
-                  fill="none"
-                  stroke="var(--success)"
-                  stroke-width="8"
-                  stroke-dasharray="{(mfaPct / 100) * 2 * Math.PI * 31} {(1 - mfaPct / 100) *
-                    2 *
-                    Math.PI *
-                    31}"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <div class="absolute inset-0 flex items-center justify-center text-sm font-bold">
-                {mfaPct}%
-              </div>
-            </div>
-            <div class="flex flex-col gap-1.5 text-xs">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-success inline-block"></span>
-                Enabled: {identityStats.total - identityStats.noMfa}
-              </div>
-              <div class="flex items-center gap-1.5 text-destructive">
-                <span class="w-2 h-2 rounded-full bg-destructive inline-block"></span>
-                Disabled: {identityStats.noMfa}
-              </div>
+        {#if !metricsLoading}
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-muted-foreground tabular-nums">{mfaPct}% coverage</span>
+            <div class="w-12 h-1 rounded-full bg-border overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-500"
+                style="width:{mfaPct}%;background:var(--success)"
+              ></div>
             </div>
           </div>
         {/if}
       </div>
 
-      <div class="rounded-lg border bg-card p-4">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Last Sign-in
+      <div class="w-px h-8 bg-border shrink-0"></div>
+
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-baseline gap-1.5">
+          <span
+            class={cn(
+              'text-lg font-semibold tabular-nums',
+              !metricsLoading && licenseStats.unused > 0 && 'text-destructive',
+            )}
+          >
+            {metricsLoading ? '—' : licenseStats.unused}
+          </span>
+          <span class="text-xs text-muted-foreground">Unused Seats</span>
         </div>
-        {#if identitiesQuery.isPending}
-          <div class="h-24 bg-muted rounded animate-pulse"></div>
-        {:else}
-          <div class="flex flex-col gap-2">
-            {#each staleRanges as range}
-              <div>
-                <div class="flex justify-between text-xs mb-1">
-                  <span class="text-muted-foreground">{range.label}</span>
-                  <span style="color:{range.color}">{range.count}</span>
-                </div>
-                <div class="w-full h-1.5 rounded-full bg-border overflow-hidden">
-                  <div
-                    style="width:{range.pct}%;background:{range.color};height:100%;border-radius:9999px;transition:width 0.4s"
-                  ></div>
-                </div>
-              </div>
-            {/each}
-          </div>
+        {#if !metricsLoading}
+          <span class="text-[11px] text-muted-foreground tabular-nums">
+            {licenseStats.skus} SKUs
+          </span>
         {/if}
+      </div>
+
+      <div class="w-px h-8 bg-border shrink-0"></div>
+
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-lg font-semibold tabular-nums">
+            {metricsLoading ? '—' : policyStats.enabled}
+          </span>
+          <span class="text-xs text-muted-foreground">
+            / {metricsLoading ? '—' : policyStats.total} Policies
+          </span>
+        </div>
       </div>
     </div>
 
-    <!-- Quick links -->
-    <div class="flex flex-wrap gap-2">
-      <a
-        href="/microsoft-365/identities"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >Identities →</a
-      >
-      <a
-        href="/microsoft-365/licenses"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >Licenses →</a
-      >
-      <a
-        href="/microsoft-365/policies"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >Policies →</a
-      >
-      <a
-        href="/microsoft-365/groups"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >Groups →</a
-      >
+    <!-- Insights panel fills remaining space -->
+    <div class="flex-1 overflow-hidden">
+      <InsightsPanel
+        alerts={alertsQuery.data ?? []}
+        loading={alertsQuery.isPending}
+        onalertchange={refreshTenantAlerts}
+      />
     </div>
   </div>
 {:else}

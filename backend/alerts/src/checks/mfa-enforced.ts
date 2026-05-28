@@ -10,6 +10,7 @@ import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
 export const mfaEnforcedCheck: CheckEvaluator = {
   checkId: 'mfa_enforced',
   definitionId: 'microsoft-365.identities.noMfa',
+  sourceTables: ['m365_identities'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const conditions = [eq(m365Identities.enabled, true), eq(m365Identities.mfaEnforced, false)];

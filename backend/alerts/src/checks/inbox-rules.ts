@@ -1,10 +1,17 @@
 import { eq, and } from 'drizzle-orm';
 import { m365InboxRules } from '@mspbyte/drizzle';
+import { externalInboxRuleRecipients } from '@mspbyte/shared';
 import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
 
 export const inboxRulesCheck: CheckEvaluator = {
   checkId: 'suspicious_inbox_rules',
   definitionId: 'microsoft-365.inboxRules.deleteMessage',
+  definitionIds: [
+    'microsoft-365.inboxRules.deleteMessage',
+    'microsoft-365.inboxRules.externalForward',
+    'microsoft-365.inboxRules.redirectsMessage'
+  ],
+  sourceTables: ['m365_inbox_rules'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
     const conditions = [eq(m365InboxRules.isSuspicious, true)];
@@ -32,8 +39,12 @@ export const inboxRulesCheck: CheckEvaluator = {
         });
       }
 
-      const forwardsExternally = Array.isArray(rule.forwardTo) && rule.forwardTo.length > 0;
-      if (forwardsExternally) {
+      const externalForwardTo = externalInboxRuleRecipients(rule.forwardTo, rule.mailboxUpn);
+      const externalForwardAsAttachmentTo = externalInboxRuleRecipients(
+        rule.forwardAsAttachmentTo,
+        rule.mailboxUpn
+      );
+      if (externalForwardTo.length > 0 || externalForwardAsAttachmentTo.length > 0) {
         detections.push({
           checkId: 'suspicious_inbox_rules',
           definitionId: 'microsoft-365.inboxRules.externalForward',
@@ -45,7 +56,8 @@ export const inboxRulesCheck: CheckEvaluator = {
           detail: {
             mailboxUpn: rule.mailboxUpn,
             ruleName: rule.ruleName,
-            forwardTo: rule.forwardTo,
+            forwardTo: externalForwardTo,
+            forwardAsAttachmentTo: externalForwardAsAttachmentTo,
             reasons
           }
         });

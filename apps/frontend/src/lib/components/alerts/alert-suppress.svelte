@@ -6,8 +6,27 @@
   import type { CalendarDate } from "@internationalized/date";
   import DatePicker from "$lib/components/date-picker.svelte";
   import type { createTrpcClient } from '$lib/trpc';
+  import {
+    alertEntityLabel,
+    alertMetadataEntries,
+    alertTitle,
+    formatAlertValue,
+    hydratedAlertMessage,
+    metadataLabel,
+    type AlertDisplaySource,
+  } from './display';
 
-  let { id, open = $bindable(), onsuppress }: { id: string; open?: boolean; onsuppress?: () => void } = $props();
+  let {
+    id,
+    alert,
+    open = $bindable(),
+    onsuppress,
+  }: {
+    id: string;
+    alert?: AlertDisplaySource;
+    open?: boolean;
+    onsuppress?: () => void;
+  } = $props();
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -36,7 +55,10 @@
     saving = true;
 
     const until = suppressDate.toDate(getLocalTimeZone());
-    if (until <= new Date()) return;
+    if (until <= new Date()) {
+      saving = false;
+      return;
+    }
 
     await trpc.alerts.suppress.mutate({ alertId: id, until: until.toISOString() });
 
@@ -45,14 +67,16 @@
     suppressDate = undefined;
     onsuppress?.();
   }
+
+  const detailEntries = $derived(alert ? alertMetadataEntries(alert).slice(0, 8) : []);
 </script>
 
 <Dialog.Root bind:open={open}>
-  <Dialog.Content class="max-w-sm gap-0 p-0 overflow-hidden">
+  <Dialog.Content class="max-w-140! gap-0 p-0 overflow-hidden">
 
     <!-- Header zone -->
-    <div class="flex flex-col items-center gap-3 px-6 pt-8 pb-6 border-b border-border/50 text-center">
-      <div class="flex items-center justify-center size-12 rounded-2xl bg-warning/10">
+    <div class="flex gap-4 px-6 pt-6 pb-5 border-b border-border/50">
+      <div class="flex items-center justify-center size-11 rounded-lg bg-warning/10 shrink-0">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="22"
@@ -71,9 +95,9 @@
           <line x1="1" y1="1" x2="23" y2="23"/>
         </svg>
       </div>
-      <Dialog.Header class="gap-1.5 items-center">
+      <Dialog.Header class="gap-1.5 text-left">
         <Dialog.Title class="text-base font-semibold">Suppress Alert</Dialog.Title>
-        <Dialog.Description class="text-sm text-muted-foreground leading-snug max-w-[24ch]">
+        <Dialog.Description class="text-sm text-muted-foreground leading-snug">
           Silence this alert until a date you choose. You can unsuppress it at any time.
         </Dialog.Description>
       </Dialog.Header>
@@ -81,6 +105,30 @@
 
     <!-- Body zone -->
     <div class="flex flex-col gap-5 px-6 py-5">
+      {#if alert}
+        <div class="rounded-lg border bg-muted/20 overflow-hidden">
+          <div class="flex flex-col gap-1 p-3 border-b">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium truncate">{alertTitle(alert)}</span>
+              {#if alert.entityType}
+                <span class="text-[11px] text-muted-foreground border rounded px-1.5 py-0.5 shrink-0">
+                  {metadataLabel(alert.entityType)}
+                </span>
+              {/if}
+            </div>
+            <div class="text-xs text-muted-foreground truncate">{alertEntityLabel(alert)}</div>
+            <div class="text-sm leading-snug">{hydratedAlertMessage(alert)}</div>
+          </div>
+          {#if detailEntries.length > 0}
+            <dl class="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 p-3 text-xs">
+              {#each detailEntries as [key, value]}
+                <dt class="text-muted-foreground">{metadataLabel(key)}</dt>
+                <dd class="min-w-0 break-words">{formatAlertValue(value)}</dd>
+              {/each}
+            </dl>
+          {/if}
+        </div>
+      {/if}
 
       <div class="flex flex-col gap-2">
         <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide px-0.5">
