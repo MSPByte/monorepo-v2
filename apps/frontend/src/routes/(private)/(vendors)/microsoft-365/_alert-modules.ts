@@ -34,6 +34,10 @@ const MODULES: Record<M365AlertModuleId, M365AlertModule> = {
 
 export function moduleForAlert(alert: UiAlert): M365AlertModule {
   const definitionId = alert.definitionId ?? "";
+  return moduleForDefinitionId(definitionId);
+}
+
+export function moduleForDefinitionId(definitionId: string): M365AlertModule {
   if (definitionId.startsWith("microsoft-365.identities."))
     return MODULES.identities;
   if (definitionId.startsWith("microsoft-365.licenses."))
@@ -43,6 +47,25 @@ export function moduleForAlert(alert: UiAlert): M365AlertModule {
   if (definitionId.startsWith("microsoft-365.inboxRules."))
     return MODULES.exchange;
   return MODULES.other;
+}
+
+export function definitionPrefixesForModule(id: M365AlertModuleId | "all"): string[] | undefined {
+  if (id === "all") return undefined;
+  if (id === "identities") return ["microsoft-365.identities."];
+  if (id === "licenses") return ["microsoft-365.licenses."];
+  if (id === "exchange")
+    return ["microsoft-365.mailboxForwarding.", "microsoft-365.inboxRules."];
+  return undefined;
+}
+
+export function definitionExcludePrefixesForModule(id: M365AlertModuleId | "all"): string[] | undefined {
+  if (id !== "other") return undefined;
+  return [
+    "microsoft-365.identities.",
+    "microsoft-365.licenses.",
+    "microsoft-365.mailboxForwarding.",
+    "microsoft-365.inboxRules.",
+  ];
 }
 
 export type EntityInsight = {

@@ -4,10 +4,10 @@
   import type { createTrpcClient } from '$lib/trpc';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { goto } from '$app/navigation';
-  import { SvelteMap } from 'svelte/reactivity';
   import { cn } from '$lib/utils';
   import TenantRow from './_TenantRow.svelte';
   import InsightsPanel from './_InsightsPanel.svelte';
+  import { AlertSeverity } from '@mspbyte/shared';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const queryClient = useQueryClient();
@@ -17,6 +17,13 @@
     queryKey: ['integrationLinks.list', 'microsoft-365', 'active'],
     queryFn: () =>
       trpc.integrationLinks.list.query({ integrationId: 'microsoft-365', status: 'active' }),
+    enabled: !scopeStore.currentLink,
+  }));
+
+  const alertSummaryQuery = createQuery(() => ({
+    queryKey: ['alerts.summaryByLink', 'microsoft-365', 'active'],
+    queryFn: () =>
+      trpc.alerts.summaryByLink.query({ integrationId: 'microsoft-365', status: 'active' }),
     enabled: !scopeStore.currentLink,
   }));
 
@@ -57,20 +64,11 @@
     enabled: !!scopeStore.currentLink,
   }));
 
-  const alertsQuery = createQuery(() => ({
-    queryKey: ['alerts.list', 'microsoft-365', scopeStore.currentLink, 'active'],
-    queryFn: () =>
-      trpc.alerts.list.query({
-        linkId: scopeStore.currentLink!,
-        status: 'active',
-      }),
-    enabled: !!scopeStore.currentLink,
-  }));
-
   function refreshTenantAlerts() {
     queryClient.invalidateQueries({
-      queryKey: ['alerts.list', 'microsoft-365', scopeStore.currentLink, 'active'],
+      queryKey: ['alerts.insightGroups', 'microsoft-365', scopeStore.currentLink, 'active'],
     });
+    queryClient.invalidateQueries({ queryKey: ['alerts.summaryByLink', 'microsoft-365', 'active'] });
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
@@ -119,13 +117,18 @@
   );
 
   // ── Global overview helpers ───────────────────────────────────────────────
-  const metricsMap = new SvelteMap<string, { alertCount: number; complianceFailures: number }>();
-
-  function handleMetrics(linkId: string, alertCount: number, complianceFailures: number) {
-    metricsMap.set(linkId, { alertCount, complianceFailures });
-  }
-
   const links = $derived(linksQuery.data ?? []);
+
+  const alertSummaryMap = $derived.by(() => {
+    const map = new Map<
+      string,
+      { alertCount: number; highestSeverity: number | null; criticalCount: number; highCount: number }
+    >();
+    for (const row of alertSummaryQuery.data ?? []) {
+      if (row.linkId) map.set(row.linkId, row);
+    }
+    return map;
+  });
 
   let searchQuery = $state('');
 
@@ -139,26 +142,25 @@
 
   const criticalCount = $derived(
     filteredLinks.filter((l) => {
-      const m = metricsMap.get(l.id);
-      return (m?.complianceFailures ?? 0) > 0 || (m?.alertCount ?? 0) > 10;
+      const m = alertSummaryMap.get(l.id);
+      return (m?.highestSeverity ?? -1) >= AlertSeverity.High;
     }).length,
   );
 
   const warningCount = $derived(
     filteredLinks.filter((l) => {
-      const m = metricsMap.get(l.id);
+      const m = alertSummaryMap.get(l.id);
       return (
-        (m?.complianceFailures ?? 0) === 0 &&
-        (m?.alertCount ?? 0) > 0 &&
-        (m?.alertCount ?? 0) <= 10
+        (m?.highestSeverity ?? -1) >= AlertSeverity.Low &&
+        (m?.highestSeverity ?? -1) < AlertSeverity.High
       );
     }).length,
   );
 
   const healthyCount = $derived(
     filteredLinks.filter((l) => {
-      const m = metricsMap.get(l.id);
-      return (m?.complianceFailures ?? 0) === 0 && (m?.alertCount ?? 0) === 0;
+      const m = alertSummaryMap.get(l.id);
+      return (m?.alertCount ?? 0) === 0;
     }).length,
   );
 
@@ -250,8 +252,7 @@
     <!-- Insights panel fills remaining space -->
     <div class="flex-1 overflow-hidden">
       <InsightsPanel
-        alerts={alertsQuery.data ?? []}
-        loading={alertsQuery.isPending}
+        linkId={scopeStore.currentLink}
         onalertchange={refreshTenantAlerts}
       />
     </div>
@@ -271,21 +272,21 @@
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Critical
+          High/Critical
         </div>
         <div class="text-3xl font-bold tabular-nums text-destructive">
           {linksQuery.isPending ? '—' : criticalCount}
         </div>
-        <div class="text-xs text-muted-foreground">10+ alerts</div>
+        <div class="text-xs text-muted-foreground">highest alert severity</div>
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Warnings
+          Low/Medium
         </div>
         <div class="text-3xl font-bold tabular-nums text-warning">
           {linksQuery.isPending ? '—' : warningCount}
         </div>
-        <div class="text-xs text-muted-foreground">have open alerts</div>
+        <div class="text-xs text-muted-foreground">highest alert severity</div>
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -331,16 +332,18 @@
               <th class="px-4 py-2 text-left">Tenant</th>
               <th class="px-4 py-2 text-center w-24">Alerts</th>
               <th class="px-4 py-2 text-center w-40">Compliance Failures</th>
-              <th class="px-4 py-2 text-right w-32">Last Sync</th>
               <th class="px-4 py-2 text-center w-28">Status</th>
             </tr>
           </thead>
           <tbody>
             {#each filteredLinks as link (link.id)}
+              {@const summary = alertSummaryMap.get(link.id)}
               <TenantRow
                 {link}
                 onclick={selectTenant}
-                onmetrics={(ac, cf) => handleMetrics(link.id, ac, cf)}
+                alertCount={summary?.alertCount ?? 0}
+                highestSeverity={summary?.highestSeverity ?? null}
+                loading={alertSummaryQuery.isPending}
               />
             {/each}
           </tbody>

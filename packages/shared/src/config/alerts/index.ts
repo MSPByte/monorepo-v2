@@ -1,11 +1,14 @@
 import type { AlertDefinition } from '../../types/alerts.js';
+import { COVE_ALERT_DEFINITIONS } from './cove.js';
 import { MICROSOFT_365_ALERT_DEFINITIONS } from './microsoft-365.js';
 import { SOPHOS_ALERT_DEFINITIONS } from './sophos-partner.js';
 
+export { COVE_ALERT_DEFINITIONS } from './cove.js';
 export { MICROSOFT_365_ALERT_DEFINITIONS } from './microsoft-365.js';
 export { SOPHOS_ALERT_DEFINITIONS } from './sophos-partner.js';
 
 export const ALERT_DEFINITIONS: Record<string, AlertDefinition> = {
+  ...COVE_ALERT_DEFINITIONS,
   ...MICROSOFT_365_ALERT_DEFINITIONS,
   ...SOPHOS_ALERT_DEFINITIONS
 } as const;

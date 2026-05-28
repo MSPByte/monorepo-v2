@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { getContext, untrack } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
-  import type { createTrpcClient } from '$lib/trpc';
   import { cn } from '$lib/utils';
+  import { AlertSeverity } from '@mspbyte/shared';
 
   type LinkRow = {
     id: string;
@@ -15,54 +13,38 @@
   let {
     link,
     onclick,
-    onmetrics,
+    alertCount,
+    highestSeverity,
+    loading,
   }: {
     link: LinkRow;
     onclick: (link: { id: string }) => void;
-    onmetrics?: (alertCount: number, complianceFailures: number) => void;
+    alertCount?: number;
+    highestSeverity?: number | null;
+    loading?: boolean;
   } = $props();
 
-  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
-
-  const alertsQuery = createQuery(() => ({
-    queryKey: ['alerts.list', link.id, 'active'],
-    queryFn: () => trpc.alerts.list.query({ linkId: link.id, status: 'active' }),
-  }));
-
-  const isLoading = $derived(alertsQuery.isPending);
-  const alertCount = $derived(alertsQuery.data?.length ?? 0);
-  // Compliance failures not available in v2 without siteId+frameworkId — show 0
-  const complianceFailures = 0;
-
-  $effect(() => {
-    if (alertsQuery.isPending) return;
-    const ac = alertCount;
-    const cf = complianceFailures;
-    untrack(() => onmetrics?.(ac, cf));
-  });
-
+  const isLoading = $derived(loading ?? false);
+  const resolvedAlertCount = $derived(alertCount ?? 0);
+  const resolvedHighestSeverity = $derived(highestSeverity ?? null);
   function statusColor() {
-    if (alertCount > 10) return 'bg-destructive';
-    if (alertCount > 0) return 'bg-warning';
+    if (resolvedHighestSeverity === AlertSeverity.Critical) return 'bg-destructive';
+    if (resolvedHighestSeverity === AlertSeverity.High) return 'bg-destructive/80';
+    if (resolvedHighestSeverity === AlertSeverity.Medium) return 'bg-warning';
+    if (resolvedHighestSeverity === AlertSeverity.Low) return 'bg-muted-foreground/40';
     return 'bg-success';
   }
 
   function statusLabel() {
-    if (alertCount > 10)
+    if (resolvedHighestSeverity === AlertSeverity.Critical)
       return { text: 'Critical', cls: 'bg-destructive/15 text-destructive' };
-    if (alertCount > 0)
-      return { text: 'Warning', cls: 'bg-warning/20 text-warning' };
+    if (resolvedHighestSeverity === AlertSeverity.High)
+      return { text: 'High', cls: 'bg-destructive/10 text-destructive/80' };
+    if (resolvedHighestSeverity === AlertSeverity.Medium)
+      return { text: 'Medium', cls: 'bg-warning/20 text-warning' };
+    if (resolvedHighestSeverity === AlertSeverity.Low)
+      return { text: 'Low', cls: 'bg-muted text-muted-foreground' };
     return { text: 'Healthy', cls: 'bg-success/15 text-success' };
-  }
-
-  function relativeTime(ts: Date | string) {
-    const diff = Date.now() - new Date(ts).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
   }
 </script>
 
@@ -83,9 +65,9 @@
   <td class="px-4 py-3 text-center">
     {#if isLoading}
       <span class="inline-block w-8 h-4 rounded bg-muted animate-pulse"></span>
-    {:else if alertCount > 0}
+    {:else if resolvedAlertCount > 0}
       <span class="inline-flex items-center justify-center min-w-6 px-1.5 py-0.5 rounded-full text-xs font-medium bg-destructive/15 text-destructive">
-        {alertCount}
+        {resolvedAlertCount}
       </span>
     {:else}
       <span class="text-xs text-muted-foreground">—</span>
@@ -93,9 +75,6 @@
   </td>
   <td class="px-4 py-3 text-center">
     <span class="text-xs text-muted-foreground">—</span>
-  </td>
-  <td class="px-4 py-3 text-right">
-    <span class="text-muted-foreground text-xs">{relativeTime(link.updatedAt)}</span>
   </td>
   <td class="px-4 py-3 text-center">
     {#if isLoading}

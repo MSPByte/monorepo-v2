@@ -5,8 +5,14 @@ import { mailboxExternalSmtpCheck, mailboxInternalForwardCheck } from './mailbox
 import { inboxRulesCheck } from './inbox-rules.js';
 import { sophosTamperProtectionCheck } from './sophos-tamper-protection.js';
 import { licenseExpiringSoonCheck, licenseUnusedSeatsCheck } from './license-utilization.js';
+import {
+  coveEndpointErrorsCheck,
+  coveEndpointLastSuccessStaleCheck
+} from './cove-endpoints.js';
 
 const checks = new Map<string, CheckEvaluator>([
+  [coveEndpointErrorsCheck.checkId, coveEndpointErrorsCheck],
+  [coveEndpointLastSuccessStaleCheck.checkId, coveEndpointLastSuccessStaleCheck],
   [mfaEnforcedCheck.checkId, mfaEnforcedCheck],
   [staleIdentityCheck.checkId, staleIdentityCheck],
   [licenseUnusedSeatsCheck.checkId, licenseUnusedSeatsCheck],

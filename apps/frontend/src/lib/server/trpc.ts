@@ -15,8 +15,9 @@ export function createServerCaller(locals: {
   return appRouter.createCaller({
     userId: auth.userId ?? '',
     orgId: auth.orgId ?? '',
-    db,
+    db: db as never,
     org: locals.org,
     connectionString: locals.connectionString,
+    redis: undefined,
   });
 }

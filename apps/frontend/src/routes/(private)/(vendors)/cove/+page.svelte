@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { cn } from '$lib/utils';
 
@@ -13,8 +13,10 @@
   }
   import { goto } from '$app/navigation';
   import type { createTrpcClient } from '$lib/trpc';
+  import InsightsPanel from './_InsightsPanel.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
   const NOW = Date.now();
 
@@ -52,53 +54,38 @@
   }));
 
   const alertsQuery = createQuery(() => ({
-    queryKey: ['alerts.tableData', 'cove', currentLink],
+    queryKey: ['alerts.list', 'cove', currentLink, 'active'],
     queryFn: () =>
-      trpc.alerts.tableData.query({
+      trpc.alerts.list.query({
         linkId: currentLink ?? undefined,
-        integrationId: 'cove',
-        page: 0,
-        pageSize: 1000,
-        filters: [{ field: 'status', operator: 'eq', value: 'active' }],
-        sortField: 'severity',
-        sortDir: 'desc',
+        status: 'active',
       }),
     enabled: !!currentLink,
   }));
+
+  function refreshSiteAlerts() {
+    queryClient.invalidateQueries({
+      queryKey: ['alerts.list', 'cove', currentLink, 'active'],
+    });
+  }
 
   type EndpointRow = Record<string, unknown>;
 
   const endpointStats = $derived.by(() => {
     const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
-    const failed = eps.filter((e) => e['status'] === 'error').length;
-    const noRecentBackup = eps.filter(
-      (e) => !e['lastSuccessAt'] || NOW - new Date(String(e['lastSuccessAt'])).getTime() > 7 * 86_400_000,
+    const withErrors = eps.filter((e) => Number(e['errors'] ?? 0) > 0).length;
+    const staleSuccess = eps.filter(
+      (e) => !e['lastSuccessAt'] || NOW - new Date(String(e['lastSuccessAt'])).getTime() > 48 * 3_600_000,
     ).length;
     const totalSelectedSize = eps.reduce((sum, e) => sum + Number(e['selectedSize'] ?? 0), 0);
     const totalUsedStorage = eps.reduce((sum, e) => sum + Number(e['usedStorage'] ?? 0), 0);
-    return { total: eps.length, failed, noRecentBackup, totalSelectedSize, totalUsedStorage };
-  });
-
-  const statusDistribution = $derived.by(() => {
-    const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
-    const counts = new Map<string, number>();
-    for (const endpoint of eps) {
-      const status = String(endpoint['status'] ?? 'unknown');
-      counts.set(status, (counts.get(status) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([status, count]) => ({
-        status,
-        count,
-        pct: eps.length ? Math.round((count / eps.length) * 100) : 0,
-      }));
+    return { total: eps.length, withErrors, staleSuccess, totalSelectedSize, totalUsedStorage };
   });
 
   const alertStats = $derived.by(() => {
-    const rows = alertsQuery.data?.rows ?? [];
+    const rows = alertsQuery.data ?? [];
     return {
-      total: alertsQuery.data?.total ?? rows.length,
+      total: rows.length,
       critical: rows.filter((alert) => alert.severity >= 3).length,
       high: rows.filter((alert) => alert.severity === 2).length,
     };
@@ -147,116 +134,90 @@
       <div class="text-sm font-medium">No Cove integration for this site.</div>
     </div>
   {:else}
-    <div class="flex flex-col size-full overflow-y-auto p-4 gap-4">
-      <!-- KPI strip -->
-      <div class="grid grid-cols-4 gap-3">
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Active Alerts
+    <div class="flex flex-col size-full overflow-hidden">
+      <div class="flex items-center gap-5 px-4 py-2.5 border-b shrink-0 flex-wrap">
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                alertStats.total > 0 && 'text-destructive',
+              )}
+            >
+              {alertsQuery.isLoading ? '—' : alertStats.total}
+            </span>
+            <span class="text-xs text-muted-foreground">Active Alerts</span>
           </div>
-          <div
-            class="text-3xl font-bold tabular-nums {alertStats.total > 0 ? 'text-destructive' : ''}"
-          >
-            {alertsQuery.isLoading ? '—' : alertStats.total}
-          </div>
-          <div class="text-xs text-muted-foreground">
+          <span class="text-[11px] text-muted-foreground tabular-nums">
             {alertStats.critical} critical, {alertStats.high} high
-          </div>
-        </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Total Endpoints
-          </div>
-          <div class="text-3xl font-bold tabular-nums">
-            {endpointsQuery.isLoading ? '—' : endpointStats.total}
-          </div>
-        </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Backup Failed
-          </div>
-          <div
-            class="text-3xl font-bold tabular-nums {endpointStats.failed > 0
-              ? 'text-destructive'
-              : ''}"
-          >
-            {endpointsQuery.isLoading ? '—' : endpointStats.failed}
-          </div>
-          <div class="text-xs text-muted-foreground">most recent backup</div>
-        </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            No Recent (7d)
-          </div>
-          <div
-            class="text-3xl font-bold tabular-nums {endpointStats.noRecentBackup > 0
-              ? 'text-warning'
-              : ''}"
-          >
-            {endpointsQuery.isLoading ? '—' : endpointStats.noRecentBackup}
-          </div>
-          <div class="text-xs text-muted-foreground">no success this week</div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-[1fr_1fr] gap-3">
-        <div class="rounded-lg border bg-card p-4">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Endpoint Status
-          </div>
-          {#if endpointsQuery.isLoading}
-            <div class="h-24 bg-muted rounded animate-pulse"></div>
-          {:else}
-            <div class="flex flex-col gap-2">
-              {#each statusDistribution as item}
-                <div>
-                  <div class="flex justify-between text-xs mb-1">
-                    <span class="text-muted-foreground capitalize">{item.status}</span>
-                    <span>{item.count}</span>
-                  </div>
-                  <div class="w-full h-1.5 rounded-full bg-border overflow-hidden">
-                    <div
-                      class="{item.status === 'active'
-                        ? 'bg-success'
-                        : item.status === 'inactive'
-                          ? 'bg-muted-foreground/40'
-                          : 'bg-destructive'} h-full rounded-full"
-                      style="width:{item.pct}%;transition:width 0.4s"
-                    ></div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
+          </span>
         </div>
 
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Protected Storage
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-lg font-semibold tabular-nums">
+              {endpointsQuery.isLoading ? '—' : endpointStats.total}
+            </span>
+            <span class="text-xs text-muted-foreground">Endpoints</span>
           </div>
-          <div class="text-3xl font-bold tabular-nums text-primary">
-            {endpointsQuery.isLoading ? '—' : formatBytes(endpointStats.totalUsedStorage)}
+        </div>
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.withErrors > 0 && 'text-destructive',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.withErrors}
+            </span>
+            <span class="text-xs text-muted-foreground">With Errors</span>
           </div>
-          <div class="text-xs text-muted-foreground">
+        </div>
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.staleSuccess > 0 && 'text-warning',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.staleSuccess}
+            </span>
+            <span class="text-xs text-muted-foreground">Stale Success</span>
+          </div>
+          <span class="text-[11px] text-muted-foreground">over 48h</span>
+        </div>
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-lg font-semibold tabular-nums">
+              {endpointsQuery.isLoading ? '—' : formatBytes(endpointStats.totalUsedStorage)}
+            </span>
+            <span class="text-xs text-muted-foreground">Used</span>
+          </div>
+          <span class="text-[11px] text-muted-foreground tabular-nums">
             {endpointsQuery.isLoading ? '—' : formatBytes(endpointStats.totalSelectedSize)} selected
-          </div>
+          </span>
         </div>
       </div>
 
-      <!-- Quick links -->
-      <div class="flex flex-wrap gap-2">
-        <a
-          href="/cove/endpoints"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >
-          Endpoints →
-        </a>
-        <a
-          href="/cove/alerts"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >
-          Alerts →
-        </a>
+      <div class="flex-1 overflow-hidden">
+        <InsightsPanel
+          alerts={alertsQuery.data ?? []}
+          loading={alertsQuery.isPending}
+          onalertchange={refreshSiteAlerts}
+        />
       </div>
     </div>
   {/if}

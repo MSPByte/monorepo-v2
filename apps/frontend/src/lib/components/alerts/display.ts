@@ -41,6 +41,7 @@ export function alertEntityLabel(alert: AlertDisplaySource): string {
   }
 
   return (
+    metadataString(metadata, 'endpointName') ??
     metadataString(metadata, 'mailboxUpn') ??
     metadataString(metadata, 'email') ??
     metadataString(metadata, 'userPrincipalName') ??
@@ -95,6 +96,9 @@ const DETAIL_PRIORITY = [
   'unusedUnits',
   'totalUnits',
   'warningUnits',
+  'endpointName',
+  'errors',
+  'lastSuccessAt',
   'email',
   'reasons',
 ];

@@ -118,6 +118,7 @@ export const alerts = pgTable(
   (t) => [
     index('alerts_upsert_idx').on(t.linkId, t.definitionId, t.entityRef, t.status),
     index('alerts_dashboard_idx').on(t.siteId, t.status),
+    index('alerts_link_status_seen_idx').on(t.linkId, t.status, t.lastSeenAt),
     crudPolicy({ role: authenticatedRole, read: true, modify: true })
   ]
 );

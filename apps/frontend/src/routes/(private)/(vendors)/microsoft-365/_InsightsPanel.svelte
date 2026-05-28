@@ -1,12 +1,20 @@
 <script lang="ts">
+  import { getContext, untrack } from 'svelte';
+  import { createQuery } from '@tanstack/svelte-query';
   import { AlertSeverity } from '@mspbyte/shared';
   import AlertSuppress from '$lib/components/alerts/alert-suppress.svelte';
   import { cn } from '$lib/utils';
+  import type { createTrpcClient } from '$lib/trpc';
   import type { UiAlert } from '$lib/components/alerts/types';
-  import { groupByEntity, moduleForAlert, type M365AlertModuleId } from './_alert-modules';
+  import {
+    definitionExcludePrefixesForModule,
+    definitionPrefixesForModule,
+    moduleForAlert,
+    moduleForDefinitionId,
+    type M365AlertModuleId,
+  } from './_alert-modules';
   import {
     alertMetadataEntries,
-    alertSearchText,
     alertTitle,
     formatAlertValue,
     hydratedAlertMessage,
@@ -15,41 +23,26 @@
   import { ChevronRight, Search } from '@lucide/svelte';
 
   let {
-    alerts,
-    loading,
+    linkId,
     onalertchange,
   }: {
-    alerts: UiAlert[];
-    loading: boolean;
+    linkId: string | null;
     onalertchange?: () => void;
   } = $props();
 
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const GROUP_PAGE_SIZE = 100;
+
   let activeFilter = $state<M365AlertModuleId | 'all'>('all');
   let searchQuery = $state('');
+  let groupPage = $state(0);
+  let groups = $state<InsightGroup[]>([]);
+  let totalGroups = $state(0);
   let suppressId = $state<string | null>(null);
   let suppressAlert = $state<UiAlert | null>(null);
   let suppressOpen = $state(false);
   let expandedEntities = $state<Set<string>>(new Set());
-
-  const filteredAlerts = $derived.by(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return alerts.filter((alert) => {
-      if (activeFilter !== 'all' && moduleForAlert(alert).id !== activeFilter) return false;
-      if (!query) return true;
-      return alertSearchText(alert).includes(query);
-    });
-  });
-
-  const entities = $derived(groupByEntity(filteredAlerts));
-
-  const moduleCounts = $derived.by(() => {
-    const counts = new Map<M365AlertModuleId, number>();
-    for (const alert of alerts) {
-      const mod = moduleForAlert(alert).id;
-      counts.set(mod, (counts.get(mod) ?? 0) + 1);
-    }
-    return counts;
-  });
+  let groupAlerts = $state(new Map<string, { rows: UiAlert[]; total: number; loading: boolean }>());
 
   const FILTER_OPTIONS: { id: M365AlertModuleId | 'all'; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -58,6 +51,70 @@
     { id: 'exchange', label: 'Exchange' },
     { id: 'other', label: 'Other' },
   ];
+
+  const groupsQuery = createQuery(() => ({
+    queryKey: [
+      'alerts.insightGroups',
+      'microsoft-365',
+      linkId,
+      'active',
+      activeFilter,
+      searchQuery.trim(),
+      groupPage,
+    ],
+    queryFn: () =>
+      trpc.alerts.insightGroups.query({
+        linkId: linkId!,
+        status: 'active',
+        definitionPrefixes: definitionPrefixesForModule(activeFilter),
+        definitionExcludePrefixes: definitionExcludePrefixesForModule(activeFilter),
+        search: searchQuery.trim() || undefined,
+        page: groupPage,
+        pageSize: GROUP_PAGE_SIZE,
+      }),
+    enabled: !!linkId,
+  }));
+
+  const countsQuery = createQuery(() => ({
+    queryKey: ['alerts.insightGroupCounts', 'microsoft-365', linkId, 'active', searchQuery.trim()],
+    queryFn: () =>
+      trpc.alerts.insightGroupCounts.query({
+        linkId: linkId!,
+        status: 'active',
+        search: searchQuery.trim() || undefined,
+        buckets: FILTER_OPTIONS.map((filter) => ({
+          id: filter.id,
+          definitionPrefixes: definitionPrefixesForModule(filter.id),
+          definitionExcludePrefixes: definitionExcludePrefixesForModule(filter.id),
+        })),
+      }),
+    enabled: !!linkId,
+  }));
+
+  type InsightGroup = NonNullable<typeof groupsQuery.data>['rows'][number];
+
+  const loading = $derived(groupsQuery.isPending && groups.length === 0);
+  const counts = $derived.by(() => {
+    const map = new Map<string, number>();
+    for (const row of countsQuery.data ?? []) map.set(row.id, row.total);
+    return map;
+  });
+  const totalActive = $derived(counts.get('all') ?? totalGroups);
+  const showFilters = $derived(totalActive > 0 || activeFilter !== 'all' || !!searchQuery.trim());
+
+  $effect(() => {
+    const data = groupsQuery.data;
+    if (!data) return;
+    totalGroups = data.total;
+    groups = untrack(() =>
+      data.page === 0
+        ? data.rows
+        : [
+            ...groups.filter((group) => !data.rows.some((row) => row.entityKey === group.entityKey)),
+            ...data.rows,
+          ],
+    );
+  });
 
   function severityDot(severity: number) {
     if (severity === AlertSeverity.Critical) return 'bg-destructive';
@@ -105,9 +162,43 @@
 
   function toggleEntity(entityKey: string) {
     const next = new Set(expandedEntities);
-    if (next.has(entityKey)) next.delete(entityKey);
-    else next.add(entityKey);
+    if (next.has(entityKey)) {
+      next.delete(entityKey);
+    } else {
+      next.add(entityKey);
+      void loadGroupAlerts(entityKey);
+    }
     expandedEntities = next;
+  }
+
+  async function loadGroupAlerts(entityKey: string) {
+    if (!linkId) return;
+    const existing = groupAlerts.get(entityKey);
+    if (existing?.loading || existing?.rows.length) return;
+
+    groupAlerts = new Map(groupAlerts).set(entityKey, { rows: [], total: 0, loading: true });
+    const result = await trpc.alerts.insightGroupAlerts.query({
+      linkId,
+      status: 'active',
+      definitionPrefixes: definitionPrefixesForModule(activeFilter),
+      definitionExcludePrefixes: definitionExcludePrefixesForModule(activeFilter),
+      entityKey,
+      page: 0,
+      pageSize: 100,
+    });
+    groupAlerts = new Map(groupAlerts).set(entityKey, {
+      rows: result.rows as UiAlert[],
+      total: result.total,
+      loading: false,
+    });
+  }
+
+  function resetPaging() {
+    groupPage = 0;
+    groups = [];
+    totalGroups = 0;
+    expandedEntities = new Set();
+    groupAlerts = new Map();
   }
 </script>
 
@@ -116,7 +207,7 @@
     <div class="flex items-center gap-2">
       <h2 class="font-semibold text-sm">Insights</h2>
       {#if !loading}
-        <span class="text-xs text-muted-foreground tabular-nums">{alerts.length} active</span>
+        <span class="text-xs text-muted-foreground tabular-nums">{totalActive} entities</span>
       {/if}
     </div>
     {#if !loading}
@@ -129,15 +220,18 @@
     {/if}
   </div>
 
-  {#if !loading && alerts.length > 0}
+  {#if !loading && showFilters}
     <div class="flex flex-wrap items-center gap-2 px-4 py-2 border-b shrink-0">
       <div class="flex items-center gap-1">
         {#each FILTER_OPTIONS as filter}
-          {@const count = filter.id === 'all' ? alerts.length : (moduleCounts.get(filter.id) ?? 0)}
-          {#if filter.id === 'all' || count > 0}
+          {@const count = counts.get(filter.id) ?? 0}
+          {#if filter.id === 'all' || count > 0 || activeFilter === filter.id || !searchQuery.trim()}
             <button
               type="button"
-              onclick={() => (activeFilter = filter.id)}
+              onclick={() => {
+                activeFilter = filter.id;
+                resetPaging();
+              }}
               class={cn(
                 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
                 activeFilter === filter.id
@@ -156,7 +250,11 @@
         <input
           type="search"
           placeholder="Search insights"
-          bind:value={searchQuery}
+          value={searchQuery}
+          oninput={(event) => {
+            searchQuery = event.currentTarget.value;
+            resetPaging();
+          }}
           class="h-8 w-full rounded-md border bg-background pl-8 pr-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
@@ -170,7 +268,7 @@
           <div class="h-12 rounded-lg bg-muted animate-pulse"></div>
         {/each}
       </div>
-    {:else if entities.length === 0}
+    {:else if groups.length === 0}
       <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
         {searchQuery.trim() ? 'No insights match your search' : 'No active insights'}
       </div>
@@ -186,10 +284,30 @@
           </tr>
         </thead>
         <tbody>
-          {#each entities as entity (entity.entityKey)}
+          {#each groups as entity (entity.entityKey)}
             {@const expanded = isExpanded(entity.entityKey)}
-            {@const primaryAlert = entity.alerts[0]}
-            {@const modules = [...new Set(entity.alerts.map((alert) => moduleForAlert(alert).label))]}
+            {@const primaryAlert = {
+              id: entity.primaryAlertId,
+              definitionId: entity.primaryDefinitionId,
+              entityRef: entity.entityKey,
+              entityId: entity.entityKey,
+              entityType: null,
+              message: entity.primaryMessage,
+              metadata: entity.primaryMetadata,
+              severity: entity.highestSeverity,
+              status: 'active',
+              linkId,
+              siteId: null,
+              firstSeen: entity.lastSeenAt,
+              lastSeenAt: entity.lastSeenAt,
+              resolvedAt: null,
+              suppressedAt: null,
+              suppressedUntil: null,
+              suppressionNote: null,
+              suppressedBy: null,
+              updatedAt: entity.lastSeenAt,
+            } as UiAlert}
+            {@const modules = [...new Set(entity.moduleIds.map((definitionId) => moduleForDefinitionId(definitionId).label))]}
             <tr class="group border-b hover:bg-accent/30">
               <td class="px-4 py-2 align-top">
                 <button
@@ -213,7 +331,7 @@
                   <span class="min-w-0">
                     <span class="block truncate font-medium">{entity.entityKey}</span>
                     <span class="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                      {entity.alerts.length} {entity.alerts.length === 1 ? 'issue' : 'issues'}
+                      {entity.alertCount} {entity.alertCount === 1 ? 'issue' : 'issues'}
                     </span>
                   </span>
                 </button>
@@ -225,12 +343,12 @@
                   class="block w-full text-left"
                 >
                   <div class="truncate font-medium">
-                    {entity.alerts.length === 1
+                    {entity.alertCount === 1
                       ? alertTitle(primaryAlert)
-                      : `${entity.alerts.length} active alerts`}
+                      : `${entity.alertCount} active alerts`}
                   </div>
                   <div class="truncate text-xs text-muted-foreground">
-                    {entity.alerts.length === 1
+                    {entity.alertCount === 1
                       ? hydratedAlertMessage(primaryAlert)
                       : modules.join(', ')}
                   </div>
@@ -250,10 +368,14 @@
                 {relativeTime(primaryAlert.lastSeenAt)}
               </td>
               <td class="px-4 py-2 text-right align-top">
-                {#if entity.alerts.length === 1}
+                {#if entity.alertCount === 1}
                   <button
                     type="button"
-                    onclick={() => openSuppress(primaryAlert)}
+                    onclick={async () => {
+                      await loadGroupAlerts(entity.entityKey);
+                      const loaded = groupAlerts.get(entity.entityKey)?.rows[0];
+                      if (loaded) openSuppress(loaded);
+                    }}
                     class="text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
                   >
                     Suppress
@@ -270,16 +392,22 @@
               </td>
             </tr>
             {#if expanded}
+              {@const details = groupAlerts.get(entity.entityKey)}
               <tr class="border-b bg-muted/10">
                 <td colspan="5" class="px-4 py-2">
                   <div class="ml-6 overflow-hidden rounded-md border bg-background">
-                    {#each entity.alerts as alert, alertIndex (alert.id)}
+                    {#if details?.loading}
+                      <div class="px-3 py-3 text-xs text-muted-foreground">Loading alerts...</div>
+                    {:else if !details || details.rows.length === 0}
+                      <div class="px-3 py-3 text-xs text-muted-foreground">No alerts loaded.</div>
+                    {:else}
+                    {#each details.rows as alert, alertIndex (alert.id)}
                       {@const module = moduleForAlert(alert)}
                       {@const detailEntries = alertMetadataEntries(alert).slice(0, 4)}
                       <div
                         class={cn(
                           'grid gap-2 px-3 py-2 text-xs md:grid-cols-[minmax(11rem,16rem)_1fr_auto]',
-                          alertIndex < entity.alerts.length - 1 && 'border-b',
+                          alertIndex < details.rows.length - 1 && 'border-b',
                         )}
                       >
                         <div class="min-w-0">
@@ -325,6 +453,12 @@
                         </div>
                       </div>
                     {/each}
+                    {#if details.total > details.rows.length}
+                      <div class="border-t px-3 py-2 text-xs text-muted-foreground">
+                        Showing {details.rows.length} of {details.total} alerts. Use the full alerts table for the complete list.
+                      </div>
+                    {/if}
+                    {/if}
                   </div>
                 </td>
               </tr>
@@ -332,6 +466,17 @@
           {/each}
         </tbody>
       </table>
+      {#if groups.length < totalGroups}
+        <div class="flex justify-center border-t p-3">
+          <button
+            type="button"
+            onclick={() => (groupPage += 1)}
+            class="rounded border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Load more
+          </button>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
