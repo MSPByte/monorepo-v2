@@ -2,7 +2,14 @@ import { Worker, Queue } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { FetchJobData, NormalizeJobData } from '@mspbyte/shared';
 import type { AdapterContext } from '@mspbyte/shared';
-import { startStage, completeStage, failStage, recordFetchSuccess, recordFetchFailure, logRawRecords } from '@mspbyte/drizzle';
+import {
+  startStage,
+  completeStage,
+  failStage,
+  recordFetchSuccess,
+  recordFetchFailure,
+  logRawRecords
+} from '@mspbyte/drizzle';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { logger } from '../logger.js';
@@ -17,10 +24,17 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return result;
 }
 
-async function withTimeout<T>(label: string, promise: Promise<T>, timeoutMs = PRE_FETCH_TIMEOUT_MS): Promise<T> {
+async function withTimeout<T>(
+  label: string,
+  promise: Promise<T>,
+  timeoutMs = PRE_FETCH_TIMEOUT_MS
+): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    timeout = setTimeout(
+      () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs
+    );
   });
 
   try {
@@ -52,13 +66,16 @@ export function createFetchWorker(redis: Redis) {
 
       let tenant: Awaited<ReturnType<typeof getTenantServiceDb>>;
       try {
-        tenant = await withTimeout(
-          'Tenant service DB lookup',
-          getTenantServiceDb(data.orgId)
-        );
+        tenant = await withTimeout('Tenant service DB lookup', getTenantServiceDb(data.orgId));
       } catch (err) {
         logger.error(
-          { linkId: data.linkId, provider: data.provider, facet: data.facet, orgId: data.orgId, err },
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            orgId: data.orgId,
+            err
+          },
           'Fetch failed before tenant DB resolved'
         );
         throw err;
@@ -73,11 +90,24 @@ export function createFetchWorker(redis: Redis) {
       try {
         stageId = await withTimeout(
           'Fetch stage start',
-          startStage(db, data.syncRunId, data.provider, 'fetch', data.facet, job.id ?? data.ingestRunId)
+          startStage(
+            db,
+            data.syncRunId,
+            data.provider,
+            'fetch',
+            data.facet,
+            job.id ?? data.ingestRunId
+          )
         );
       } catch (err) {
         logger.error(
-          { linkId: data.linkId, provider: data.provider, facet: data.facet, syncRunId: data.syncRunId, err },
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            syncRunId: data.syncRunId,
+            err
+          },
           'Fetch failed before stage started'
         );
         throw err;
@@ -88,16 +118,22 @@ export function createFetchWorker(redis: Redis) {
       );
 
       let batchIndex = 0;
+      let queuedRecords = 0;
       try {
         for await (const page of adapter.fetchFacet(data.linkId, data.facet, data.cursor, ctx)) {
           logger.info(
-            { linkId: data.linkId, provider: data.provider, facet: data.facet, records: (page as unknown[]).length },
+            {
+              linkId: data.linkId,
+              provider: data.provider,
+              facet: data.facet,
+              records: (page as unknown[]).length
+            },
             'Fetch page received'
           );
 
           const batches = chunk(page as unknown[], 100);
           for (const batch of batches) {
-            await normalizeQueue.add(
+            const normalizeJob = await normalizeQueue.add(
               `normalize:${data.provider}:${data.facet}:${data.ingestRunId}:${batchIndex}`,
               {
                 linkId: data.linkId,
@@ -109,6 +145,18 @@ export function createFetchWorker(redis: Redis) {
                 syncRunId: data.syncRunId,
                 rawRecords: batch
               }
+            );
+            queuedRecords += batch.length;
+            logger.info(
+              {
+                linkId: data.linkId,
+                provider: data.provider,
+                facet: data.facet,
+                batchIndex,
+                normalizeJobId: normalizeJob.id,
+                records: batch.length
+              },
+              'Normalize job queued'
             );
             batchIndex++;
           }
@@ -122,10 +170,16 @@ export function createFetchWorker(redis: Redis) {
           await recordFetchSuccess(db, data.linkId, data.provider, data.facet);
         }
 
-        await completeStage(db, stageId, { recordsIn: batchIndex });
+        await completeStage(db, stageId, { recordsIn: queuedRecords, recordsOut: batchIndex });
 
         logger.info(
-          { linkId: data.linkId, provider: data.provider, facet: data.facet, batches: batchIndex },
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            batches: batchIndex,
+            queuedRecords
+          },
           'Fetch job completed'
         );
       } catch (err) {
@@ -138,13 +192,26 @@ export function createFetchWorker(redis: Redis) {
         const ingestErr = err as { kind?: string; message?: string; retriable?: boolean };
         if (ingestErr?.kind === 'auth_failure' || ingestErr?.kind === 'schema_violation') {
           logger.error(
-            { linkId: data.linkId, siteId: data.siteId, provider: data.provider, facet: data.facet, kind: ingestErr.kind, err },
+            {
+              linkId: data.linkId,
+              siteId: data.siteId,
+              provider: data.provider,
+              facet: data.facet,
+              kind: ingestErr.kind,
+              err
+            },
             'Non-retriable fetch error'
           );
-          await job.moveToFailed(new Error(ingestErr.message ?? 'Non-retriable error'), job.token ?? '');
+          await job.moveToFailed(
+            new Error(ingestErr.message ?? 'Non-retriable error'),
+            job.token ?? ''
+          );
           return;
         }
-        logger.warn({ linkId: data.linkId, provider: data.provider, facet: data.facet, err }, 'Retriable fetch error');
+        logger.warn(
+          { linkId: data.linkId, provider: data.provider, facet: data.facet, err },
+          'Retriable fetch error'
+        );
         throw err;
       }
     },

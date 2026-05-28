@@ -42,18 +42,12 @@
   }));
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view roles</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else}
-  <VendorDataTable
-    table="m365_roles"
-    {columns}
-    onrowclick={(row) => (selectedRole = row as RoleRow)}
-  />
-{/if}
+<VendorDataTable
+  table="m365_roles"
+  scopeColumn={false}
+  {columns}
+  onrowclick={(row) => (selectedRole = row as RoleRow)}
+/>
 
 <Sheet.Root
   open={!!selectedRole}

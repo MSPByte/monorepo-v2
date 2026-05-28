@@ -1,7 +1,13 @@
 import { Worker } from 'bullmq';
 import { QUEUES, FACET_TABLE_MAP, ProviderFacet } from '@mspbyte/shared';
 import type { NormalizeJobData } from '@mspbyte/shared';
-import { vendorTableRegistry, startStage, completeStage, failStage, logEntityChanges } from '@mspbyte/drizzle';
+import {
+  vendorTableRegistry,
+  startStage,
+  completeStage,
+  failStage,
+  logEntityChanges
+} from '@mspbyte/drizzle';
 import type { VendorTableName, XmaxRow } from '@mspbyte/drizzle';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
@@ -12,8 +18,77 @@ import { getCoveFacetSchema } from '../adapters/cove/index.js';
 import { logger } from '../logger.js';
 import { sql, getColumns } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
+import { z } from 'zod';
 
 const SKIP_ON_CONFLICT = new Set(['id', 'linkId', 'externalId', 'createdAt']);
+const MAX_LOGGED_FAILURES = 3;
+
+function summarizeError(err: unknown): Record<string, unknown> {
+  if (err instanceof z.ZodError) {
+    return {
+      name: err.name,
+      issues: err.issues.slice(0, MAX_LOGGED_FAILURES).map((issue) => ({
+        path: issue.path.join('.'),
+        code: issue.code,
+        message: issue.message
+      })),
+      issueCount: err.issues.length
+    };
+  }
+
+  if (err instanceof Error) {
+    const cause = 'cause' in err ? (err as Error & { cause?: unknown }).cause : undefined;
+
+    return {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      cause: cause ? summarizeError(cause) : undefined
+    };
+  }
+
+  if (err && typeof err === 'object') {
+    const record = err as Record<string, unknown>;
+    return {
+      type: record['constructor'] ? String(record['constructor']) : 'Object',
+      message: record['message'],
+      code: record['code'],
+      detail: record['detail'],
+      constraint: record['constraint'],
+      table: record['table'],
+      column: record['column']
+    };
+  }
+
+  return { value: String(err) };
+}
+
+function describeRawRecord(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object') return { type: typeof raw };
+
+  const record = raw as Record<string, unknown>;
+  const settings = record.Settings;
+
+  return {
+    keys: Object.keys(record).slice(0, 20),
+    externalId: record.id ?? record.uid ?? record.AccountId ?? record.externalId,
+    partnerId: record.PartnerId,
+    settingsKeys:
+      settings && typeof settings === 'object' ? Object.keys(settings).slice(0, 20) : undefined
+  };
+}
+
+function describeNormalizedRecord(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    keys: Object.keys(row).slice(0, 30),
+    externalId: row.externalId,
+    requiredIdentity: {
+      externalId: row.externalId,
+      linkId: row.linkId,
+      siteId: row.siteId
+    }
+  };
+}
 
 function getFacetSchema(provider: string, facet: ProviderFacet) {
   switch (provider) {
@@ -31,46 +106,137 @@ function getFacetSchema(provider: string, facet: ProviderFacet) {
 }
 
 export function createNormalizeWorker(redis: Redis) {
-  return new Worker<NormalizeJobData>(
+  const worker = new Worker<NormalizeJobData>(
     QUEUES.NORMALIZE,
     async (job) => {
       const { data } = job;
       const adapter = getAdapter(data.provider);
       const schema = getFacetSchema(data.provider, data.facet as ProviderFacet);
 
+      logger.info(
+        {
+          linkId: data.linkId,
+          provider: data.provider,
+          facet: data.facet,
+          normalizeJobId: job.id,
+          rawRecords: data.rawRecords.length
+        },
+        'Normalize job started'
+      );
+
       const normalized: Record<string, unknown>[] = [];
-      for (const raw of data.rawRecords) {
+      const validationFailures: Array<Record<string, unknown>> = [];
+      const normalizeFailures: Array<Record<string, unknown>> = [];
+      let validationFailureCount = 0;
+      let normalizeFailureCount = 0;
+
+      for (const [index, raw] of data.rawRecords.entries()) {
         let parsed: unknown;
         try {
           parsed = schema.parse(raw);
         } catch (err) {
-          logger.warn({ provider: data.provider, facet: data.facet, err }, 'Skipping record: schema validation failed');
+          validationFailureCount++;
+          if (validationFailures.length < MAX_LOGGED_FAILURES) {
+            validationFailures.push({
+              index,
+              raw: describeRawRecord(raw),
+              err: summarizeError(err)
+            });
+          }
           continue;
         }
-        normalized.push(adapter.normalize(parsed, data.facet) as Record<string, unknown>);
+
+        try {
+          normalized.push(adapter.normalize(parsed, data.facet) as Record<string, unknown>);
+        } catch (err) {
+          normalizeFailureCount++;
+          if (normalizeFailures.length < MAX_LOGGED_FAILURES) {
+            normalizeFailures.push({
+              index,
+              raw: describeRawRecord(raw),
+              err: summarizeError(err)
+            });
+          }
+        }
+      }
+
+      if (validationFailureCount > 0 || normalizeFailureCount > 0) {
+        logger.warn(
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            normalizeJobId: job.id,
+            rawRecords: data.rawRecords.length,
+            validRecords: normalized.length,
+            validationFailureCount,
+            normalizeFailureCount,
+            validationFailures,
+            normalizeFailures
+          },
+          'Normalize skipped records before upsert'
+        );
       }
 
       const { db } = await getTenantServiceDb(data.orgId);
-      const stageId = await startStage(db, data.syncRunId, data.provider, 'normalize', data.facet, job.id ?? data.ingestRunId);
+      const stageId = await startStage(
+        db,
+        data.syncRunId,
+        data.provider,
+        'normalize',
+        data.facet,
+        job.id ?? data.ingestRunId
+      );
 
       if (normalized.length === 0) {
-        await completeStage(db, stageId, { recordsIn: data.rawRecords.length, recordsOut: 0 });
-        logger.info({ linkId: data.linkId, provider: data.provider, facet: data.facet }, 'No valid records to upsert');
+        await completeStage(db, stageId, {
+          recordsIn: data.rawRecords.length,
+          recordsOut: 0,
+          failedCt: data.rawRecords.length
+        });
+        logger.warn(
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            normalizeJobId: job.id,
+            rawRecords: data.rawRecords.length,
+            validationFailureCount,
+            normalizeFailureCount,
+            validationFailures,
+            normalizeFailures
+          },
+          'No valid records to upsert'
+        );
         return;
       }
 
       const tableName = FACET_TABLE_MAP[data.facet] as VendorTableName | undefined;
 
       if (!tableName || !vendorTableRegistry[tableName]) {
-        await completeStage(db, stageId, { recordsIn: data.rawRecords.length });
-        logger.warn({ provider: data.provider, facet: data.facet, tableName }, 'No vendor table registered for this facet — skipping upsert');
+        await completeStage(db, stageId, {
+          recordsIn: data.rawRecords.length,
+          recordsOut: 0,
+          failedCt: normalized.length
+        });
+        logger.warn(
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            normalizeJobId: job.id,
+            tableName,
+            registeredTables: Object.keys(vendorTableRegistry)
+          },
+          'No vendor table registered for this facet — skipping upsert'
+        );
         return;
       }
 
       const { table, conflictTarget } = vendorTableRegistry[tableName];
 
       const now = new Date();
-      const insertRows = normalized.map((row) => ({
+      const insertRows: Record<string, unknown>[] = normalized.map((row) => ({
         ...row,
         linkId: data.linkId,
         siteId: data.siteId,
@@ -78,6 +244,19 @@ export function createNormalizeWorker(redis: Redis) {
         updatedAt: now,
         lastSeenAt: (row['lastSeenAt'] as Date | undefined) ?? now
       }));
+
+      logger.info(
+        {
+          linkId: data.linkId,
+          provider: data.provider,
+          facet: data.facet,
+          normalizeJobId: job.id,
+          table: tableName,
+          records: insertRows.length,
+          sample: insertRows[0] ? describeNormalizedRecord(insertRows[0]) : undefined
+        },
+        'Normalize upsert starting'
+      );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cols = getColumns(table as unknown as Parameters<typeof getColumns>[0]);
@@ -96,28 +275,90 @@ export function createNormalizeWorker(redis: Redis) {
           .returning({ id: sql<string>`id::text`, xmax: sql<string>`xmax::text` });
 
         const xmaxRows = returned as XmaxRow[];
+        if (xmaxRows.length !== insertRows.length) {
+          logger.warn(
+            {
+              linkId: data.linkId,
+              provider: data.provider,
+              facet: data.facet,
+              normalizeJobId: job.id,
+              table: tableName,
+              attempted: insertRows.length,
+              returned: xmaxRows.length,
+              sampleExternalIds: insertRows.slice(0, 10).map((row) => row['externalId'])
+            },
+            'Normalize upsert returned fewer rows than attempted'
+          );
+        }
+
         const createdCt = xmaxRows.filter((r) => r.xmax === '0').length;
         const updatedCt = xmaxRows.length - createdCt;
 
-        await logEntityChanges(db, data.linkId, data.syncRunId, data.provider, data.facet, xmaxRows);
+        await logEntityChanges(
+          db,
+          data.linkId,
+          data.syncRunId,
+          data.provider,
+          data.facet,
+          xmaxRows
+        );
 
         await completeStage(db, stageId, {
           recordsIn: data.rawRecords.length,
           recordsOut: xmaxRows.length,
           createdCt,
           updatedCt,
-          failedCt: data.rawRecords.length - normalized.length,
+          failedCt: data.rawRecords.length - normalized.length
         });
 
         logger.info(
-          { linkId: data.linkId, provider: data.provider, facet: data.facet, table: tableName, count: insertRows.length, created: createdCt, updated: updatedCt, skipped: data.rawRecords.length - normalized.length },
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            table: tableName,
+            count: insertRows.length,
+            created: createdCt,
+            updated: updatedCt,
+            skipped: data.rawRecords.length - normalized.length
+          },
           'Normalize upsert complete'
         );
       } catch (err) {
         await failStage(db, stageId, err);
+        logger.error(
+          {
+            linkId: data.linkId,
+            provider: data.provider,
+            facet: data.facet,
+            normalizeJobId: job.id,
+            table: tableName,
+            records: insertRows.length,
+            sampleExternalIds: insertRows.slice(0, 10).map((row) => row['externalId']),
+            err: summarizeError(err)
+          },
+          'Normalize upsert failed'
+        );
         throw err;
       }
     },
     { connection: redis, concurrency: 10 }
   );
+
+  worker.on('failed', (job, err) => {
+    const data = job?.data;
+    logger.error(
+      {
+        normalizeJobId: job?.id,
+        linkId: data?.linkId,
+        provider: data?.provider,
+        facet: data?.facet,
+        rawRecords: data?.rawRecords?.length,
+        err: summarizeError(err)
+      },
+      'Normalize job failed'
+    );
+  });
+
+  return worker;
 }

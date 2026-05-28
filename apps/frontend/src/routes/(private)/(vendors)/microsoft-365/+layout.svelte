@@ -1,6 +1,5 @@
 <script lang="ts">
   import { type LayoutProps } from './$types';
-  import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { M365_INTEGRATION_CONFIG } from '@mspbyte/shared';
   import UrlTabs from '$lib/components/url-tabs.svelte';
 
@@ -8,11 +7,11 @@
 
   const tabs = [
     { label: 'Overview', href: '/microsoft-365', exact: true },
-    { label: 'Alerts', href: '/microsoft-365/alerts', disabled: () => !scopeStore.currentLink },
+    { label: 'Alerts', href: '/microsoft-365/alerts' },
     ...M365_INTEGRATION_CONFIG.navigation.map((n) => ({
       label: n.label,
       href: `/microsoft-365${n.route}`,
-      disabled: () => n.isNullable && !scopeStore.currentLink,
+      disabled: () => false,
     })),
   ];
 </script>

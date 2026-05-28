@@ -10,9 +10,9 @@
 
   // ── Global overview ──────────────────────────────────────────────────────
   const linksQuery = createQuery(() => ({
-    queryKey: ['integrationLinks.list', 'microsoft-365', 'active'],
+    queryKey: ['integrationLinks.list', 'microsoft-365', 'all'],
     queryFn: () =>
-      trpc.integrationLinks.list.query({ integrationId: 'microsoft-365', status: 'active' }),
+      trpc.integrationLinks.list.query({ integrationId: 'microsoft-365' }),
     enabled: !scopeStore.currentLink,
   }));
 </script>
@@ -21,6 +21,10 @@
   <Loader />
 {:else}
 <div class="flex flex-col size-full p-4">
-  <AlertsTable links={(linksQuery.data || []).map((l) => ({ id: l.id, name: l.name! }))} />
+  <AlertsTable
+    linkId={scopeStore.currentLink || undefined}
+    integrationId="microsoft-365"
+    links={(linksQuery.data || []).map((l) => ({ id: l.id, name: l.name! }))}
+  />
 </div>
 {/if}

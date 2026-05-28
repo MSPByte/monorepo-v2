@@ -1,20 +1,23 @@
 import { z } from 'zod';
 import { ProviderFacet, CoveConnector, Encryption } from '@mspbyte/shared';
-import type { CoveAccountStatistics } from '@mspbyte/shared';
 import type { ProviderAdapter, AdapterContext } from '@mspbyte/shared';
 import { logger } from '../../logger.js';
 import { env } from '../../env.js';
 
 // ─── Zod schema ──────────────────────────────────────────────────────────────
 
+const CoveSettingValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
 const CoveAccountStatisticsSchema = z
   .object({
     AccountId: z.number(),
     PartnerId: z.number(),
     Flags: z.array(z.string()).nullable(),
-    Settings: z.record(z.string(), z.string())
+    Settings: z.record(z.string(), CoveSettingValueSchema)
   })
   .passthrough();
+
+type CoveRawAccountStatistics = z.infer<typeof CoveAccountStatisticsSchema>;
 
 export function getCoveFacetSchema(_facet: string) {
   return CoveAccountStatisticsSchema;
@@ -49,7 +52,7 @@ function mapCoveType(raw: string | undefined): 'workstation' | 'server' {
 
 // ─── Adapter ─────────────────────────────────────────────────────────────────
 
-export const coveAdapter: ProviderAdapter<CoveAccountStatistics, Record<string, unknown>> = {
+export const coveAdapter: ProviderAdapter<CoveRawAccountStatistics, Record<string, unknown>> = {
   providerId: 'cove',
   facets: [ProviderFacet.CoveEndpoints],
 
@@ -85,12 +88,14 @@ export const coveAdapter: ProviderAdapter<CoveAccountStatistics, Record<string, 
     const rows = await connector.account.statistics(partnerId);
 
     logger.info({ linkId, count: rows.length }, 'Cove endpoints fetched');
-    yield rows;
+    yield rows as CoveRawAccountStatistics[];
   },
 
   normalize(raw, _facet): Record<string, unknown> {
-    const r = raw as CoveAccountStatistics;
-    const s = r.Settings;
+    const r = raw as CoveRawAccountStatistics;
+    const s = Object.fromEntries(
+      Object.entries(r.Settings).map(([key, value]) => [key, value == null ? '' : String(value)])
+    );
 
     const rawLastSuccess = s['lastSuccessfulSession'];
     let lastSuccessAt: Date | null = null;

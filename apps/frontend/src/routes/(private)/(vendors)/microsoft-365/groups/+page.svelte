@@ -32,22 +32,16 @@
   let selectedGroup = $state<GroupRow | null>(null);
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view groups</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else}
-  <VendorDataTable
-    table="m365_groups"
-    linkId={scopeStore.currentLink}
-    {columns}
-    onrowclick={(row) => (selectedGroup = row as GroupRow)}
-  />
-{/if}
+<VendorDataTable
+  table="m365_groups"
+  linkId={scopeStore.currentLink || undefined}
+  integrationId="microsoft-365"
+  {columns}
+  onrowclick={(row) => (selectedGroup = row as GroupRow)}
+/>
 
 <GroupSheet
   group={selectedGroup}
-  linkId={scopeStore.currentLink ?? ''}
+  linkId={scopeStore.currentLink || String(selectedGroup?.linkId ?? '')}
   onclose={() => (selectedGroup = null)}
 />

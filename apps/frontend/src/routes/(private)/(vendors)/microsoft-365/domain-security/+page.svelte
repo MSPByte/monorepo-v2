@@ -47,19 +47,13 @@
   let selectedDomain = $state<DomainRow | null>(null);
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view domain security</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else}
-  <VendorDataTable
-    table="m365_domain_config"
-    linkId={scopeStore.currentLink}
-    {columns}
-    onrowclick={(row) => (selectedDomain = row as DomainRow)}
-  />
-{/if}
+<VendorDataTable
+  table="m365_domain_config"
+  linkId={scopeStore.currentLink || undefined}
+  integrationId="microsoft-365"
+  {columns}
+  onrowclick={(row) => (selectedDomain = row as DomainRow)}
+/>
 
 <DomainSheet
   domain={selectedDomain}

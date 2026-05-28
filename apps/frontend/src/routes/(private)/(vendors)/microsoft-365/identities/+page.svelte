@@ -11,6 +11,7 @@
   import type { db } from "$lib/db";
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const currentLinkId = $derived(scopeStore.currentLink || undefined);
 
   type IdentityRow = {
     id: string;
@@ -30,22 +31,25 @@
   // TODO: Naive, large tenants inaccurate
   // Fetch all identities for KPI/chart computations (large page size)
   const identitiesQuery = createQuery(() => ({
-    queryKey: ['vendor.tableData', 'm365_identities', scopeStore.currentLink, 'all'],
+    queryKey: ['vendor.tableData', 'm365_identities', currentLinkId, 'all'],
     queryFn: () =>
       trpc.vendor.tableData.query({
         table: 'm365_identities',
-        linkId: scopeStore.currentLink!,
+        linkId: currentLinkId,
         page: 1,
         pageSize: 1000,
       }),
-    enabled: !!scopeStore.currentLink,
   }));
 
   // TODO: Naive, large tenants innacurate
   const alertsQuery = createQuery(() => ({
-    queryKey: ['alerts.list', scopeStore.currentLink, 'active'],
-    queryFn: () => trpc.alerts.list.query({ linkId: scopeStore.currentLink!, status: 'active', entityType: 'identity' }),
-    enabled: !!scopeStore.currentLink,
+    queryKey: ['alerts.list', currentLinkId, 'active'],
+    queryFn: () =>
+      trpc.alerts.list.query({
+        linkId: currentLinkId,
+        status: 'active',
+        entityType: 'identity',
+      }),
   }));
 
   const identities = $derived((identitiesQuery.data?.rows ?? []) as IdentityRow[]);
@@ -137,12 +141,7 @@
   }
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view identities</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else if viewAll}
+{#if viewAll}
   <!-- All Identities view -->
   <div class="flex flex-col size-full overflow-hidden">
     <div class="flex items-center gap-3 px-4 py-3 border-b shrink-0">
@@ -156,7 +155,8 @@
     <div class="flex-1 overflow-hidden">
       <VendorDataTable
         table="m365_identities"
-        linkId={scopeStore.currentLink}
+        linkId={currentLinkId}
+        integrationId="microsoft-365"
         {columns}
         onrowclick={(row) => openDrawer(row as IdentityRow)}
       />
@@ -181,6 +181,7 @@
 
 <IdentitySheet
   identity={selectedIdentity}
+  linkId={currentLinkId ?? String(selectedIdentity?.linkId ?? '')}
   alerts={identityAlerts}
   onclose={() => (selectedIdentity = null)}
 />

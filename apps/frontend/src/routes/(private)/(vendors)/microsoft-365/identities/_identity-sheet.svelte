@@ -2,7 +2,6 @@
   import { getContext } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
-  import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { cn } from '$lib/utils';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
   import { ALERT_DEFINITIONS } from '@mspbyte/shared';
@@ -24,11 +23,12 @@
 
   interface Props {
     identity: IdentityRow | null;
+    linkId: string;
     alerts: db.Alert[];
     onclose: () => void;
   }
 
-  let { identity, alerts, onclose }: Props = $props();
+  let { identity, linkId, alerts, onclose }: Props = $props();
 
   const NOW = Date.now();
 
@@ -42,13 +42,13 @@
   });
 
   const detailsQuery = createQuery(() => ({
-    queryKey: ['vendor.identityDetails', scopeStore.currentLink, identity?.id],
+    queryKey: ['vendor.identityDetails', linkId, identity?.id],
     queryFn: () =>
       trpc.vendor.identityDetails.query({
-        linkId: scopeStore.currentLink!,
+        linkId,
         identityId: identity!.id,
       }),
-    enabled: !!identity && !!scopeStore.currentLink,
+    enabled: !!identity && !!linkId,
   }));
 
   function relativeTime(ts?: string | null) {

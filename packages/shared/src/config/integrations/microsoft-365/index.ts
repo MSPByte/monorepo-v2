@@ -87,16 +87,17 @@ export const M365_INTEGRATION_CONFIG: Integration = {
     }
   ],
   navigation: [
-    { label: 'Identities', route: '/identities', isNullable: true },
-    { label: 'Groups', route: '/groups', isNullable: true },
-    { label: 'Devices', route: '/devices', isNullable: true },
-    { label: 'Licenses', route: '/licenses', isNullable: true },
-    { label: 'Policies', route: '/policies', isNullable: true },
-    { label: 'OAuth Grants', route: '/oauth-grants', isNullable: true },
-    { label: 'Domain Security', route: '/domain-security', isNullable: true },
-    { label: 'Teams', route: '/teams', isNullable: true },
-    { label: 'Exchange', route: '/exchange', isNullable: true },
-    { label: 'Security', route: '/security', isNullable: true },
+    { label: 'Identities', route: '/identities', isNullable: false },
+    { label: 'Groups', route: '/groups', isNullable: false },
+    { label: 'Devices', route: '/devices', isNullable: false },
+    { label: 'Licenses', route: '/licenses', isNullable: false },
+    { label: 'Roles', route: '/roles', isNullable: true },
+    { label: 'Policies', route: '/policies', isNullable: false },
+    { label: 'OAuth Grants', route: '/oauth-grants', isNullable: false },
+    { label: 'Domain Security', route: '/domain-security', isNullable: false },
+    { label: 'Teams', route: '/teams', isNullable: false },
+    { label: 'Exchange', route: '/exchange', isNullable: false },
+    { label: 'Security', route: '/security', isNullable: false },
     { label: 'Compliance', route: '/compliance', isNullable: false }
   ]
 };

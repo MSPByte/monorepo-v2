@@ -51,19 +51,57 @@
     enabled: !!currentLink && !!scopeStore.currentSite,
   }));
 
+  const alertsQuery = createQuery(() => ({
+    queryKey: ['alerts.tableData', 'cove', currentLink],
+    queryFn: () =>
+      trpc.alerts.tableData.query({
+        linkId: currentLink ?? undefined,
+        integrationId: 'cove',
+        page: 0,
+        pageSize: 1000,
+        filters: [{ field: 'status', operator: 'eq', value: 'active' }],
+        sortField: 'severity',
+        sortDir: 'desc',
+      }),
+    enabled: !!currentLink,
+  }));
+
   type EndpointRow = Record<string, unknown>;
 
   const endpointStats = $derived.by(() => {
     const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
-    const failed = eps.filter(
-      (e) => e['status'] !== 'Completed' && e['status'] !== 'In Process',
-    ).length;
+    const failed = eps.filter((e) => e['status'] === 'error').length;
     const noRecentBackup = eps.filter(
-      (e) => !e['last_success_at'] || NOW - Number(e['last_success_at']) > 7 * 86_400_000,
+      (e) => !e['lastSuccessAt'] || NOW - new Date(String(e['lastSuccessAt'])).getTime() > 7 * 86_400_000,
     ).length;
-    const totalSelectedSize = eps.reduce((sum, e) => sum + Number(e['selected_size'] ?? 0), 0);
-    const totalUsedStorage = eps.reduce((sum, e) => sum + Number(e['used_storeage'] ?? 0), 0);
+    const totalSelectedSize = eps.reduce((sum, e) => sum + Number(e['selectedSize'] ?? 0), 0);
+    const totalUsedStorage = eps.reduce((sum, e) => sum + Number(e['usedStorage'] ?? 0), 0);
     return { total: eps.length, failed, noRecentBackup, totalSelectedSize, totalUsedStorage };
+  });
+
+  const statusDistribution = $derived.by(() => {
+    const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
+    const counts = new Map<string, number>();
+    for (const endpoint of eps) {
+      const status = String(endpoint['status'] ?? 'unknown');
+      counts.set(status, (counts.get(status) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, count]) => ({
+        status,
+        count,
+        pct: eps.length ? Math.round((count / eps.length) * 100) : 0,
+      }));
+  });
+
+  const alertStats = $derived.by(() => {
+    const rows = alertsQuery.data?.rows ?? [];
+    return {
+      total: alertsQuery.data?.total ?? rows.length,
+      critical: rows.filter((alert) => alert.severity >= 3).length,
+      high: rows.filter((alert) => alert.severity === 2).length,
+    };
   });
 
   // ── Global overview helpers ───────────────────────────────────────────────
@@ -114,6 +152,19 @@
       <div class="grid grid-cols-4 gap-3">
         <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
           <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Active Alerts
+          </div>
+          <div
+            class="text-3xl font-bold tabular-nums {alertStats.total > 0 ? 'text-destructive' : ''}"
+          >
+            {alertsQuery.isLoading ? '—' : alertStats.total}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {alertStats.critical} critical, {alertStats.high} high
+          </div>
+        </div>
+        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
+          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Total Endpoints
           </div>
           <div class="text-3xl font-bold tabular-nums">
@@ -146,9 +197,42 @@
           </div>
           <div class="text-xs text-muted-foreground">no success this week</div>
         </div>
+      </div>
+
+      <div class="grid grid-cols-[1fr_1fr] gap-3">
+        <div class="rounded-lg border bg-card p-4">
+          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Endpoint Status
+          </div>
+          {#if endpointsQuery.isLoading}
+            <div class="h-24 bg-muted rounded animate-pulse"></div>
+          {:else}
+            <div class="flex flex-col gap-2">
+              {#each statusDistribution as item}
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-muted-foreground capitalize">{item.status}</span>
+                    <span>{item.count}</span>
+                  </div>
+                  <div class="w-full h-1.5 rounded-full bg-border overflow-hidden">
+                    <div
+                      class="{item.status === 'active'
+                        ? 'bg-success'
+                        : item.status === 'inactive'
+                          ? 'bg-muted-foreground/40'
+                          : 'bg-destructive'} h-full rounded-full"
+                      style="width:{item.pct}%;transition:width 0.4s"
+                    ></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
         <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
           <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Used Storage
+            Protected Storage
           </div>
           <div class="text-3xl font-bold tabular-nums text-primary">
             {endpointsQuery.isLoading ? '—' : formatBytes(endpointStats.totalUsedStorage)}
@@ -179,7 +263,7 @@
 {:else}
   <!-- ── Global sites overview ──────────────────────────────────────────── -->
   <div class="flex flex-col size-full overflow-hidden">
-    <div class="grid grid-cols-2 gap-3 p-4 border-b shrink-0">
+    <div class="grid grid-cols-4 gap-3 p-4 border-b shrink-0">
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Total Sites
@@ -194,6 +278,22 @@
         </div>
         <div class="text-3xl font-bold tabular-nums text-success">
           {linksQuery.isLoading ? '—' : links.filter((l) => l.status === 'active').length}
+        </div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
+        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Errors
+        </div>
+        <div class="text-3xl font-bold tabular-nums text-destructive">
+          {linksQuery.isLoading ? '—' : links.filter((l) => l.status === 'error').length}
+        </div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
+        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Disabled
+        </div>
+        <div class="text-3xl font-bold tabular-nums text-muted-foreground">
+          {linksQuery.isLoading ? '—' : links.filter((l) => l.status === 'disabled').length}
         </div>
       </div>
     </div>

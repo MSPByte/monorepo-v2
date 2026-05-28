@@ -13,5 +13,5 @@ export const COVE_CONFIG: Integration = {
       db: { table: 'coveEndpoints', name: 'Cove Endpoints', shape: {} }
     }
   ],
-  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: true }]
+  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: false }]
 };

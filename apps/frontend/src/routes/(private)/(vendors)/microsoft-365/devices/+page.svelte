@@ -38,19 +38,13 @@
   let selectedDevice = $state<DeviceRow | null>(null);
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view devices</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else}
-  <VendorDataTable
-    table="m365_devices"
-    linkId={scopeStore.currentLink}
-    {columns}
-    onrowclick={(row) => (selectedDevice = row as DeviceRow)}
-  />
-{/if}
+<VendorDataTable
+  table="m365_devices"
+  linkId={scopeStore.currentLink || undefined}
+  integrationId="microsoft-365"
+  {columns}
+  onrowclick={(row) => (selectedDevice = row as DeviceRow)}
+/>
 
 <DeviceSheet
   device={selectedDevice}

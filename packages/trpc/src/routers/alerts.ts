@@ -68,6 +68,7 @@ export const alertsRouter = t.router({
     .input(
       z.object({
         linkId: z.string().optional(),
+        integrationId: z.string().optional(),
         page: z.number().int().default(0),
         pageSize: z.number().int().default(25),
         globalSearch: z.string().optional(),
@@ -88,6 +89,7 @@ export const alertsRouter = t.router({
       const conditions = [];
 
       if (input.linkId) conditions.push(eq(alerts.linkId, input.linkId));
+      if (input.integrationId) conditions.push(ilike(alerts.definitionId, `${input.integrationId}.%`));
 
       if (input.globalSearch) {
         const q = `%${input.globalSearch}%`;

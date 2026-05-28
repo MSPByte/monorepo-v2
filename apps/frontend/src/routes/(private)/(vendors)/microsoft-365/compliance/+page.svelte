@@ -10,7 +10,7 @@
     queryKey: ['compliance.frameworks', scopeStore.currentLink],
     queryFn: () =>
       trpc.compliance.frameworks.query({
-        linkId: scopeStore.currentLink ?? undefined
+        linkId: scopeStore.currentLink || undefined
       }),
   }));
 
@@ -39,7 +39,7 @@
       trpc.compliance.results.query({
         frameworkId: selectedFrameworkId!,
         siteId: scopeStore.currentSite ?? undefined,
-        linkId: scopeStore.currentLink ?? undefined,
+        linkId: scopeStore.currentLink || undefined,
       }),
     enabled: !!selectedFrameworkId,
   }));

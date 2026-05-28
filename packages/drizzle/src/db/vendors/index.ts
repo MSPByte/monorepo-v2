@@ -1,4 +1,4 @@
-import { uuid, text, boolean, integer, jsonb, timestamp, unique } from 'drizzle-orm/pg-core';
+import { uuid, text, boolean, integer, bigint, jsonb, timestamp, unique } from 'drizzle-orm/pg-core';
 import { crudPolicy, authenticatedRole } from 'drizzle-orm/neon';
 import { vendorsSchema } from '../schemas.js';
 import { integrationLinks, sites } from '../public/index.js';
@@ -315,8 +315,8 @@ export const coveEndpoints = vendorsSchema.table(
     status: text('status', { enum: ['active', 'inactive', 'error'] }).notNull(),
     lsvStatus: text('lsv_status'),
     errors: integer('errors').notNull().default(0),
-    selectedSize: integer('selected_size').notNull().default(0),
-    usedStorage: integer('used_storage').notNull().default(0),
+    selectedSize: bigint('selected_size', { mode: 'number' }).notNull().default(0),
+    usedStorage: bigint('used_storage', { mode: 'number' }).notNull().default(0),
     last28Days: text('last_28_days').notNull(),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),

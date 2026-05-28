@@ -10,6 +10,7 @@
   import LicenseSheet from './_license-sheet.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const currentLinkId = $derived(scopeStore.currentLink || undefined);
 
   type LicenseRow = {
     id: string;
@@ -25,15 +26,14 @@
   };
 
   const licensesQuery = createQuery(() => ({
-    queryKey: ['vendor.tableData', 'm365_licenses', scopeStore.currentLink, 'all'],
+    queryKey: ['vendor.tableData', 'm365_licenses', currentLinkId, 'all'],
     queryFn: () =>
       trpc.vendor.tableData.query({
         table: 'm365_licenses',
-        linkId: scopeStore.currentLink!,
+        linkId: currentLinkId,
         page: 1,
         pageSize: 1000,
       }),
-    enabled: !!scopeStore.currentLink,
   }));
 
   const licenses = $derived((licensesQuery.data?.rows ?? []) as LicenseRow[]);
@@ -104,12 +104,7 @@
   let selectedLicense = $state<LicenseRow | null>(null);
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view licenses</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else if viewAll}
+{#if viewAll}
   <!-- All Licenses view -->
   <div class="flex flex-col size-full overflow-hidden">
     <div class="flex items-center gap-3 px-4 py-3 border-b shrink-0">
@@ -123,7 +118,8 @@
     <div class="flex-1 overflow-hidden">
       <VendorDataTable
         table="m365_licenses"
-        linkId={scopeStore.currentLink}
+        linkId={currentLinkId}
+        integrationId="microsoft-365"
         {columns}
         onrowclick={(row) => (selectedLicense = row as LicenseRow)}
       />
@@ -144,6 +140,6 @@
 
 <LicenseSheet
   license={selectedLicense}
-  linkId={scopeStore.currentLink ?? ''}
+  linkId={currentLinkId ?? String(selectedLicense?.linkId ?? '')}
   onclose={() => (selectedLicense = null)}
 />

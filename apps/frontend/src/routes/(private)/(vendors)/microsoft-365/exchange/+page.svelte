@@ -34,6 +34,14 @@
     [key: string]: unknown;
   };
 
+  type ExchangeConfigRow = {
+    id: string;
+    autoForwardingMode: string | null;
+    rejectDirectSend: boolean | null;
+    allowBasicAuthSmtp: boolean | null;
+    [key: string]: unknown;
+  };
+
   const forwardingColumns: DataTableColumn<ForwardingRow>[] = [
     textColumn<ForwardingRow>('userPrincipalName', 'Mailbox'),
     nullableTextColumn<ForwardingRow>('forwardingAddress', 'Forwarding Address'),
@@ -72,6 +80,20 @@
     nullableTextColumn<InboxRuleRow>('moveToFolder', 'Move To Folder'),
   ];
 
+  const configColumns: DataTableColumn<ExchangeConfigRow>[] = [
+    nullableTextColumn<ExchangeConfigRow>('autoForwardingMode', 'Auto Forwarding'),
+    boolBadgeColumn<ExchangeConfigRow>('rejectDirectSend', 'Reject Direct Send', {
+      trueLabel: 'Enabled',
+      falseLabel: 'Disabled',
+      falseVariant: 'destructive',
+    }),
+    boolBadgeColumn<ExchangeConfigRow>('allowBasicAuthSmtp', 'Basic Auth SMTP', {
+      trueLabel: 'Allowed',
+      falseLabel: 'Blocked',
+      falseVariant: 'muted',
+    }),
+  ];
+
   type Tab = 'forwarding' | 'inboxRules' | 'config';
   let activeTab = $state<Tab>('forwarding');
 
@@ -79,13 +101,7 @@
   let selectedInboxRule = $state<InboxRuleRow | null>(null);
 </script>
 
-{#if !scopeStore.currentLink}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a tenant to view Exchange security</div>
-    <div class="text-xs">Use the tenant selector in the navigation bar</div>
-  </div>
-{:else}
-  <div class="flex flex-col size-full overflow-hidden">
+<div class="flex flex-col size-full overflow-hidden">
     <!-- Tab switcher -->
     <div class="flex items-center gap-1 px-4 py-2 border-b shrink-0">
       <button
@@ -119,16 +135,24 @@
       {#if activeTab === 'forwarding'}
         <VendorDataTable
           table="m365_mailbox_forwarding"
-          linkId={scopeStore.currentLink}
+          linkId={scopeStore.currentLink || undefined}
+          integrationId="microsoft-365"
           columns={forwardingColumns}
           onrowclick={(row) => (selectedForwarding = row as ForwardingRow)}
         />
       {:else if activeTab === 'inboxRules'}
         <VendorDataTable
           table="m365_inbox_rules"
-          linkId={scopeStore.currentLink}
+          linkId={scopeStore.currentLink || undefined}
+          integrationId="microsoft-365"
           columns={inboxRuleColumns}
           onrowclick={(row) => (selectedInboxRule = row as InboxRuleRow)}
+        />
+      {:else if !scopeStore.currentLink}
+        <VendorDataTable
+          table="m365_exchange_configs"
+          integrationId="microsoft-365"
+          columns={configColumns}
         />
       {:else}
         <ExchangeConfig linkId={scopeStore.currentLink} />
@@ -144,4 +168,3 @@
     rule={selectedInboxRule}
     onclose={() => (selectedInboxRule = null)}
   />
-{/if}

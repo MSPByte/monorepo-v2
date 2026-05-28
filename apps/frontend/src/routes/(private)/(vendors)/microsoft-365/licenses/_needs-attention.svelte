@@ -10,6 +10,7 @@
     consumedUnits: number;
     warningUnits: number;
     enabled: boolean;
+    servicePlanNames: string[] | null;
     [key: string]: unknown;
   };
 

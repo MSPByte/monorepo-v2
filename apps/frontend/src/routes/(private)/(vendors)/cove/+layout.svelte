@@ -8,7 +8,7 @@
 
   const tabs = [
     { label: 'Overview', href: '/cove', exact: true },
-    { label: 'Alerts', href: '/cove/alerts', disabled: () => !scopeStore.currentSite },
+    { label: 'Alerts', href: '/cove/alerts' },
     ...COVE_CONFIG.navigation.map((n) => ({
       label: n.label,
       href: `/cove${n.route}`,

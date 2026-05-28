@@ -11,12 +11,23 @@
   }
   import AlertSuppress from "$lib/components/alerts/alert-suppress.svelte";
 
-  let { linkId, links = [] }: {
+  type ScopeColumn = 'link' | 'site';
+  type AlertLinkOption = {
+    id: string;
+    name: string;
+    siteId?: string | null;
+    siteName?: string | null;
+  };
+
+  let { linkId, integrationId, links = [], scopeColumn = 'link' }: {
     linkId?: string;
-    links?: { id: string; name: string }[];
+    integrationId?: string;
+    links?: AlertLinkOption[];
+    scopeColumn?: ScopeColumn;
   } = $props();
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const normalizedLinkId = $derived(linkId || undefined);
 
   let suppressId = $state<string | null>(null);
   let suppressOpen = $state(false);
@@ -29,6 +40,22 @@
   const linkMap = $derived.by(() => {
     const map = new Map<string, string>();
     for (const l of links) map.set(l.id, l.name);
+    return map;
+  });
+
+  const linkSiteMap = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const l of links) {
+      if (l.siteName) map.set(l.id, l.siteName);
+    }
+    return map;
+  });
+
+  const siteMap = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const l of links) {
+      if (l.siteId && l.siteName) map.set(l.siteId, l.siteName);
+    }
     return map;
   });
 
@@ -67,7 +94,8 @@
 
   async function fetchData(input: PaginationInput) {
     return trpc.alerts.tableData.query({
-      linkId,
+      linkId: normalizedLinkId,
+      integrationId,
       page: input.page,
       pageSize: input.pageSize,
       globalSearch: input.globalSearch || undefined,
@@ -89,7 +117,9 @@
     { key: 'status',       title: 'Status',    sortable: true,  width: '80px',  cell: statusCell },
     { key: 'definitionId', title: 'Alert',     sortable: true,                  cell: definitionCell },
     { key: 'entityId',     title: 'Entity',                     width: '200px', cell: entityCell },
-    { key: 'linkId',       title: 'Tenant',    sortable: true,  width: '180px', cell: linkCell },
+    ...(!normalizedLinkId
+      ? [{ key: 'linkId', title: scopeColumn === 'site' ? 'Site' : 'Tenant', sortable: true, width: '180px', cell: scopeCell }]
+      : []),
     { key: 'severity',     title: 'Severity',  sortable: true,  width: '110px', cell: severityCell },
     { key: 'lastSeenAt',   title: 'Last Seen', sortable: true,  width: '130px', cell: lastSeenCell },
     { key: 'id',           title: '',                           width: '120px', cell: actionsCell },
@@ -123,8 +153,13 @@
   <span class="font-mono text-xs text-muted-foreground">{row.entityId ?? '—'}</span>
 {/snippet}
 
-{#snippet linkCell({ row }: { row: AlertRow; value: unknown })}
-  <span class="text-sm">{row.linkId ? (linkMap.get(row.linkId) ?? row.linkId) : '—'}</span>
+{#snippet scopeCell({ row }: { row: AlertRow; value: unknown })}
+  {@const label =
+    scopeColumn === 'site'
+      ? ((row.siteId ? siteMap.get(row.siteId) : undefined) ??
+        (row.linkId ? linkSiteMap.get(row.linkId) : undefined))
+      : (row.linkId ? (linkMap.get(row.linkId) ?? row.linkId) : undefined)}
+  <span class="text-sm">{label ?? '—'}</span>
 {/snippet}
 
 {#snippet severityCell({ row }: { row: AlertRow; value: unknown })}
@@ -148,11 +183,13 @@
   </div>
 {/snippet}
 
-<DataTable
-  {fetchData}
-  {columns}
-  {views}
-  enableGlobalSearch
-/>
+{#key `${normalizedLinkId ?? 'all'}-${scopeColumn}`}
+  <DataTable
+    {fetchData}
+    {columns}
+    {views}
+    enableGlobalSearch
+  />
+{/key}
 
 <AlertSuppress id={suppressId ?? ''} bind:open={suppressOpen} />

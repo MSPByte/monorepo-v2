@@ -3,20 +3,20 @@ import { CoveHttpClient } from './http-client.js';
 // Human-readable column names for the Cove RPC column codes
 const CODE_TO_NAME: Record<string, string> = {
   I78: 'activeDataSources',
-  T0:  'backupStatus',
-  MN:  'computerName',
-  AR:  'customer',
-  AN:  'deviceName',
-  OT:  'deviceType',
-  T7:  'errors',
-  TB:  'last28Days',
-  TL:  'lastSuccessfulSession',
-  YV:  'lsvStatus',
-  OP:  'profile',
-  PN:  'retentionPolicy',
-  T3:  'selectedSize',
-  YS:  'storageStatus',
-  US:  'usedStorage'
+  T0: 'backupStatus',
+  MN: 'computerName',
+  AR: 'customer',
+  AN: 'deviceName',
+  OT: 'deviceType',
+  T7: 'errors',
+  TB: 'last28Days',
+  TL: 'lastSuccessfulSession',
+  YV: 'lsvStatus',
+  OP: 'profile',
+  PN: 'retentionPolicy',
+  T3: 'selectedSize',
+  YS: 'storageStatus',
+  US: 'usedStorage'
 };
 
 export interface CoveAccountStatistics {
@@ -41,7 +41,7 @@ type RawStatisticsRow = {
   AccountId: number;
   PartnerId: number;
   Flags?: string[] | null;
-  Settings: Array<Record<string, string>>;
+  Settings: Array<Record<string, string | number | boolean | null>>;
 };
 
 type EnumerateAccountStatisticsResult = {
@@ -92,19 +92,16 @@ export class CoveConnector {
   }
 
   private async fetchChildPartners(partnerId: number): Promise<CoveChildPartner[]> {
-    const result = await this.client.rpc<EnumerateChildPartnersResult>(
-      'EnumerateChildPartners',
-      {
-        partnerId,
-        childrenLimit: 10000,
-        range: { Offset: 0, Size: 10000 },
-        fields: [0, 1, 3, 4, 5],
-        partnerFilter: {
-          SortOrder: 'ByLevelAndName',
-          states: ['InProduction', 'InTrial', 'Expired'],
-        },
+    const result = await this.client.rpc<EnumerateChildPartnersResult>('EnumerateChildPartners', {
+      partnerId,
+      childrenLimit: 10000,
+      range: { Offset: 0, Size: 10000 },
+      fields: [0, 1, 3, 4, 5],
+      partnerFilter: {
+        SortOrder: 'ByLevelAndName',
+        states: ['InProduction', 'InTrial', 'Expired']
       }
-    );
+    });
     return result.result?.Children ?? [];
   }
 
@@ -134,7 +131,7 @@ export class CoveConnector {
           const [code, value] = Object.entries(entry)[0] ?? [];
           if (code && value !== undefined) {
             const name = CODE_TO_NAME[code];
-            if (name) settings[name] = value;
+            if (name) settings[name] = value == null ? '' : String(value);
           }
         }
         return {
