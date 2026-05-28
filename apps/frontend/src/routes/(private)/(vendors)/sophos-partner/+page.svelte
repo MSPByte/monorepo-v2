@@ -1,12 +1,16 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { cn } from '$lib/utils';
+  import { AlertSeverity } from '@mspbyte/shared';
   import { goto } from '$app/navigation';
   import type { createTrpcClient } from '$lib/trpc';
+  import ScopedRow from '../_ScopedRow.svelte';
+  import VendorInsightsPanel from '$lib/components/alerts/vendor-insights-panel.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
   const NOW = Date.now();
 
@@ -15,6 +19,13 @@
     queryKey: ['integrationLinks.list', 'sophos-partner', 'active'],
     queryFn: () =>
       trpc.integrationLinks.list.query({ integrationId: 'sophos-partner', status: 'active' }),
+    enabled: !scopeStore.currentSite,
+  }));
+
+  const alertSummaryQuery = createQuery(() => ({
+    queryKey: ['alerts.summaryByLink', 'sophos-partner', 'active'],
+    queryFn: () =>
+      trpc.alerts.summaryByLink.query({ integrationId: 'sophos-partner', status: 'active' }),
     enabled: !scopeStore.currentSite,
   }));
 
@@ -61,68 +72,78 @@
     };
   });
 
-  const platformCounts = $derived.by(() => {
-    const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
-    const map = new Map<string, number>();
-    for (const e of eps) {
-      const key = String(e['platform'] ?? 'unknown');
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    const total = eps.length || 1;
-    return [...map.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, count]) => ({ label, count, pct: Math.round((count / total) * 100) }));
-  });
-
-  const typeCounts = $derived.by(() => {
-    const eps = (endpointsQuery.data?.rows ?? []) as EndpointRow[];
-    const computers = eps.filter((e) => String(e['type'] ?? '').toLowerCase() !== 'server').length;
-    const servers = eps.filter((e) => String(e['type'] ?? '').toLowerCase() === 'server').length;
-    const total = eps.length || 1;
-    return [
-      {
-        label: 'Computer',
-        count: computers,
-        pct: Math.round((computers / total) * 100),
-        color: 'var(--primary)',
-      },
-      {
-        label: 'Server',
-        count: servers,
-        pct: Math.round((servers / total) * 100),
-        color: 'var(--warning)',
-      },
-    ];
-  });
-
   // ── Global overview helpers ───────────────────────────────────────────────
   const links = $derived(linksQuery.data ?? []);
 
-  const platformColors: Record<string, string> = {
-    windows: 'var(--primary)',
-    linux: 'var(--warning)',
-    mac: 'oklch(0.65 0.18 40)',
-    unknown: 'var(--muted-foreground)',
-  };
+  const alertSummaryMap = $derived.by(() => {
+    const map = new Map<
+      string,
+      { alertCount: number; highestSeverity: number | null; criticalCount: number; highCount: number }
+    >();
+    for (const row of alertSummaryQuery.data ?? []) {
+      if (row.linkId) map.set(row.linkId, row);
+    }
+    return map;
+  });
 
-  function platformColor(label: string) {
-    return platformColors[label.toLowerCase()] ?? 'var(--primary)';
-  }
+  let searchQuery = $state('');
 
-  function relativeTime(ts: Date | string | null | undefined) {
-    if (!ts) return '—';
-    const diff = Date.now() - new Date(ts).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  }
+  const filteredLinks = $derived(
+    searchQuery.trim()
+      ? links.filter((l) =>
+          (l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      : links,
+  );
 
-  function selectSite(link: (typeof links)[number]) {
+  const criticalCount = $derived(
+    filteredLinks.filter((l) => {
+      const m = alertSummaryMap.get(l.id);
+      return (m?.highestSeverity ?? -1) >= AlertSeverity.High;
+    }).length,
+  );
+
+  const warningCount = $derived(
+    filteredLinks.filter((l) => {
+      const m = alertSummaryMap.get(l.id);
+      return (
+        (m?.highestSeverity ?? -1) >= AlertSeverity.Low &&
+        (m?.highestSeverity ?? -1) < AlertSeverity.High
+      );
+    }).length,
+  );
+
+  const healthyCount = $derived(
+    filteredLinks.filter((l) => {
+      const m = alertSummaryMap.get(l.id);
+      return (m?.alertCount ?? 0) === 0;
+    }).length,
+  );
+
+  function selectSite(link: { siteId?: string | null }) {
     if (link.siteId) scopeStore.currentSite = link.siteId;
     goto('/sophos-partner');
+  }
+
+  function refreshSiteAlerts() {
+    queryClient.invalidateQueries({
+      queryKey: ['alerts.insightGroups', 'sophos-partner', scopeStore.currentSite, currentLink, 'active'],
+    });
+    queryClient.invalidateQueries({ queryKey: ['alerts.insightGroupCounts', 'sophos-partner'] });
+    queryClient.invalidateQueries({ queryKey: ['alerts.summaryByLink', 'sophos-partner', 'active'] });
+  }
+
+  const insightFilters = [
+    {
+      id: 'tamper',
+      label: 'Tamper',
+      definitionPrefixes: ['sophos.endpoint.tamper_protection'],
+    },
+  ];
+
+  function moduleLabelForDefinition(definitionId: string) {
+    if (definitionId === 'sophos.endpoint.tamper_protection') return 'Tamper';
+    return 'Other';
   }
 </script>
 
@@ -137,202 +158,189 @@
       <div class="text-sm font-medium">No Sophos Partner integration for this site.</div>
     </div>
   {:else}
-    <div class="flex flex-col size-full overflow-y-auto p-4 gap-4">
-      <!-- KPI strip -->
-      <div class="grid grid-cols-5 gap-3">
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Total Endpoints
-          </div>
-          <div class="text-3xl font-bold tabular-nums">
-            {endpointsQuery.isLoading ? '—' : endpointStats.total}
+    <div class="flex flex-col size-full overflow-hidden">
+      <div class="flex items-center gap-5 px-4 py-2.5 border-b shrink-0 flex-wrap">
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-lg font-semibold tabular-nums">
+              {endpointsQuery.isLoading ? '—' : endpointStats.total}
+            </span>
+            <span class="text-xs text-muted-foreground">Endpoints</span>
           </div>
         </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Health Issues
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.healthIssues > 0 && 'text-destructive',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.healthIssues}
+            </span>
+            <span class="text-xs text-muted-foreground">Health Issues</span>
           </div>
-          <div class="text-3xl font-bold tabular-nums text-destructive">
-            {endpointsQuery.isLoading ? '—' : endpointStats.healthIssues}
-          </div>
-          <div class="text-xs text-muted-foreground">require attention</div>
         </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Tamper Disabled
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.tamperDisabled > 0 && 'text-destructive',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.tamperDisabled}
+            </span>
+            <span class="text-xs text-muted-foreground">Tamper Disabled</span>
           </div>
-          <div class="text-3xl font-bold tabular-nums text-destructive">
-            {endpointsQuery.isLoading ? '—' : endpointStats.tamperDisabled}
-          </div>
-          <div class="text-xs text-muted-foreground">AV unprotected</div>
+          <span class="text-[11px] text-muted-foreground">AV unprotected</span>
         </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Needs Upgrade
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.needsUpgrade > 0 && 'text-warning',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.needsUpgrade}
+            </span>
+            <span class="text-xs text-muted-foreground">Needs Upgrade</span>
           </div>
-          <div class="text-3xl font-bold tabular-nums text-warning">
-            {endpointsQuery.isLoading ? '—' : endpointStats.needsUpgrade}
-          </div>
-          <div class="text-xs text-muted-foreground">outdated agent</div>
+          <span class="text-[11px] text-muted-foreground">outdated agent</span>
         </div>
-        <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Stale 60d
+
+        <div class="w-px h-8 bg-border shrink-0"></div>
+
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class={cn(
+                'text-lg font-semibold tabular-nums',
+                endpointStats.stale60d > 0 && 'text-muted-foreground',
+              )}
+            >
+              {endpointsQuery.isLoading ? '—' : endpointStats.stale60d}
+            </span>
+            <span class="text-xs text-muted-foreground">Stale 60d</span>
           </div>
-          <div class="text-3xl font-bold tabular-nums text-muted-foreground">
-            {endpointsQuery.isLoading ? '—' : endpointStats.stale60d}
-          </div>
-          <div class="text-xs text-muted-foreground">no heartbeat</div>
+          <span class="text-[11px] text-muted-foreground">no heartbeat</span>
         </div>
       </div>
 
-      <!-- Charts row -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="rounded-lg border bg-card p-4">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Platform Distribution
-          </div>
-          {#if endpointsQuery.isLoading}
-            <div class="h-24 bg-muted rounded animate-pulse"></div>
-          {:else}
-            <div class="flex flex-col gap-2">
-              {#each platformCounts as p}
-                <div>
-                  <div class="flex justify-between text-xs mb-1">
-                    <span class="text-muted-foreground capitalize">{p.label}</span>
-                    <span style="color:{platformColor(p.label)}">{p.count}</span>
-                  </div>
-                  <div class="w-full h-1.5 rounded-full bg-border overflow-hidden">
-                    <div
-                      style="width:{p.pct}%;background:{platformColor(p.label)};height:100%;border-radius:9999px;transition:width 0.4s"
-                    ></div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <div class="rounded-lg border bg-card p-4">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Endpoint Types
-          </div>
-          {#if endpointsQuery.isLoading}
-            <div class="h-24 bg-muted rounded animate-pulse"></div>
-          {:else}
-            <div class="flex items-center gap-6">
-              <div class="relative shrink-0" style="width:72px;height:72px">
-                <svg width="72" height="72" style="transform:rotate(-90deg)">
-                  <circle cx="36" cy="36" r="31" fill="none" stroke="var(--border)" stroke-width="8" />
-                  {#each typeCounts as seg, i}
-                    {@const offset = typeCounts.slice(0, i).reduce((s, t) => s + t.pct, 0)}
-                    {@const circ = 2 * Math.PI * 31}
-                    <circle
-                      cx="36"
-                      cy="36"
-                      r="31"
-                      fill="none"
-                      stroke={seg.color}
-                      stroke-width="8"
-                      stroke-dasharray="{(seg.pct / 100) * circ} {circ}"
-                      stroke-dashoffset="{-(offset / 100) * circ}"
-                      stroke-linecap="butt"
-                    />
-                  {/each}
-                </svg>
-                <div
-                  class="absolute inset-0 flex items-center justify-center text-sm font-bold"
-                >
-                  {endpointStats.total}
-                </div>
-              </div>
-              <div class="flex flex-col gap-2 text-xs">
-                {#each typeCounts as t}
-                  <div class="flex items-center gap-1.5">
-                    <span
-                      class="w-2 h-2 rounded-full inline-block"
-                      style="background:{t.color}"
-                    ></span>
-                    <span class="text-muted-foreground">{t.label}:</span>
-                    <span class="font-medium">{t.count}</span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Quick links -->
-      <div class="flex flex-wrap gap-2">
-        <a
-          href="/sophos-partner/endpoints"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >
-          Endpoints →
-        </a>
-        <a
-          href="/sophos-partner/firewalls"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >
-          Firewalls →
-        </a>
-        <a
-          href="/sophos-partner/licenses"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border text-sm font-medium hover:bg-accent transition-colors"
-        >
-          Licenses →
-        </a>
+      <div class="flex-1 overflow-hidden">
+        <VendorInsightsPanel
+          integrationId="sophos-partner"
+          siteId={scopeStore.currentSite}
+          linkId={currentLink}
+          alertsHref="/sophos-partner/alerts"
+          filters={insightFilters}
+          entityHeading="Endpoint"
+          {moduleLabelForDefinition}
+          onalertchange={refreshSiteAlerts}
+        />
       </div>
     </div>
   {/if}
 {:else}
   <!-- ── Global sites overview ──────────────────────────────────────────── -->
   <div class="flex flex-col size-full overflow-hidden">
-    <div class="grid grid-cols-2 gap-3 p-4 border-b shrink-0">
+    <div class="grid grid-cols-4 gap-3 p-4 border-b shrink-0">
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Total Sites
         </div>
         <div class="text-3xl font-bold tabular-nums">
-          {linksQuery.isLoading ? '—' : links.length}
+          {linksQuery.isPending ? '—' : filteredLinks.length}
         </div>
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Active</div>
-        <div class="text-3xl font-bold tabular-nums text-success">
-          {linksQuery.isLoading ? '—' : links.filter((l) => l.status === 'active').length}
+        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          High/Critical
         </div>
+        <div class="text-3xl font-bold tabular-nums text-destructive">
+          {linksQuery.isPending ? '—' : criticalCount}
+        </div>
+        <div class="text-xs text-muted-foreground">highest alert severity</div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
+        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Low/Medium
+        </div>
+        <div class="text-3xl font-bold tabular-nums text-warning">
+          {linksQuery.isPending ? '—' : warningCount}
+        </div>
+        <div class="text-xs text-muted-foreground">highest alert severity</div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
+        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Healthy
+        </div>
+        <div class="text-3xl font-bold tabular-nums text-success">
+          {linksQuery.isPending ? '—' : healthyCount}
+        </div>
+        <div class="text-xs text-muted-foreground">no open alerts</div>
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div class="flex-1 overflow-auto p-4 flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Search sites..."
+          bind:value={searchQuery}
+          class="h-8 w-64 rounded-md border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
       {#if linksQuery.isLoading}
         <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
-          Loading…
+          Loading sites...
         </div>
-      {:else if links.length === 0}
-        <div class="flex flex-col items-center gap-2 text-muted-foreground pt-12">
-          <div class="text-sm">No Sophos Partner sites connected.</div>
-          <a href="/setup/integrations" class="text-xs text-primary hover:underline">
-            Configure integration →
-          </a>
+      {:else if filteredLinks.length === 0}
+        <div class="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+          {#if links.length === 0}
+            <div class="text-sm">No Sophos Partner sites connected.</div>
+            <a href="/setup/integrations" class="text-xs text-primary hover:underline">
+              Configure integration →
+            </a>
+          {:else}
+            <div class="text-sm">No sites match your search.</div>
+          {/if}
         </div>
       {:else}
-        <div class="flex flex-col gap-1">
-          {#each links as link}
-            <button
-              onclick={() => selectSite(link)}
-              class="flex items-center gap-3 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors text-left w-full"
-            >
-              <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-success"></span>
-              <span class="font-medium text-sm flex-1">
-                {link.name ?? link.externalId ?? link.id}
-              </span>
-              <span class="text-xs text-muted-foreground">{relativeTime(link.updatedAt)}</span>
-            </button>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b text-xs text-muted-foreground uppercase tracking-wide">
+              <th class="px-4 py-2 text-left w-8"></th>
+              <th class="px-4 py-2 text-left">Site</th>
+              <th class="px-4 py-2 text-center w-24">Alerts</th>
+              <th class="px-4 py-2 text-center w-40">Compliance Failures</th>
+              <th class="px-4 py-2 text-center w-28">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+          {#each filteredLinks as link (link.id)}
+            {@const summary = alertSummaryMap.get(link.id)}
+            <ScopedRow
+              {link}
+              label="Site"
+              onclick={selectSite}
+              alertCount={summary?.alertCount ?? 0}
+              highestSeverity={summary?.highestSeverity ?? null}
+              loading={alertSummaryQuery.isPending}
+            />
           {/each}
-        </div>
+          </tbody>
+        </table>
       {/if}
     </div>
   </div>

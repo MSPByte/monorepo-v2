@@ -8,7 +8,7 @@ export const SOPHOS_ALERT_DEFINITIONS: Record<string, AlertDefinition> = {
     name: 'Sophos Tamper Protection Disabled',
     tag: 'Tamper',
     description: 'Endpoint has Sophos tamper protection disabled.',
-    messageTemplate: '{{entityRef}} has tamper protection disabled.',
+    messageTemplate: '{{hostname}} has tamper protection disabled.',
     severity: AlertSeverity.Medium
   }
 };
