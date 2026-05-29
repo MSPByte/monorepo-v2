@@ -7,8 +7,9 @@
   import type { DataTableColumn } from '$lib/components/data-table/types';
   import VendorDataTable from '$lib/components/data-table/VendorDataTable.svelte';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
-    import { relativeDateColumn } from "$lib/components/data-table";
-    import { boolBadgeColumn, nullableTextColumn, stateColumn, textColumn } from "$lib/components/data-table/column-defs";
+  import { relativeDateColumn } from '$lib/components/data-table';
+  import { nullableTextColumn, textColumn } from '$lib/components/data-table/column-defs';
+  import Loader from '$lib/components/transition/loader.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -25,7 +26,9 @@
     enabled: !!scopeStore.currentSite,
   }));
 
-  const currentLink = $derived(siteLinkQuery.data?.[0]?.id ?? null);
+  const currentLinkId = $derived(
+    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined
+  );
 
   const columns: DataTableColumn<EndpointRow>[] = [
     textColumn('hostname', 'Hostname'),
@@ -34,7 +37,7 @@
     nullableTextColumn('ipAddress', 'IP Address'),
     nullableTextColumn('extAddress', 'External IP'),
     relativeDateColumn('lastHeartbeatAt', 'Last Heartbeat'),
-    relativeDateColumn('lastRebootAt', 'Last Reboot')
+    relativeDateColumn('lastRebootAt', 'Last Reboot'),
   ];
 
   let drawerEndpoint = $state<EndpointRow | null>(null);
@@ -60,28 +63,21 @@
   }
 </script>
 
-{#if !scopeStore.currentSite}
-  <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
-    <div class="text-sm font-medium">Select a site to view endpoints</div>
-    <div class="text-xs">Use the site selector in the navigation bar</div>
-  </div>
-{:else if siteLinkQuery.isLoading}
-  <div class="flex items-center justify-center size-full text-sm text-muted-foreground">
-    Loading…
-  </div>
-{:else if !currentLink}
+{#if scopeStore.currentSite && siteLinkQuery.isLoading}
+  <Loader />
+{:else if scopeStore.currentSite && !currentLinkId}
   <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
     <div class="text-sm font-medium">No DattoRMM integration for this site.</div>
   </div>
 {:else}
-  <div class="flex flex-col size-full overflow-hidden p-4">
-    <VendorDataTable
-      table="datto_endpoints"
-      linkId={currentLink}
-      {columns}
-      onrowclick={(row) => (drawerEndpoint = row)}
-    />
-  </div>
+  <VendorDataTable
+    table="datto_endpoints"
+    linkId={currentLinkId ?? undefined}
+    integrationId="dattormm"
+    scopeColumn="site"
+    {columns}
+    onrowclick={(row) => (drawerEndpoint = row)}
+  />
 {/if}
 
 <!-- Endpoint detail sheet -->
@@ -100,9 +96,7 @@
           <span
             class={cn(
               'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-              ep['online']
-                ? 'bg-success/15 text-success'
-                : 'bg-muted text-muted-foreground',
+              ep['online'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'
             )}
           >
             {ep['online'] ? 'Online' : 'Offline'}
@@ -119,14 +113,14 @@
 
       <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <div class="flex gap-1 border-b">
-          {#each (['Details', 'UDFs'] as const) as tab}
+          {#each ['Details', 'UDFs'] as const as tab}
             <button
               onclick={() => (activeTab = tab)}
               class={cn(
                 'px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
                 activeTab === tab
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               )}
             >
               {tab}
@@ -136,14 +130,7 @@
 
         {#if activeTab === 'Details'}
           <div class="grid grid-cols-2 gap-3 text-xs">
-            {#each [
-              { label: 'OS', value: ep['os'] },
-              { label: 'Category', value: ep['category'] },
-              { label: 'IP Address', value: ep['ipAddress'] },
-              { label: 'External IP', value: ep['extAddress'] },
-              { label: 'Last Heartbeat', value: absoluteDate(ep['lastHeartbeatAt'] as string | null) },
-              { label: 'Last Reboot', value: absoluteDate(ep['lastReboootAt'] as string | null) },
-            ] as item}
+            {#each [{ label: 'OS', value: ep['os'] }, { label: 'Category', value: ep['category'] }, { label: 'IP Address', value: ep['ipAddress'] }, { label: 'External IP', value: ep['extAddress'] }, { label: 'Last Heartbeat', value: absoluteDate(ep['lastHeartbeatAt'] as string | null) }, { label: 'Last Reboot', value: absoluteDate(ep['lastReboootAt'] as string | null) }] as item}
               <div>
                 <div class="text-muted-foreground mb-0.5">{item.label}</div>
                 <div class="font-medium font-mono">{item.value ? String(item.value) : '—'}</div>

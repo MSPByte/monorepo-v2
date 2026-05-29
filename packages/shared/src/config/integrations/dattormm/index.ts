@@ -15,5 +15,5 @@ export const DATTO_RMM_CONFIG: Integration = {
       sync: { intervalMs: SyncIntervals['24_HOURS'] }
     }
   ],
-  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: true }]
+  navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: false }]
 };

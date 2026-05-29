@@ -1,13 +1,13 @@
 <script lang="ts">
-  import DownloadIcon from "@lucide/svelte/icons/download";
-  import { Button } from "$lib/components/ui/button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import type { DataTableColumn, TableFilter, TableView } from "./types";
-  import DataTableFilterBuilder from "./data-table-filter-builder.svelte";
-  import DataTableFilterChips from "./data-table-filter-chips.svelte";
-  import DataTableViewSelector from "./data-table-view-selector.svelte";
-  import DataTableColumnToggle from "./data-table-column-toggle.svelte";
-  import SearchBar from "$lib/components/search-bar.svelte";
+  import DownloadIcon from '@lucide/svelte/icons/download';
+  import { Button } from '$lib/components/ui/button';
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+  import type { DataTableColumn, TableFilter, TableView } from './types';
+  import DataTableFilterBuilder from './data-table-filter-builder.svelte';
+  import DataTableFilterChips from './data-table-filter-chips.svelte';
+  import DataTableViewSelector from './data-table-view-selector.svelte';
+  import DataTableColumnToggle from './data-table-column-toggle.svelte';
+  import SearchBar from '$lib/components/search-bar.svelte';
 
   interface Props {
     columns: DataTableColumn<any>[];
@@ -25,12 +25,12 @@
     ontogglecolumn?: (columnKey: string) => void;
     showColumnToggle?: boolean;
     showExport?: boolean;
-    onexport?: (format: "csv" | "xlsx") => void;
+    onexport?: (format: 'csv' | 'xlsx') => void;
   }
 
   let {
     columns,
-    globalSearch = "",
+    globalSearch = '',
     onglobalsearchchange,
     filters = [],
     viewFilters = [],
@@ -57,7 +57,7 @@
         <SearchBar
           value={globalSearch}
           placeholder="Search..."
-          delay={300}
+          delay={800}
           onchange={onglobalsearchchange}
         />
       </div>
@@ -68,15 +68,11 @@
     <!-- Actions -->
     <div class="flex items-center gap-2">
       {#if onaddfilter}
-        <DataTableFilterBuilder {columns} onaddfilter={onaddfilter} />
+        <DataTableFilterBuilder {columns} {onaddfilter} />
       {/if}
 
       {#if showColumnToggle && ontogglecolumn}
-        <DataTableColumnToggle
-          {columns}
-          {visibleColumns}
-          ontogglecolumn={ontogglecolumn}
-        />
+        <DataTableColumnToggle {columns} {visibleColumns} {ontogglecolumn} />
       {/if}
 
       {#if showExport && onexport}
@@ -90,12 +86,8 @@
             {/snippet}
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="end">
-            <DropdownMenu.Item onclick={() => onexport("csv")}>
-              Export as CSV
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => onexport("xlsx")}>
-              Export as Excel
-            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => onexport('csv')}>Export as CSV</DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => onexport('xlsx')}>Export as Excel</DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Root>
       {/if}
@@ -104,17 +96,11 @@
 
   <!-- Views row -->
   {#if views.length > 0 && onviewchange}
-    <DataTableViewSelector {views} {activeView} onviewchange={onviewchange} />
+    <DataTableViewSelector {views} {activeView} {onviewchange} />
   {/if}
 
   <!-- Filter chips -->
   {#if onremovefilter && onclearfilters}
-    <DataTableFilterChips
-      {filters}
-      {viewFilters}
-      {columns}
-      onremovefilter={onremovefilter}
-      onclearfilters={onclearfilters}
-    />
+    <DataTableFilterChips {filters} {viewFilters} {columns} {onremovefilter} {onclearfilters} />
   {/if}
 </div>

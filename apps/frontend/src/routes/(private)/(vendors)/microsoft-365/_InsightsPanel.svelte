@@ -21,6 +21,8 @@
     metadataLabel,
   } from '$lib/components/alerts/display';
   import { ChevronRight, Search } from '@lucide/svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   let {
     linkId,
@@ -110,9 +112,11 @@
       data.page === 0
         ? data.rows
         : [
-            ...groups.filter((group) => !data.rows.some((row) => row.entityKey === group.entityKey)),
+            ...groups.filter(
+              (group) => !data.rows.some((row) => row.entityKey === group.entityKey)
+            ),
             ...data.rows,
-          ],
+          ]
     );
   });
 
@@ -236,7 +240,7 @@
                 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
                 activeFilter === filter.id
                   ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
               )}
             >
               {filter.label}
@@ -263,209 +267,225 @@
 
   <div class="flex-1 overflow-y-auto">
     {#if loading}
-      <div class="flex flex-col gap-2 p-3">
-        {#each Array(4) as _}
-          <div class="h-12 rounded-lg bg-muted animate-pulse"></div>
-        {/each}
-      </div>
+      <Loader />
     {:else if groups.length === 0}
-      <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
+      <FadeIn class="flex items-center justify-center h-32 text-sm text-muted-foreground">
         {searchQuery.trim() ? 'No insights match your search' : 'No active insights'}
-      </div>
+      </FadeIn>
     {:else}
-      <table class="w-full table-fixed text-sm">
-        <thead class="sticky top-0 z-10 bg-background/95 backdrop-blur border-b">
-          <tr class="text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            <th class="w-[32%] px-4 py-2">Entity</th>
-            <th class="px-3 py-2">Summary</th>
-            <th class="w-24 px-3 py-2">Severity</th>
-            <th class="w-20 px-3 py-2 text-right">Seen</th>
-            <th class="w-24 px-4 py-2 text-right"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each groups as entity (entity.entityKey)}
-            {@const expanded = isExpanded(entity.entityKey)}
-            {@const primaryAlert = {
-              id: entity.primaryAlertId,
-              definitionId: entity.primaryDefinitionId,
-              entityRef: entity.entityKey,
-              entityId: entity.entityKey,
-              entityType: null,
-              message: entity.primaryMessage,
-              metadata: entity.primaryMetadata,
-              severity: entity.highestSeverity,
-              status: 'active',
-              linkId,
-              siteId: null,
-              firstSeen: entity.lastSeenAt,
-              lastSeenAt: entity.lastSeenAt,
-              resolvedAt: null,
-              suppressedAt: null,
-              suppressedUntil: null,
-              suppressionNote: null,
-              suppressedBy: null,
-              updatedAt: entity.lastSeenAt,
-            } as UiAlert}
-            {@const modules = [...new Set(entity.moduleIds.map((definitionId) => moduleForDefinitionId(definitionId).label))]}
-            <tr class="group border-b hover:bg-accent/30">
-              <td class="px-4 py-2 align-top">
-                <button
-                  type="button"
-                  onclick={() => toggleEntity(entity.entityKey)}
-                  class="flex w-full min-w-0 items-start gap-2 text-left"
-                  aria-expanded={expanded}
-                >
-                  <ChevronRight
-                    class={cn(
-                      'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
-                      expanded && 'rotate-90',
-                    )}
-                  />
-                  <span
-                    class={cn(
-                      'mt-1 size-2 rounded-full shrink-0',
-                      severityDot(entity.highestSeverity),
-                    )}
-                  ></span>
-                  <span class="min-w-0">
-                    <span class="block truncate font-medium">{entity.entityKey}</span>
-                    <span class="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                      {entity.alertCount} {entity.alertCount === 1 ? 'issue' : 'issues'}
-                    </span>
-                  </span>
-                </button>
-              </td>
-              <td class="px-3 py-2 align-top">
-                <button
-                  type="button"
-                  onclick={() => toggleEntity(entity.entityKey)}
-                  class="block w-full text-left"
-                >
-                  <div class="truncate font-medium">
-                    {entity.alertCount === 1
-                      ? alertTitle(primaryAlert)
-                      : `${entity.alertCount} active alerts`}
-                  </div>
-                  <div class="truncate text-xs text-muted-foreground">
-                    {entity.alertCount === 1
-                      ? hydratedAlertMessage(primaryAlert)
-                      : modules.join(', ')}
-                  </div>
-                </button>
-              </td>
-              <td class="px-3 py-2 align-top">
-                <span
-                  class={cn(
-                    'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium',
-                    severityBadge(entity.highestSeverity),
-                  )}
-                >
-                  {severityLabel(entity.highestSeverity)}
-                </span>
-              </td>
-              <td class="px-3 py-2 text-right align-top text-xs text-muted-foreground tabular-nums">
-                {relativeTime(primaryAlert.lastSeenAt)}
-              </td>
-              <td class="px-4 py-2 text-right align-top">
-                {#if entity.alertCount === 1}
-                  <button
-                    type="button"
-                    onclick={async () => {
-                      await loadGroupAlerts(entity.entityKey);
-                      const loaded = groupAlerts.get(entity.entityKey)?.rows[0];
-                      if (loaded) openSuppress(loaded);
-                    }}
-                    class="text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
-                  >
-                    Suppress
-                  </button>
-                {:else}
+      <FadeIn class="flex-1">
+        <table class="w-full table-fixed text-sm">
+          <thead class="sticky top-0 z-10 bg-background/95 backdrop-blur border-b">
+            <tr
+              class="text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              <th class="w-[32%] px-4 py-2">Entity</th>
+              <th class="px-3 py-2">Summary</th>
+              <th class="w-24 px-3 py-2">Severity</th>
+              <th class="w-20 px-3 py-2 text-right">Seen</th>
+              <th class="w-24 px-4 py-2 text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each groups as entity (entity.entityKey)}
+              {@const expanded = isExpanded(entity.entityKey)}
+              {@const primaryAlert = {
+                id: entity.primaryAlertId,
+                definitionId: entity.primaryDefinitionId,
+                entityRef: entity.entityKey,
+                entityId: entity.entityKey,
+                entityType: null,
+                message: entity.primaryMessage,
+                metadata: entity.primaryMetadata,
+                severity: entity.highestSeverity,
+                status: 'active',
+                linkId,
+                siteId: null,
+                firstSeen: entity.lastSeenAt,
+                lastSeenAt: entity.lastSeenAt,
+                resolvedAt: null,
+                suppressedAt: null,
+                suppressedUntil: null,
+                suppressionNote: null,
+                suppressedBy: null,
+                updatedAt: entity.lastSeenAt,
+              } as UiAlert}
+              {@const modules = [
+                ...new Set(
+                  entity.moduleIds.map((definitionId) => moduleForDefinitionId(definitionId).label)
+                ),
+              ]}
+              <tr class="group border-b hover:bg-accent/30">
+                <td class="px-4 py-2 align-top">
                   <button
                     type="button"
                     onclick={() => toggleEntity(entity.entityKey)}
-                    class="text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
+                    class="flex w-full min-w-0 items-start gap-2 text-left"
+                    aria-expanded={expanded}
                   >
-                    {expanded ? 'Hide' : 'Expand'}
+                    <ChevronRight
+                      class={cn(
+                        'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
+                        expanded && 'rotate-90'
+                      )}
+                    />
+                    <span
+                      class={cn(
+                        'mt-1 size-2 rounded-full shrink-0',
+                        severityDot(entity.highestSeverity)
+                      )}
+                    ></span>
+                    <span class="min-w-0">
+                      <span class="block truncate font-medium">{entity.entityKey}</span>
+                      <span class="mt-0.5 block text-xs text-muted-foreground tabular-nums">
+                        {entity.alertCount}
+                        {entity.alertCount === 1 ? 'issue' : 'issues'}
+                      </span>
+                    </span>
                   </button>
-                {/if}
-              </td>
-            </tr>
-            {#if expanded}
-              {@const details = groupAlerts.get(entity.entityKey)}
-              <tr class="border-b bg-muted/10">
-                <td colspan="5" class="px-4 py-2">
-                  <div class="ml-6 overflow-hidden rounded-md border bg-background">
-                    {#if details?.loading}
-                      <div class="px-3 py-3 text-xs text-muted-foreground">Loading alerts...</div>
-                    {:else if !details || details.rows.length === 0}
-                      <div class="px-3 py-3 text-xs text-muted-foreground">No alerts loaded.</div>
-                    {:else}
-                    {#each details.rows as alert, alertIndex (alert.id)}
-                      {@const module = moduleForAlert(alert)}
-                      {@const detailEntries = alertMetadataEntries(alert).slice(0, 4)}
-                      <div
-                        class={cn(
-                          'grid gap-2 px-3 py-2 text-xs md:grid-cols-[minmax(11rem,16rem)_1fr_auto]',
-                          alertIndex < details.rows.length - 1 && 'border-b',
-                        )}
-                      >
-                        <div class="min-w-0">
-                          <div class="flex items-center gap-1.5">
-                            <span
-                              class={cn('size-1.5 rounded-full shrink-0', severityDot(alert.severity))}
-                            ></span>
-                            <span class="truncate font-medium text-sm">{alertTitle(alert)}</span>
-                          </div>
-                          <div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <span>{module.label}</span>
-                            <span aria-hidden="true">/</span>
-                            <span>{severityLabel(alert.severity)}</span>
-                          </div>
-                        </div>
-
-                        <div class="min-w-0">
-                          <div class="wrap-break-word text-sm leading-snug">
-                            {hydratedAlertMessage(alert)}
-                          </div>
-                          {#if detailEntries.length > 0}
-                            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                              {#each detailEntries as [key, value]}
-                                <span class="min-w-0">
-                                  <span>{metadataLabel(key)}:</span>
-                                  <span class="font-medium text-foreground/80">
-                                    {formatAlertValue(value)}
-                                  </span>
-                                </span>
-                              {/each}
-                            </div>
-                          {/if}
-                        </div>
-
-                        <div class="flex items-start justify-end">
-                          <button
-                            type="button"
-                            onclick={() => openSuppress(alert)}
-                            class="shrink-0 text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-0.5 transition-colors"
-                          >
-                            Suppress
-                          </button>
-                        </div>
-                      </div>
-                    {/each}
-                    {#if details.total > details.rows.length}
-                      <div class="border-t px-3 py-2 text-xs text-muted-foreground">
-                        Showing {details.rows.length} of {details.total} alerts. Use the full alerts table for the complete list.
-                      </div>
-                    {/if}
-                    {/if}
-                  </div>
+                </td>
+                <td class="px-3 py-2 align-top">
+                  <button
+                    type="button"
+                    onclick={() => toggleEntity(entity.entityKey)}
+                    class="block w-full text-left"
+                  >
+                    <div class="truncate font-medium">
+                      {entity.alertCount === 1
+                        ? alertTitle(primaryAlert)
+                        : `${entity.alertCount} active alerts`}
+                    </div>
+                    <div class="truncate text-xs text-muted-foreground">
+                      {entity.alertCount === 1
+                        ? hydratedAlertMessage(primaryAlert)
+                        : modules.join(', ')}
+                    </div>
+                  </button>
+                </td>
+                <td class="px-3 py-2 align-top">
+                  <span
+                    class={cn(
+                      'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium',
+                      severityBadge(entity.highestSeverity)
+                    )}
+                  >
+                    {severityLabel(entity.highestSeverity)}
+                  </span>
+                </td>
+                <td
+                  class="px-3 py-2 text-right align-top text-xs text-muted-foreground tabular-nums"
+                >
+                  {relativeTime(primaryAlert.lastSeenAt)}
+                </td>
+                <td class="px-4 py-2 text-right align-top">
+                  {#if entity.alertCount === 1}
+                    <button
+                      type="button"
+                      onclick={async () => {
+                        await loadGroupAlerts(entity.entityKey);
+                        const loaded = groupAlerts.get(entity.entityKey)?.rows[0];
+                        if (loaded) openSuppress(loaded);
+                      }}
+                      class="text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
+                    >
+                      Suppress
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      onclick={() => toggleEntity(entity.entityKey)}
+                      class="text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
+                    >
+                      {expanded ? 'Hide' : 'Expand'}
+                    </button>
+                  {/if}
                 </td>
               </tr>
-            {/if}
-          {/each}
-        </tbody>
-      </table>
+              {#if expanded}
+                {@const details = groupAlerts.get(entity.entityKey)}
+                <tr class="border-b bg-muted/10">
+                  <td colspan="5" class="px-4 py-2">
+                    <div class="ml-6 overflow-hidden rounded-md border bg-background">
+                      {#if details?.loading}
+                        <div class="px-3 py-3 text-xs text-muted-foreground">Loading alerts...</div>
+                      {:else if !details || details.rows.length === 0}
+                        <div class="px-3 py-3 text-xs text-muted-foreground">No alerts loaded.</div>
+                      {:else}
+                        {#each details.rows as alert, alertIndex (alert.id)}
+                          {@const module = moduleForAlert(alert)}
+                          {@const detailEntries = alertMetadataEntries(alert).slice(0, 4)}
+                          <div
+                            class={cn(
+                              'grid gap-2 px-3 py-2 text-xs md:grid-cols-[minmax(11rem,16rem)_1fr_auto]',
+                              alertIndex < details.rows.length - 1 && 'border-b'
+                            )}
+                          >
+                            <div class="min-w-0">
+                              <div class="flex items-center gap-1.5">
+                                <span
+                                  class={cn(
+                                    'size-1.5 rounded-full shrink-0',
+                                    severityDot(alert.severity)
+                                  )}
+                                ></span>
+                                <span class="truncate font-medium text-sm">{alertTitle(alert)}</span
+                                >
+                              </div>
+                              <div
+                                class="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                              >
+                                <span>{module.label}</span>
+                                <span aria-hidden="true">/</span>
+                                <span>{severityLabel(alert.severity)}</span>
+                              </div>
+                            </div>
+
+                            <div class="min-w-0">
+                              <div class="wrap-break-word text-sm leading-snug">
+                                {hydratedAlertMessage(alert)}
+                              </div>
+                              {#if detailEntries.length > 0}
+                                <div
+                                  class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
+                                >
+                                  {#each detailEntries as [key, value]}
+                                    <span class="min-w-0">
+                                      <span>{metadataLabel(key)}:</span>
+                                      <span class="font-medium text-foreground/80">
+                                        {formatAlertValue(value)}
+                                      </span>
+                                    </span>
+                                  {/each}
+                                </div>
+                              {/if}
+                            </div>
+
+                            <div class="flex items-start justify-end">
+                              <button
+                                type="button"
+                                onclick={() => openSuppress(alert)}
+                                class="shrink-0 text-[11px] text-muted-foreground hover:text-foreground border rounded px-2 py-0.5 transition-colors"
+                              >
+                                Suppress
+                              </button>
+                            </div>
+                          </div>
+                        {/each}
+                        {#if details.total > details.rows.length}
+                          <div class="border-t px-3 py-2 text-xs text-muted-foreground">
+                            Showing {details.rows.length} of {details.total} alerts. Use the full alerts
+                            table for the complete list.
+                          </div>
+                        {/if}
+                      {/if}
+                    </div>
+                  </td>
+                </tr>
+              {/if}
+            {/each}
+          </tbody>
+        </table>
+      </FadeIn>
       {#if groups.length < totalGroups}
         <div class="flex justify-center border-t p-3">
           <button

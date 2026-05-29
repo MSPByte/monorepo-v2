@@ -19,12 +19,12 @@
     CircleX,
     CircleDot,
     ServerCog,
-    LoaderCircle,
   } from '@lucide/svelte';
   import { enhance } from '$app/forms';
   import { toast } from 'svelte-sonner';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.store.svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
 
   type MSPAgentConfig = {
     primaryPsa?: string;
@@ -69,20 +69,22 @@
   const dattoLinks = $derived(dattoLinksQuery.data ?? []);
   const allSites = $derived(sitesQuery.data ?? []);
   const isLoading = $derived(
-    integrationQuery.isLoading || sitesQuery.isLoading || dattoLinksQuery.isLoading,
+    integrationQuery.isLoading || sitesQuery.isLoading || dattoLinksQuery.isLoading
   );
 
   const psaOptions = $derived(
     (allIntegrationsQuery.data ?? [])
-      .filter((i) => !i.deletedAt && INTEGRATIONS[i.id as keyof typeof INTEGRATIONS]?.category === 'psa')
+      .filter(
+        (i) => !i.deletedAt && INTEGRATIONS[i.id as keyof typeof INTEGRATIONS]?.category === 'psa'
+      )
       .map((i) => ({
         label: INTEGRATIONS[i.id as keyof typeof INTEGRATIONS]?.name ?? i.id,
         value: i.id,
-      })),
+      }))
   );
 
   const linkedSiteIds = $derived(
-    new Set(dattoLinks.filter((l) => l.siteId).map((l) => l.siteId as string)),
+    new Set(dattoLinks.filter((l) => l.siteId).map((l) => l.siteId as string))
   );
 
   const persistedStatus = $derived(
@@ -95,8 +97,8 @@
             l.siteId as string,
             { status: meta.variableStatus, lastCheckedAt: meta.lastCheckedAt },
           ];
-        }),
-    ),
+        })
+    )
   );
 
   let siteSearch = $state('');
@@ -123,7 +125,7 @@
         if (activeFilter === 'Unlinked') return !linkedSiteIds.has(s.id);
         return true;
       })
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
   );
 
   const allLinkedSiteIds = $derived([...linkedSiteIds]);
@@ -188,7 +190,7 @@
             toast.success(
               siteId
                 ? 'Variable pushed successfully'
-                : `Successfully pushed ${pushed} site variable${pushed !== 1 ? 's' : ''}`,
+                : `Successfully pushed ${pushed} site variable${pushed !== 1 ? 's' : ''}`
             );
         } else if (result.type === 'failure') {
           toast.error(result.data?.error ?? 'Push failed');
@@ -313,7 +315,10 @@
                 type="button"
                 variant="destructive"
                 size="sm"
-                onclick={() => { configSheetOpen = false; showDeleteConfirm = true; }}
+                onclick={() => {
+                  configSheetOpen = false;
+                  showDeleteConfirm = true;
+                }}
               >
                 Delete Integration
               </Button>
@@ -342,9 +347,7 @@
   </div>
 
   {#if isLoading}
-    <div class="flex items-center justify-center flex-1 text-muted-foreground">
-      <LoaderCircle class="size-5 animate-spin" />
-    </div>
+    <Loader />
   {:else if isConfigured}
     <div
       class="flex items-center gap-2 px-3 py-2 rounded border bg-primary/5 border-primary/20 w-fit text-sm shrink-0"
@@ -410,8 +413,10 @@
               <AlertDialog.Header>
                 <AlertDialog.Title>Push Variables to All Sites?</AlertDialog.Title>
                 <AlertDialog.Description>
-                  This will push the site variable to all {allLinkedSiteIds.length} linked DattoRMM
-                  site{allLinkedSiteIds.length !== 1 ? 's' : ''}.
+                  This will push the site variable to all {allLinkedSiteIds.length} linked DattoRMM site{allLinkedSiteIds.length !==
+                  1
+                    ? 's'
+                    : ''}.
                 </AlertDialog.Description>
               </AlertDialog.Header>
               <AlertDialog.Footer>

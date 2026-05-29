@@ -14,6 +14,8 @@
   import { getNestedValue } from './utils/nested';
   import { exportData } from './utils/export';
   import { serializeFilters, deserializeFilters } from './utils/filters';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   let {
     fetchData: fetchDataProp,
@@ -105,9 +107,7 @@
   );
   const toggleableColumns = $derived(columns.filter((c) => !c.hidden));
 
-  const selectedRows = $derived<TData[]>(
-    data.filter((row) => selectedRowIds.has(getRowId(row)))
-  );
+  const selectedRows = $derived<TData[]>(data.filter((row) => selectedRowIds.has(getRowId(row))));
 
   const selectionCount = $derived(allSelected ? total : selectedRows.length);
 
@@ -346,7 +346,9 @@
   async function handleAction(action: RowAction<TData>) {
     let rows: TData[];
     if (allSelected) {
-      const result = await fetchDataProp(buildPaginationInput({ page: 0, pageSize: total || 10000 }));
+      const result = await fetchDataProp(
+        buildPaginationInput({ page: 0, pageSize: total || 10000 })
+      );
       rows = result.rows;
     } else {
       rows = selectedRows;
@@ -381,102 +383,100 @@
   </div>
 
   <!-- Table -->
-  <div class="flex relative size-full rounded-md border overflow-hidden bg-card/10">
-    <Table.Root>
-      <Table.Header>
-        <Table.Row>
-          {#if enableRowSelection}
-            <Table.Head class="sticky top-0 z-10 w-10 bg-background">
-              <Checkbox
-                checked={allRowsSelected}
-                indeterminate={someRowsSelected}
-                onCheckedChange={handleToggleAllRows}
-              />
-            </Table.Head>
-          {/if}
-          {#each visibleColumns as column (column.key)}
-            <Table.Head class="sticky top-0 z-10 w-10 bg-background" style={column.width ? `width: ${column.width}` : undefined}>
-              {#if column.sortable}
-                <button
-                  type="button"
-                  class={cn(
-                    'flex items-center gap-2 cursor-pointer select-none hover:text-foreground'
-                  )}
-                  onclick={() => handleSort(column.key)}
-                >
-                  {column.title}
-                  {#if sortField === column.key}
-                    {#if sortDir === 'asc'}
-                      <ArrowUpIcon class="h-4 w-4" />
+  {#if loading}
+    <Loader />
+  {:else}
+    <FadeIn class="flex relative size-full rounded-md border overflow-hidden bg-card/10">
+      <Table.Root>
+        <Table.Header>
+          <Table.Row>
+            {#if enableRowSelection}
+              <Table.Head class="sticky top-0 z-10 w-10 bg-background">
+                <Checkbox
+                  checked={allRowsSelected}
+                  indeterminate={someRowsSelected}
+                  onCheckedChange={handleToggleAllRows}
+                />
+              </Table.Head>
+            {/if}
+            {#each visibleColumns as column (column.key)}
+              <Table.Head
+                class="sticky top-0 z-10 w-10 bg-background"
+                style={column.width ? `width: ${column.width}` : undefined}
+              >
+                {#if column.sortable}
+                  <button
+                    type="button"
+                    class={cn(
+                      'flex items-center gap-2 cursor-pointer select-none hover:text-foreground'
+                    )}
+                    onclick={() => handleSort(column.key)}
+                  >
+                    {column.title}
+                    {#if sortField === column.key}
+                      {#if sortDir === 'asc'}
+                        <ArrowUpIcon class="h-4 w-4" />
+                      {:else}
+                        <ArrowDownIcon class="h-4 w-4" />
+                      {/if}
                     {:else}
-                      <ArrowDownIcon class="h-4 w-4" />
+                      <ChevronsUpDownIcon class="h-4 w-4 opacity-30" />
                     {/if}
-                  {:else}
-                    <ChevronsUpDownIcon class="h-4 w-4 opacity-30" />
-                  {/if}
-                </button>
-              {:else}
-                {column.title}
-              {/if}
-            </Table.Head>
-          {/each}
-        </Table.Row>
-      </Table.Header>
-      <Table.Body>
-        {#if loading}
-          <Table.Row>
-            <Table.Cell
-              colspan={enableRowSelection ? visibleColumns.length + 1 : visibleColumns.length}
-              class="h-full text-center"
-            >
-              Loading...
-            </Table.Cell>
+                  </button>
+                {:else}
+                  {column.title}
+                {/if}
+              </Table.Head>
+            {/each}
           </Table.Row>
-        {:else if data.length === 0}
-          <Table.Row>
-            <Table.Cell
-              colspan={enableRowSelection ? visibleColumns.length + 1 : visibleColumns.length}
-              class="h-24 text-center"
-            >
-              No results.
-            </Table.Cell>
-          </Table.Row>
-        {:else}
-          {#each data as row (getRowId(row))}
-            {@const rowId = getRowId(row)}
-            {@const isSelected = selectedRowIds.has(rowId)}
-            <Table.Row
-              data-state={isSelected ? 'selected' : undefined}
-              class={cn(onrowclick ? 'cursor-pointer' : undefined, 'hover:bg-muted/50')}
-              onclick={(e) => handleRowClick(row, e)}
-            >
-              {#if enableRowSelection}
-                <Table.Cell>
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={(checked) => handleToggleRow(row, !!checked)}
-                  />
-                </Table.Cell>
-              {/if}
-              {#each visibleColumns as column (column.key)}
-                {@const value = getNestedValue(row, column.key)}
-                <Table.Cell>
-                  {#if column.cellComponent}
-                    {@const CellComp = column.cellComponent}
-                    <CellComp {value} {row} {...column.cellProps ?? {}} />
-                  {:else if column.cell}
-                    {@render column.cell({ row, value })}
-                  {:else}
-                    {value ?? ''}
-                  {/if}
-                </Table.Cell>
-              {/each}
+        </Table.Header>
+        <Table.Body>
+          {#if data.length === 0}
+            <Table.Row>
+              <Table.Cell
+                colspan={enableRowSelection ? visibleColumns.length + 1 : visibleColumns.length}
+                class="h-24 text-center"
+              >
+                No results.
+              </Table.Cell>
             </Table.Row>
-          {/each}
-        {/if}
-      </Table.Body>
-    </Table.Root>
-  </div>
+          {:else}
+            {#each data as row (getRowId(row))}
+              {@const rowId = getRowId(row)}
+              {@const isSelected = selectedRowIds.has(rowId)}
+              <Table.Row
+                data-state={isSelected ? 'selected' : undefined}
+                class={cn(onrowclick ? 'cursor-pointer' : undefined, 'hover:bg-muted/50')}
+                onclick={(e) => handleRowClick(row, e)}
+              >
+                {#if enableRowSelection}
+                  <Table.Cell>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={(checked) => handleToggleRow(row, !!checked)}
+                    />
+                  </Table.Cell>
+                {/if}
+                {#each visibleColumns as column (column.key)}
+                  {@const value = getNestedValue(row, column.key)}
+                  <Table.Cell>
+                    {#if column.cellComponent}
+                      {@const CellComp = column.cellComponent}
+                      <CellComp {value} {row} {...column.cellProps ?? {}} />
+                    {:else if column.cell}
+                      {@render column.cell({ row, value })}
+                    {:else}
+                      {value ?? ''}
+                    {/if}
+                  </Table.Cell>
+                {/each}
+              </Table.Row>
+            {/each}
+          {/if}
+        </Table.Body>
+      </Table.Root>
+    </FadeIn>
+  {/if}
 
   <!-- Bulk Actions -->
   {#if selectionCount > 0 && rowActions.length > 0}

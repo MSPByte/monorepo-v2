@@ -6,14 +6,7 @@
   import DataTable from './data-table.svelte';
   import type { createTrpcClient } from '$lib/trpc';
 
-  type FilterOperatorMapped =
-    | 'eq'
-    | 'neq'
-    | 'contains'
-    | 'gt'
-    | 'lt'
-    | 'is_null'
-    | 'is_not_null';
+  type FilterOperatorMapped = 'eq' | 'neq' | 'contains' | 'gt' | 'lt' | 'is_null' | 'is_not_null';
 
   interface Props {
     table: string;
@@ -77,28 +70,38 @@
 
   const resolvedColumns: DataTableColumn<TData>[] = $derived([
     ...(!normalizedLinkId && scopeColumn
-      ? [{
-          key: 'linkId',
-          title: scopeColumn === 'site' ? 'Site' : 'Tenant',
-          width: '180px',
-          cell: scopeCell,
-          sortable: true,
-          searchable: true,
-        }] as DataTableColumn<TData>[]
+      ? ([
+          {
+            key: 'linkId',
+            title: scopeColumn === 'site' ? 'Site' : 'Tenant',
+            width: '180px',
+            cell: scopeCell,
+            sortable: true,
+            searchable: false,
+          },
+        ] as DataTableColumn<TData>[])
       : []),
     ...columns,
   ]);
 
   function mapOperator(op: TableFilter['operator']): FilterOperatorMapped | null {
     switch (op) {
-      case 'eq': return 'eq';
-      case 'neq': return 'neq';
-      case 'ilike': return 'contains';
-      case 'gt': return 'gt';
-      case 'lt': return 'lt';
-      case 'is': return 'is_null';
-      case 'not.is': return 'is_not_null';
-      default: return null;
+      case 'eq':
+        return 'eq';
+      case 'neq':
+        return 'neq';
+      case 'ilike':
+        return 'contains';
+      case 'gt':
+        return 'gt';
+      case 'lt':
+        return 'lt';
+      case 'is':
+        return 'is_null';
+      case 'not.is':
+        return 'is_not_null';
+      default:
+        return null;
     }
   }
 
@@ -145,7 +148,9 @@
     scopeColumn === 'site'
       ? ((rowSiteId ? siteNameById.get(rowSiteId) : undefined) ??
         (rowLinkId ? linkSiteNameById.get(rowLinkId) : undefined))
-      : (rowLinkId ? (linkNameById.get(rowLinkId) ?? rowLinkId) : undefined)}
+      : rowLinkId
+        ? (linkNameById.get(rowLinkId) ?? rowLinkId)
+        : undefined}
   <span class="text-sm">{label ?? '—'}</span>
 {/snippet}
 

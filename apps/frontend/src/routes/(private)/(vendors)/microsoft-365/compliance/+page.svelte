@@ -3,6 +3,8 @@
   import { createQuery } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -10,7 +12,7 @@
     queryKey: ['compliance.frameworks', scopeStore.currentLink],
     queryFn: () =>
       trpc.compliance.frameworks.query({
-        linkId: scopeStore.currentLink || undefined
+        linkId: scopeStore.currentLink || undefined,
       }),
   }));
 
@@ -34,7 +36,12 @@
   });
 
   const resultsQuery = createQuery(() => ({
-    queryKey: ['compliance.results', selectedFrameworkId, scopeStore.currentSite, scopeStore.currentLink],
+    queryKey: [
+      'compliance.results',
+      selectedFrameworkId,
+      scopeStore.currentSite,
+      scopeStore.currentLink,
+    ],
     queryFn: () =>
       trpc.compliance.results.query({
         frameworkId: selectedFrameworkId!,
@@ -49,7 +56,8 @@
   const passCount = $derived(results.filter((r) => r.result?.status === 'pass').length);
   const failCount = $derived(results.filter((r) => r.result?.status === 'fail').length);
   const unknownCount = $derived(
-    results.filter((r) => !r.result || (r.result.status !== 'pass' && r.result.status !== 'fail')).length,
+    results.filter((r) => !r.result || (r.result.status !== 'pass' && r.result.status !== 'fail'))
+      .length
   );
   const total = $derived(results.length);
   const passRate = $derived(total > 0 ? Math.round((passCount / total) * 100) : 0);
@@ -88,17 +96,15 @@
   <h1 class="text-2xl font-bold shrink-0">Compliance</h1>
 
   {#if frameworksQuery.isPending}
-    <div class="flex items-center justify-center flex-1 text-muted-foreground text-sm">
-      Loading frameworks...
-    </div>
+    <Loader />
   {:else if frameworks.length === 0}
-    <div class="flex flex-col items-center justify-center flex-1 gap-2 text-muted-foreground">
+    <FadeIn class="flex flex-col items-center justify-center flex-1 gap-2 text-muted-foreground">
       <div class="text-sm font-medium">No compliance frameworks found</div>
       <div class="text-xs">Configure frameworks in the compliance settings</div>
-    </div>
+    </FadeIn>
   {:else}
     <!-- Summary cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+    <FadeIn class="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">Pass Rate</span>
         <span class="text-2xl font-bold tabular-nums {passRateClass(passRate)}">{passRate}%</span>
@@ -109,16 +115,18 @@
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">Failing</span>
-        <span class="text-2xl font-bold tabular-nums {failCount > 0 ? 'text-destructive' : ''}">{failCount}</span>
+        <span class="text-2xl font-bold tabular-nums {failCount > 0 ? 'text-destructive' : ''}"
+          >{failCount}</span
+        >
       </div>
       <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">Unknown</span>
         <span class="text-2xl font-bold tabular-nums">{unknownCount}</span>
       </div>
-    </div>
+    </FadeIn>
 
     <!-- Two-panel layout -->
-    <div class="flex size-full gap-4 items-start overflow-hidden min-h-0">
+    <FadeIn class="flex size-full gap-4 items-start overflow-hidden min-h-0">
       <!-- Left: framework selector -->
       <div class="flex flex-col gap-2 w-52 shrink-0 overflow-y-auto h-full">
         {#each frameworks as fw (fw.id)}
@@ -155,44 +163,39 @@
                 class="px-3 py-1.5 transition-colors {statusFilter === 'all'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted'}"
-                onclick={() => (statusFilter = 'all')}
-              >All</button>
+                onclick={() => (statusFilter = 'all')}>All</button
+              >
               <button
                 class="px-3 py-1.5 transition-colors border-x {statusFilter === 'fail'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted'}"
-                onclick={() => (statusFilter = 'fail')}
-              >Failures</button>
+                onclick={() => (statusFilter = 'fail')}>Failures</button
+              >
               <button
                 class="px-3 py-1.5 transition-colors {statusFilter === 'pass'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted'}"
-                onclick={() => (statusFilter = 'pass')}
-              >Passing</button>
+                onclick={() => (statusFilter = 'pass')}>Passing</button
+              >
             </div>
           </div>
 
           {#if resultsQuery.isPending}
-            <div class="flex items-center justify-center py-8 text-muted-foreground text-sm">
-              Loading results...
-            </div>
+            <Loader />
           {:else if filteredResults.length === 0}
-            <div class="text-sm text-muted-foreground py-4">
+            <FadeIn class="text-sm text-muted-foreground py-4">
               {statusFilter === 'fail'
                 ? 'No failing checks for this framework.'
                 : statusFilter === 'pass'
                   ? 'No passing checks for this framework.'
                   : 'No checks configured for this framework.'}
-            </div>
+            </FadeIn>
           {:else}
             {#each filteredResults
               .slice()
-              .sort((a, b) =>
-                (SEVERITY_ORDER[a.check.severity ?? ''] ?? 99) -
-                (SEVERITY_ORDER[b.check.severity ?? ''] ?? 99),
-              ) as item (item.check.id)}
+              .sort((a, b) => (SEVERITY_ORDER[a.check.severity ?? ''] ?? 99) - (SEVERITY_ORDER[b.check.severity ?? ''] ?? 99)) as item (item.check.id)}
               {@const status = item.result?.status ?? 'unknown'}
-              <div class="rounded-lg border p-3 flex flex-col gap-1.5">
+              <FadeIn class="rounded-lg border p-3 flex flex-col gap-1.5">
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex flex-col gap-0.5 min-w-0">
                     <span class="font-medium text-sm">{item.check.name}</span>
@@ -201,7 +204,8 @@
                     {/if}
                   </div>
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0 {status === 'pass'
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0 {status ===
+                    'pass'
                       ? 'bg-success/15 text-success'
                       : status === 'fail'
                         ? 'bg-destructive/15 text-destructive'
@@ -211,13 +215,15 @@
                   </span>
                 </div>
                 {#if item.check.severity}
-                  <span class="text-xs text-muted-foreground capitalize">{item.check.severity} severity</span>
+                  <span class="text-xs text-muted-foreground capitalize"
+                    >{item.check.severity} severity</span
+                  >
                 {/if}
-              </div>
+              </FadeIn>
             {/each}
           {/if}
         {/if}
       </div>
-    </div>
+    </FadeIn>
   {/if}
 </div>

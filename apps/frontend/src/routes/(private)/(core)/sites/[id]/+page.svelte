@@ -6,8 +6,9 @@
   import { INTEGRATIONS } from '@mspbyte/shared';
   import { cn } from '$lib/utils';
   import * as Card from '$lib/components/ui/card/index.js';
-  import { LoaderCircle, ArrowLeft } from '@lucide/svelte';
+  import { ArrowLeft } from '@lucide/svelte';
   import AlertsTable from '$lib/components/alerts/alerts-table.svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const siteId = $derived(page.params.id ?? '');
@@ -69,8 +70,8 @@
   const integrationColors: Record<string, string> = {
     'microsoft-365': 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
     'sophos-partner': 'bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20',
-    'dattormm': 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20',
-    'cove': 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
+    dattormm: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20',
+    cove: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
   };
 
   function integrationColor(id: string): string {
@@ -110,9 +111,7 @@
   </div>
 
   {#if siteQuery.isLoading}
-    <div class="flex flex-1 items-center justify-center text-muted-foreground">
-      <LoaderCircle class="size-5 animate-spin" />
-    </div>
+    <Loader />
   {:else if siteQuery.data}
     {@const site = siteQuery.data}
 
@@ -166,9 +165,7 @@
     <div class="shrink-0">
       <h2 class="text-sm font-semibold mb-2">Integration Links</h2>
       {#if linksQuery.isLoading}
-        <div class="flex items-center justify-center py-8 text-muted-foreground">
-          <LoaderCircle class="size-4 animate-spin" />
-        </div>
+        <Loader />
       {:else if links.length === 0}
         <div class="rounded-lg border bg-muted/30 p-6 text-center text-muted-foreground text-sm">
           No integrations linked to this site.
@@ -178,11 +175,20 @@
           <table class="w-full text-sm">
             <thead class="border-b bg-muted/30">
               <tr>
-                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Integration</th>
-                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Tenant</th>
-                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground w-24">Status</th>
-                <th class="text-right px-4 py-2 text-xs font-medium text-muted-foreground w-24">Alerts</th>
-                <th class="text-right px-4 py-2 text-xs font-medium text-muted-foreground w-32">Last Updated</th>
+                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground"
+                  >Integration</th
+                >
+                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Tenant</th
+                >
+                <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground w-24"
+                  >Status</th
+                >
+                <th class="text-right px-4 py-2 text-xs font-medium text-muted-foreground w-24"
+                  >Alerts</th
+                >
+                <th class="text-right px-4 py-2 text-xs font-medium text-muted-foreground w-32"
+                  >Last Updated</th
+                >
               </tr>
             </thead>
             <tbody>
@@ -191,13 +197,23 @@
                 {@const intConfig = INTEGRATIONS[link.integrationId as keyof typeof INTEGRATIONS]}
                 <tr class="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
                   <td class="px-4 py-3">
-                    <span class={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', integrationColor(link.integrationId))}>
+                    <span
+                      class={cn(
+                        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
+                        integrationColor(link.integrationId)
+                      )}
+                    >
                       {intConfig?.name ?? link.integrationId}
                     </span>
                   </td>
                   <td class="px-4 py-3 font-medium">{link.name ?? link.externalId ?? '—'}</td>
                   <td class="px-4 py-3">
-                    <span class={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize', linkStatusClass(link.status ?? 'disabled'))}>
+                    <span
+                      class={cn(
+                        'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize',
+                        linkStatusClass(link.status ?? 'disabled')
+                      )}
+                    >
                       {link.status ?? 'disabled'}
                     </span>
                   </td>
@@ -205,13 +221,17 @@
                     {#if summary && summary.alertCount > 0}
                       <span class="font-medium">{summary.alertCount}</span>
                       {#if summary.criticalCount > 0}
-                        <span class="text-destructive text-xs ml-1">({summary.criticalCount} crit)</span>
+                        <span class="text-destructive text-xs ml-1"
+                          >({summary.criticalCount} crit)</span
+                        >
                       {/if}
                     {:else}
                       <span class="text-muted-foreground">0</span>
                     {/if}
                   </td>
-                  <td class="px-4 py-3 text-right text-muted-foreground text-xs">{relativeTime(link.updatedAt)}</td>
+                  <td class="px-4 py-3 text-right text-muted-foreground text-xs"
+                    >{relativeTime(link.updatedAt)}</td
+                  >
                 </tr>
               {/each}
             </tbody>
@@ -223,11 +243,7 @@
     <div class="flex flex-col flex-1 min-h-0">
       <h2 class="text-sm font-semibold mb-2 shrink-0">Alerts</h2>
       <div class="flex size-full min-h-100">
-        <AlertsTable
-          {siteId}
-          links={alertLinkOptions}
-          scopeColumn="link"
-        />
+        <AlertsTable {siteId} links={alertLinkOptions} scopeColumn="link" />
       </div>
     </div>
   {:else}

@@ -392,9 +392,7 @@
 {:else}
   <FadeIn class="flex-1 overflow-hidden flex flex-col min-h-0 border rounded-md">
     {#if loading}
-      <div class="flex items-center justify-center h-full text-muted-foreground">
-        <LoaderCircle class="size-5 animate-spin" />
-      </div>
+      <Loader />
     {:else if filteredSites.length === 0}
       <div class="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
         <Building2 class="size-8 opacity-40" />

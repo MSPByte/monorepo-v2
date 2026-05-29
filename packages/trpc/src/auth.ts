@@ -5,7 +5,8 @@ import { createCatalogDb } from '@mspbyte/drizzle-catalog';
 import * as authSchema from '@mspbyte/drizzle-catalog/catalog';
 
 const catalogDatabaseUrl =
-  process.env.CATALOG_DATABASE_URL ?? 'postgresql://better_auth:better_auth@127.0.0.1:5432/better_auth';
+  process.env.CATALOG_DATABASE_URL ??
+  'postgresql://better_auth:better_auth@127.0.0.1:5432/better_auth';
 
 const trustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? process.env.CORS_ORIGIN ?? '')
   .split(',')
@@ -23,8 +24,8 @@ export const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: ['microsoft'],
-    },
+      trustedProviders: ['microsoft']
+    }
   },
   socialProviders: {
     microsoft: {

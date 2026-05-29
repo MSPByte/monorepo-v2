@@ -16,6 +16,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.store.svelte';
   import type { PageProps } from './$types';
+  import Loader from '$lib/components/transition/loader.svelte';
 
   const { data }: PageProps = $props();
 
@@ -43,8 +44,12 @@
           meta: { apiHost: t.meta.apiHost ?? null },
         }));
       })
-      .catch(() => { /* silent — empty list shown */ })
-      .finally(() => { loadingExternal = false; });
+      .catch(() => {
+        /* silent — empty list shown */
+      })
+      .finally(() => {
+        loadingExternal = false;
+      });
   });
 
   let configSheetOpen = $state(false);
@@ -139,7 +144,8 @@
                   />
                 </div>
                 <div class="flex flex-col gap-1.5">
-                  <label class="text-sm font-medium" for="sophos-client-secret">Client Secret</label>
+                  <label class="text-sm font-medium" for="sophos-client-secret">Client Secret</label
+                  >
                   <input
                     id="sophos-client-secret"
                     name="clientSecret"
@@ -187,7 +193,10 @@
                 type="button"
                 variant="destructive"
                 size="sm"
-                onclick={() => { configSheetOpen = false; showDeleteConfirm = true; }}
+                onclick={() => {
+                  configSheetOpen = false;
+                  showDeleteConfirm = true;
+                }}
               >
                 Delete Integration
               </Button>
@@ -206,11 +215,7 @@
 
 <div class="flex flex-col size-full p-4 gap-4 overflow-hidden">
   <div class="flex items-start justify-between shrink-0">
-    <IntegrationHeader
-      {integration}
-      active={isConfigured}
-      loading={integrationQuery.isLoading}
-    />
+    <IntegrationHeader {integration} active={isConfigured} loading={integrationQuery.isLoading} />
     {#if authStore.isAllowed('Integrations.Write')}
       <Button variant="outline" size="sm" onclick={() => (configSheetOpen = true)} class="gap-2">
         <Settings class="size-4" />
@@ -220,9 +225,7 @@
   </div>
 
   {#if integrationQuery.isLoading}
-    <div class="flex items-center justify-center flex-1 text-muted-foreground">
-      <LoaderCircle class="size-5 animate-spin" />
-    </div>
+    <Loader />
   {:else if isConfigured}
     <SiteLinkingTable
       integration={integration.id}
@@ -234,11 +237,12 @@
     />
   {:else}
     <div class="flex flex-col size-full justify-center items-center">
-      <div class="flex items-center gap-3 px-4 py-3 w-fit rounded bg-warning/10 text-warning border border-warning/30">
+      <div
+        class="flex items-center gap-3 px-4 py-3 w-fit rounded bg-warning/10 text-warning border border-warning/30"
+      >
         <TriangleAlert class="size-4" />
         <span class="text-sm">
-          Sophos Partner is not configured yet. Click <strong>Configure</strong> to set up your
-          credentials.
+          Sophos Partner is not configured yet. Click <strong>Configure</strong> to set up your credentials.
         </span>
       </div>
     </div>

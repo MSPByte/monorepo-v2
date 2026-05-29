@@ -3,6 +3,8 @@
   import { createQuery } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
   import { cn } from '$lib/utils';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -43,31 +45,31 @@
   };
 </script>
 
-<div class="flex-1 overflow-y-auto p-4">
+<div class="flex flex-col size-full overflow-y-auto p-4">
   {#if configQuery.isPending}
-    <div class="flex flex-col gap-3">
-      {#each Array(2) as _}
-        <div class="h-32 bg-muted rounded-lg animate-pulse"></div>
-      {/each}
-    </div>
+    <Loader />
   {:else if !config}
-    <div class="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+    <FadeIn class="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
       <div class="text-sm font-medium">No exchange configuration found</div>
       <div class="text-xs">Configuration data may not have been synced yet</div>
-    </div>
+    </FadeIn>
   {:else}
-    <div class="border rounded-lg p-4 flex flex-col gap-4">
-      <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tenant Configuration</div>
+    <FadeIn class="border rounded-lg p-4 flex flex-col gap-4">
+      <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Tenant Configuration
+      </div>
 
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">Auto Forwarding Mode</span>
           {#if config.autoForwardingMode}
             {@const meta = AUTO_FORWARD_LABELS[config.autoForwardingMode]}
-            <span class={cn(
-              'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
-              meta?.color ?? 'bg-muted text-muted-foreground'
-            )}>
+            <span
+              class={cn(
+                'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
+                meta?.color ?? 'bg-muted text-muted-foreground'
+              )}
+            >
               {meta?.label ?? config.autoForwardingMode}
             </span>
           {:else}
@@ -77,24 +79,26 @@
 
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">Reject Direct Send</span>
-          <span class={cn(
-            'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
-            config.rejectDirectSend
-              ? 'bg-success/20 text-success'
-              : 'bg-warning/20 text-warning'
-          )}>
+          <span
+            class={cn(
+              'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
+              config.rejectDirectSend ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'
+            )}
+          >
             {config.rejectDirectSend ? 'Enabled' : 'Disabled'}
           </span>
         </div>
 
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">Basic Auth (SMTP)</span>
-          <span class={cn(
-            'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
-            config.allowBasicAuthSmtp
-              ? 'bg-destructive/20 text-destructive'
-              : 'bg-success/20 text-success'
-          )}>
+          <span
+            class={cn(
+              'inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-medium',
+              config.allowBasicAuthSmtp
+                ? 'bg-destructive/20 text-destructive'
+                : 'bg-success/20 text-success'
+            )}
+          >
             {config.allowBasicAuthSmtp ? 'Allowed' : 'Blocked'}
           </span>
         </div>
@@ -107,17 +111,23 @@
 
       {#if config.forwardingMailboxes && config.forwardingMailboxes.length > 0}
         <div class="border-t pt-3 flex flex-col gap-2">
-          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Forwarding Mailboxes</div>
+          <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Forwarding Mailboxes
+          </div>
           <div class="flex flex-col gap-1.5">
             {#each config.forwardingMailboxes as mb}
-              <div class="flex items-start justify-between gap-2 text-sm p-2 rounded-md bg-muted/50">
+              <div
+                class="flex items-start justify-between gap-2 text-sm p-2 rounded-md bg-muted/50"
+              >
                 <span class="text-xs font-mono truncate">{mb.upn}</span>
-                <span class="text-xs text-muted-foreground shrink-0 truncate max-w-45">{mb.forwardingAddress}</span>
+                <span class="text-xs text-muted-foreground shrink-0 truncate max-w-45"
+                  >{mb.forwardingAddress}</span
+                >
               </div>
             {/each}
           </div>
         </div>
       {/if}
-    </div>
+    </FadeIn>
   {/if}
 </div>

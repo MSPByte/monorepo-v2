@@ -1,6 +1,6 @@
 <script lang="ts">
+  import Loader from "$lib/components/transition/loader.svelte";
   import Badge from '$lib/components/ui/badge/badge.svelte';
-  import { LoaderCircle } from '@lucide/svelte';
   import type { Integration } from '@mspbyte/shared';
 
   let {
@@ -17,7 +17,7 @@
 <div class="flex flex-col gap-0.5">
   <div class="flex items-center gap-2">
     {#if loading}
-      <LoaderCircle class="size-4 animate-spin text-muted-foreground" />
+      <Loader />
     {/if}
     <h1 class="text-lg font-semibold">{integration.name}</h1>
     <Badge

@@ -1,12 +1,35 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+  import { enhance } from '$app/forms';
   import type { createTrpcClient } from '$lib/trpc';
   import { DataTable } from '$lib/components/data-table';
   import type { DataTableColumn, PaginationInput } from '$lib/components/data-table/types';
+  import { authStore } from '$lib/stores/auth.store.svelte';
+  import * as Dialog from '$lib/components/ui/dialog';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Label } from '$lib/components/ui/label';
+  import SingleSelect from '$lib/components/single-select.svelte';
+  import UserPlusIcon from '@lucide/svelte/icons/user-plus';
+  import Separator from '$lib/components/ui/separator/separator.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const queryClient = useQueryClient();
+
+  let addDialogOpen = $state(false);
+  let formError = $state<string | null>(null);
+  let submitting = $state(false);
+  let selectedRoleId = $state<string | undefined>(undefined);
+
+  const rolesQuery = createQuery(() => ({
+    queryKey: ['roles.list'],
+    queryFn: () => trpc.roles.list.query(),
+  }));
+
+  const roleOptions = $derived(
+    (rolesQuery.data ?? []).map((r) => ({ value: r.id, label: r.name }))
+  );
 
   type UserRow = {
     id: string;
@@ -41,7 +64,7 @@
           (r) =>
             (r.name ?? '').toLowerCase().includes(search) ||
             r.email.toLowerCase().includes(search) ||
-            r.role.toLowerCase().includes(search),
+            r.role.toLowerCase().includes(search)
         )
       : rows;
 
@@ -54,18 +77,103 @@
       : filtered;
 
     const start = opts.page * opts.pageSize;
-    return Promise.resolve({ rows: sorted.slice(start, start + opts.pageSize), total: sorted.length });
+    return Promise.resolve({
+      rows: sorted.slice(start, start + opts.pageSize),
+      total: sorted.length,
+    });
   }
 </script>
 
 <div class="flex size-full p-4 overflow-hidden">
-  <DataTable
-    {columns}
-    {fetchData}
-    enableGlobalSearch
-    enableFilters={false}
-    enableExport={false}
-    enableURLState={false}
-    defaultPageSize={50}
-  />
+  <div class="flex flex-col size-full gap-2">
+    {#if authStore.isAllowed('Users.Write')}
+      <div class="flex justify-end">
+        <Dialog.Root bind:open={addDialogOpen}>
+          <Dialog.Trigger>
+            {#snippet child({ props })}
+              <Button {...props} size="sm" class="gap-2">
+                <UserPlusIcon class="h-4 w-4" />
+                Add User
+              </Button>
+            {/snippet}
+          </Dialog.Trigger>
+          <Dialog.Content class="max-w-md p-0!">
+            <Dialog.Header class="px-4 pt-4">
+              <Dialog.Title>Add User</Dialog.Title>
+              <Dialog.Description>Create a new user in your organization.</Dialog.Description>
+            </Dialog.Header>
+            <Separator />
+            <form
+              method="POST"
+              action="?/addUser"
+              class="flex flex-col gap-4"
+              use:enhance={() => {
+                submitting = true;
+                formError = null;
+                return async ({ result, update }) => {
+                  submitting = false;
+                  if (result.type === 'success') {
+                    addDialogOpen = false;
+                    selectedRoleId = undefined;
+                    queryClient.invalidateQueries({ queryKey: ['users.list'] });
+                    await update();
+                  } else if (result.type === 'failure') {
+                    formError =
+                      (result.data as { error?: string })?.error ?? 'Something went wrong';
+                  }
+                };
+              }}
+            >
+              <div class="flex flex-col gap-4 p-4">
+                <div class="flex flex-col gap-2">
+                  <Label for="name">Name</Label>
+                  <Input id="name" name="name" placeholder="John Doe" required />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label for="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="john@example.com"
+                    required
+                  />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Role</Label>
+                  <SingleSelect
+                    options={roleOptions}
+                    bind:selected={selectedRoleId}
+                    placeholder="Select role..."
+                  />
+                  <input type="hidden" name="roleId" value={selectedRoleId ?? ''} />
+                </div>
+              </div>
+              {#if formError}
+                <p class="text-sm text-destructive">{formError}</p>
+              {/if}
+              <Dialog.Footer>
+                <Button type="button" variant="outline" onclick={() => (addDialogOpen = false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting || !selectedRoleId}>
+                  {submitting ? 'Adding...' : 'Add User'}
+                </Button>
+              </Dialog.Footer>
+            </form>
+          </Dialog.Content>
+        </Dialog.Root>
+      </div>
+    {/if}
+
+    <DataTable
+      {columns}
+      {fetchData}
+      enableGlobalSearch
+      enableFilters={false}
+      enableExport={false}
+      enableURLState={false}
+      defaultPageSize={50}
+    />
+  </div>
 </div>

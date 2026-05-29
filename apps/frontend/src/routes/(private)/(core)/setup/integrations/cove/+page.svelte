@@ -17,6 +17,7 @@
   import { authStore } from '$lib/stores/auth.store.svelte';
   import type { PageProps } from './$types';
   import type { CoveChildPartner } from '@mspbyte/shared';
+  import Loader from "$lib/components/transition/loader.svelte";
 
   const { data }: PageProps = $props();
 
@@ -242,9 +243,7 @@
   </div>
 
   {#if integrationQuery.isLoading}
-    <div class="flex items-center justify-center flex-1 text-muted-foreground">
-      <LoaderCircle class="size-5 animate-spin" />
-    </div>
+    <Loader />
   {:else if isConfigured}
     <SiteLinkingTable
       integration={integration.id}
