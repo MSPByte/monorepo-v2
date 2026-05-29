@@ -1,2 +1,3 @@
 import pino from 'pino';
-export const logger = pino({ name: 'mspbyte:compliance' });
+import { env } from './env.js';
+export const logger = pino({ name: 'mspbyte:compliance', level: env.LOG_LEVEL ?? 'info' });

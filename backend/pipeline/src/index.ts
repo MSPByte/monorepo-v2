@@ -2,8 +2,8 @@ import { Redis } from 'ioredis';
 import { Queue } from 'bullmq';
 import { scheduleIngestion } from './scheduler.js';
 import { recoverOrphanedRuns } from './recovery.js';
-import { logger } from './logger.js';
 import { env } from './env.js';
+import { logger } from './logger.js';
 
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -16,8 +16,8 @@ await schedulerQueue.upsertJobScheduler(
   {
     name: 'schedule-ingestion',
     data: {},
-    opts: { removeOnComplete: 5, removeOnFail: 10 },
-  },
+    opts: { removeOnComplete: 5, removeOnFail: 10 }
+  }
 );
 
 logger.info({ cron: env.SCHEDULE_CRON }, 'BullMQ repeatable job registered');

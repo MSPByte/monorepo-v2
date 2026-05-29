@@ -3,12 +3,13 @@ import { config } from 'dotenv';
 config();
 
 const schema = z.object({
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.string().default('redis://localhost:6379'),
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
   MICROSOFT_CERT_PEM: z.string().optional(),
   ENCRYPTION_KEY: z.string().default(''),
-  CATALOG_DATABASE_URL: z.string().url()
+  CATALOG_DATABASE_URL: z.url(),
+  LOG_LEVEL: z.enum(['trace', 'info', 'debug', 'warn', 'silent', 'error', 'fatal']).default('info')
 });
 
 const parsed = schema.safeParse(process.env);

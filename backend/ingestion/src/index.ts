@@ -4,8 +4,8 @@ import { createFetchWorker } from './workers/fetch.worker.js';
 import { createNormalizeWorker } from './workers/normalize.worker.js';
 import { createLinkWorker } from './workers/link.worker.js';
 import { createEnrichWorker } from './workers/enrich.worker.js';
-import { logger } from './logger.js';
 import { env } from './env.js';
+import { logger } from './logger.js';
 
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -16,7 +16,12 @@ const enrichWorker = createEnrichWorker(redis);
 
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received — shutting down');
-  await Promise.all([fetchWorker.close(), normalizeWorker.close(), linkWorker.close(), enrichWorker.close()]);
+  await Promise.all([
+    fetchWorker.close(),
+    normalizeWorker.close(),
+    linkWorker.close(),
+    enrichWorker.close()
+  ]);
   await redis.quit();
   process.exit(0);
 });
