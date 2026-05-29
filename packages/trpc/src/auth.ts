@@ -21,6 +21,11 @@ export const auth = betterAuth({
     provider: 'pg',
     schema: authSchema
   }),
+  advanced: {
+    database: {
+      generateId: 'uuid'
+    }
+  },
   account: {
     accountLinking: {
       enabled: true,

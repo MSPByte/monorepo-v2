@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config(); // or wherever your .env is
 
-const sql = neon(process.env.TEST_MSP_DATABASE_URL!); // Use DIRECT (non-pooled) URL for migrations
+const sql = neon(process.env.MSP_DATABASE_URL!); // Use DIRECT (non-pooled) URL for migrations
 const db = drizzle({ client: sql });
 
 const main = async () => {

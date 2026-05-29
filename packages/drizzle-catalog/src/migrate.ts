@@ -1,9 +1,7 @@
+import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
-import dotenv from 'dotenv';
-
-dotenv.config(); // or wherever your .env is
 
 const sql = neon(process.env.CATALOG_DATABASE_URL!); // Use DIRECT (non-pooled) URL for migrations
 const db = drizzle({ client: sql });

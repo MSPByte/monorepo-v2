@@ -21,7 +21,11 @@ export function registerRoute(fastify: FastifyInstance) {
   fastify.post('/v1.0/register', async (req, reply) => {
     const body = BodySchema.safeParse(req.body);
     if (!body.success) {
-      return reply.status(400).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Invalid request body' } });
+      return reply
+        .status(400)
+        .send({
+          error: { module: 'v1.0/register', context: 'POST', message: 'Invalid request body' }
+        });
     }
 
     const { site_id, hostname, version, platform, device_id, mac, ip_address, ext_address } =
@@ -29,15 +33,19 @@ export function registerRoute(fastify: FastifyInstance) {
 
     let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
     try {
-      ({ db } = await getTenantServiceDb(env.ORG_ID));
+      ({ db } = await getTenantServiceDb(env.ORG_ID, env.ENCRYPTION_KEY));
     } catch {
-      return reply.status(404).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Org not found' } });
+      return reply
+        .status(404)
+        .send({ error: { module: 'v1.0/register', context: 'POST', message: 'Org not found' } });
     }
 
     // Verify site exists in this org's MSP DB
     const [site] = await db.select().from(sites).where(eq(sites.id, site_id)).limit(1);
     if (!site) {
-      return reply.status(404).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Site not found' } });
+      return reply
+        .status(404)
+        .send({ error: { module: 'v1.0/register', context: 'POST', message: 'Site not found' } });
     }
 
     const now = new Date();

@@ -9,15 +9,14 @@ import {
   complianceFrameworkChecks,
   integrationLinks,
   syncContext,
-  syncRuns,
-  startStage,
-  completeStage,
-  failStage
+  syncRuns
 } from '@mspbyte/drizzle';
+import { startStage, completeStage, failStage } from '@mspbyte/shared';
 import { checkRegistry } from '../checks/registry.js';
 import { resolveMissingAlerts, upsertAlert } from '../upsert.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
+import { env } from '../env.js';
 
 const TABLE_ALIASES: Record<string, string> = {
   m365Identities: 'm365_identities',
@@ -262,7 +261,7 @@ export function createAlertsWorker(redis: Redis) {
 
       let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
       try {
-        ({ db } = await getTenantServiceDb(orgId));
+        ({ db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY));
       } catch (err) {
         logger.error({ orgId, err }, 'Org not found — skipping alerts job');
         return;

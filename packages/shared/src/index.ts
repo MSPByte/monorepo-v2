@@ -8,4 +8,5 @@ export * from './utils/encryption.js';
 export * from './utils/m365-inbox-rules.js';
 export * from './lib/auth.js';
 export * from './pipeline/flow-builder.js';
+export * from './pipeline/stages.js';
 export * from './pipeline/sync-plan.js';

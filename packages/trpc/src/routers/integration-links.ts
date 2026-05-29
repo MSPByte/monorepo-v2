@@ -5,6 +5,8 @@ import { TRPCError } from '@trpc/server';
 import { FlowProducer } from 'bullmq';
 import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
 import { t, authProcedure } from '../trpc.js';
+import type { Redis } from 'ioredis';
+import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 
 type IntegrationLinkRow = typeof integrationLinks.$inferSelect;
 
@@ -14,12 +16,13 @@ export const integrationLinksRouter = t.router({
       z.object({
         integrationId: z.string().optional(),
         siteId: z.string().uuid().optional(),
-        status: z.enum(['active', 'error', 'disabled']).optional(),
-      }),
+        status: z.enum(['active', 'error', 'disabled']).optional()
+      })
     )
     .query(async ({ ctx, input }): Promise<IntegrationLinkRow[]> => {
       const conditions = [];
-      if (input.integrationId) conditions.push(eq(integrationLinks.integrationId, input.integrationId));
+      if (input.integrationId)
+        conditions.push(eq(integrationLinks.integrationId, input.integrationId));
       if (input.siteId) conditions.push(eq(integrationLinks.siteId, input.siteId));
       if (input.status) conditions.push(eq(integrationLinks.status, input.status));
       return ctx.db
@@ -39,8 +42,8 @@ export const integrationLinksRouter = t.router({
         status: z.enum(['active', 'error', 'disabled']).default('active'),
         disposition: z.enum(['managed', 'third_party', 'not_managed']).optional(),
         note: z.string().optional(),
-        meta: z.record(z.string(), z.unknown()).optional(),
-      }),
+        meta: z.record(z.string(), z.unknown()).optional()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<IntegrationLinkRow> => {
       const [row] = await ctx.db
@@ -53,7 +56,7 @@ export const integrationLinksRouter = t.router({
           status: input.status,
           disposition: input.disposition,
           note: input.note,
-          meta: input.meta,
+          meta: input.meta
         })
         .returning();
       if (!row) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
@@ -61,7 +64,14 @@ export const integrationLinksRouter = t.router({
       // Event-driven scheduling: immediately enqueue a full sync for new active links
       if (row.status === 'active' && ctx.redis) {
         const redis = ctx.redis;
-        void triggerLinkSync({ db: ctx.db, orgId: ctx.orgId, redis }, row.id, row.integrationId, row.siteId ?? undefined, row.externalId ?? undefined, row.meta as Record<string, unknown> | null);
+        void triggerLinkSync(
+          { db: ctx.db, orgId: ctx.orgId, redis },
+          row.id,
+          row.integrationId,
+          row.siteId ?? undefined,
+          row.externalId ?? undefined,
+          row.meta as Record<string, unknown> | null
+        );
       }
 
       return row;
@@ -77,8 +87,8 @@ export const integrationLinksRouter = t.router({
         status: z.enum(['active', 'error', 'disabled']).optional(),
         disposition: z.enum(['managed', 'third_party', 'not_managed']).optional().nullable(),
         note: z.string().optional().nullable(),
-        meta: z.record(z.string(), z.unknown()).optional().nullable(),
-      }),
+        meta: z.record(z.string(), z.unknown()).optional().nullable()
+      })
     )
     .mutation(async ({ ctx, input }): Promise<IntegrationLinkRow> => {
       const { id, ...rest } = input;
@@ -95,17 +105,12 @@ export const integrationLinksRouter = t.router({
     .input(z.object({ ids: z.array(z.string().uuid()) }))
     .mutation(async ({ ctx, input }): Promise<void> => {
       if (input.ids.length === 0) return;
-      await ctx.db
-        .delete(integrationLinks)
-        .where(inArray(integrationLinks.id, input.ids));
-    }),
+      await ctx.db.delete(integrationLinks).where(inArray(integrationLinks.id, input.ids));
+    })
 });
 
-import type { MspServiceDb } from '@mspbyte/drizzle';
-import type { Redis } from 'ioredis';
-
 async function triggerLinkSync(
-  ctx: { db: MspServiceDb; orgId: string; redis: Redis },
+  ctx: { db: TenantServiceDb; orgId: string; redis: Redis },
   linkId: string,
   integrationId: string,
   siteId: string | undefined,
@@ -127,7 +132,7 @@ async function triggerLinkSync(
       providerId: integrationId,
       integrationConfig,
       linkMeta: meta ?? {},
-      force: true,
+      force: true
     });
     if (facets.length === 0) return;
 
@@ -142,7 +147,7 @@ async function triggerLinkSync(
         type: 'manual',
         status: 'pending',
         mode: 'full',
-        startedAt: new Date(),
+        startedAt: new Date()
       })
       .returning();
 
@@ -154,12 +159,12 @@ async function triggerLinkSync(
       siteId,
       provider: integrationId,
       externalId,
-      linkMeta: { ...((meta ?? {})), externalId },
+      linkMeta: { ...(meta ?? {}), externalId },
       integrationConfig,
       facets,
       ingestRunId,
       syncRunId: syncRunRow.id,
-      mode: 'full',
+      mode: 'full'
     });
 
     const flow = new FlowProducer({ connection: ctx.redis });

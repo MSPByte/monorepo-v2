@@ -1,6 +1,6 @@
 import { eq, and, inArray, isNull, notInArray } from 'drizzle-orm';
 import { alerts } from '@mspbyte/drizzle';
-import type { MspServiceDb } from '@mspbyte/drizzle';
+import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 
 export type Detection = {
   definitionId: string;
@@ -14,7 +14,7 @@ export type Detection = {
   metadata?: Record<string, unknown>;
 };
 
-export async function upsertAlert(db: MspServiceDb, detection: Detection): Promise<void> {
+export async function upsertAlert(db: TenantServiceDb, detection: Detection): Promise<void> {
   const now = new Date();
 
   const scopeConditions = buildScopeConditions(detection);
@@ -59,7 +59,7 @@ export async function upsertAlert(db: MspServiceDb, detection: Detection): Promi
 }
 
 export async function resolveMissingAlerts(
-  db: MspServiceDb,
+  db: TenantServiceDb,
   params: {
     definitionIds: readonly string[];
     linkId?: string;

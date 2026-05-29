@@ -1,14 +1,10 @@
 import { Worker } from 'bullmq';
 import { QUEUES, FACET_TABLE_MAP, ProviderFacet } from '@mspbyte/shared';
 import type { NormalizeJobData } from '@mspbyte/shared';
-import {
-  vendorTableRegistry,
-  startStage,
-  completeStage,
-  failStage,
-  logEntityChanges
-} from '@mspbyte/drizzle';
-import type { VendorTableName, XmaxRow } from '@mspbyte/drizzle';
+import { vendorTableRegistry } from '@mspbyte/drizzle';
+import type { VendorTableName } from '@mspbyte/drizzle';
+import { startStage, completeStage, failStage, logEntityChanges } from '@mspbyte/shared';
+import type { XmaxRow } from '@mspbyte/shared';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { getM365FacetSchema } from '../adapters/m365/index.js';
@@ -19,6 +15,7 @@ import { logger } from '../logger.js';
 import { sql, getColumns } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
+import { env } from '../env.js';
 
 const SKIP_ON_CONFLICT = new Set(['id', 'linkId', 'externalId', 'createdAt']);
 const MAX_LOGGED_FAILURES = 3;
@@ -178,7 +175,7 @@ export function createNormalizeWorker(redis: Redis) {
         );
       }
 
-      const { db } = await getTenantServiceDb(data.orgId);
+      const { db } = await getTenantServiceDb(data.orgId, env.ENCRYPTION_KEY);
       const stageId = await startStage(
         db,
         data.syncRunId,

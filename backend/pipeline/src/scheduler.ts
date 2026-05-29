@@ -1,32 +1,40 @@
 import { FlowProducer } from 'bullmq';
 import { eq, and, isNull } from 'drizzle-orm';
-import { createCatalogDb } from '@mspbyte/drizzle-catalog';
-import { orgs } from '@mspbyte/drizzle-catalog/catalog';
-import { createMspDb, integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
+import { createCatalogDb, createTenantDb } from '@mspbyte/drizzle-catalog';
+import { organization } from '@mspbyte/drizzle-catalog/catalog';
+import { integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
 import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
 import type { PipelineFlowJob, ProviderFacet } from '@mspbyte/shared';
 import { logger } from './logger.js';
 import { hasActiveRun, getSyncContexts, isLinkHealthy, decideFacetMode } from './sync-context.js';
 import type { Redis } from 'ioredis';
+import { env } from './env.js';
 
-export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' | 'manual' = 'scheduled') {
+export async function scheduleIngestion(
+  redis: Redis,
+  triggerType: 'scheduled' | 'manual' = 'scheduled'
+) {
   const flow = new FlowProducer({ connection: redis });
   const catalogDb = createCatalogDb();
 
-  const allOrgs = await catalogDb.select().from(orgs).where(eq(orgs.status, 'active'));
+  const allOrgs = await catalogDb
+    .select()
+    .from(organization)
+    .where(eq(organization.status, 'active'));
   logger.info({ orgCount: allOrgs.length }, 'Scheduling ingestion flows');
 
   for (const org of allOrgs) {
-    const mspDb = createMspDb(org.serviceConnectionString);
+    const mspDb = createTenantDb(org.serviceConnectionString, env.ENCRYPTION_KEY);
 
     const rows = await mspDb
-      .select({ link: integrationLinks, integrationConfig: integrations.config, credentialExpiration: integrations.credentialExpiration })
+      .select({
+        link: integrationLinks,
+        integrationConfig: integrations.config,
+        credentialExpiration: integrations.credentialExpiration
+      })
       .from(integrationLinks)
       .innerJoin(integrations, eq(integrations.id, integrationLinks.integrationId))
-      .where(and(
-        eq(integrationLinks.status, 'active'),
-        isNull(integrations.deletedAt),
-      ));
+      .where(and(eq(integrationLinks.status, 'active'), isNull(integrations.deletedAt)));
 
     for (const { link, integrationConfig, credentialExpiration } of rows) {
       const providerId = link.integrationId;
@@ -35,13 +43,19 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
 
       // Skip if credentials are expired
       if (credentialExpiration && credentialExpiration < new Date()) {
-        logger.warn({ orgId: org.id, linkId: link.id, provider: providerId }, 'Skipping link: credentials expired');
+        logger.warn(
+          { orgId: org.id, linkId: link.id, provider: providerId },
+          'Skipping link: credentials expired'
+        );
         continue;
       }
 
       // Skip if a run is already in-progress for this link
       if (await hasActiveRun(mspDb, link.id)) {
-        logger.info({ orgId: org.id, linkId: link.id }, 'Skipping link: active run already in progress');
+        logger.info(
+          { orgId: org.id, linkId: link.id },
+          'Skipping link: active run already in progress'
+        );
         continue;
       }
 
@@ -49,8 +63,14 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
       const contexts = await getSyncContexts(mspDb, link.id);
 
       if (!isLinkHealthy(contexts)) {
-        logger.warn({ orgId: org.id, linkId: link.id }, 'Skipping link: too many consecutive failures');
-        await mspDb.update(integrationLinks).set({ status: 'error', updatedAt: new Date() }).where(eq(integrationLinks.id, link.id));
+        logger.warn(
+          { orgId: org.id, linkId: link.id },
+          'Skipping link: too many consecutive failures'
+        );
+        await mspDb
+          .update(integrationLinks)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(eq(integrationLinks.id, link.id));
         continue;
       }
 
@@ -61,11 +81,14 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
         providerId,
         contexts,
         integrationConfig: config,
-        linkMeta,
+        linkMeta
       });
 
       if (facets.length === 0) {
-        logger.debug({ orgId: org.id, linkId: link.id, provider: providerId, skipped }, 'Skipping link: no facets due');
+        logger.debug(
+          { orgId: org.id, linkId: link.id, provider: providerId, skipped },
+          'Skipping link: no facets due'
+        );
         continue;
       }
 
@@ -85,12 +108,15 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
           type: triggerType,
           status: 'pending',
           mode: 'full',
-          startedAt: new Date(),
+          startedAt: new Date()
         })
         .returning();
 
       if (!syncRunRow) {
-        logger.error({ orgId: org.id, linkId: link.id }, 'Failed to create sync_run record — skipping');
+        logger.error(
+          { orgId: org.id, linkId: link.id },
+          'Failed to create sync_run record — skipping'
+        );
         continue;
       }
 
@@ -106,13 +132,20 @@ export async function scheduleIngestion(redis: Redis, triggerType: 'scheduled' |
         ingestRunId,
         syncRunId: syncRunRow.id,
         mode: 'full',
-        facetCursors,
+        facetCursors
       });
 
       await flow.add(flowJob as Parameters<typeof flow.add>[0]);
 
       logger.info(
-        { orgId: org.id, linkId: link.id, provider: providerId, facets: facets.length, ingestRunId, syncRunId: syncRunRow.id },
+        {
+          orgId: org.id,
+          linkId: link.id,
+          provider: providerId,
+          facets: facets.length,
+          ingestRunId,
+          syncRunId: syncRunRow.id
+        },
         'Ingestion flow enqueued'
       );
     }
@@ -127,7 +160,7 @@ export async function scheduleLink(
   mode: 'full' | 'replay' = 'full',
   options: { facets?: ProviderFacet[]; includeDependencies?: boolean; force?: boolean } = {}
 ) {
-  const mspDb = createMspDb(mspConnectionString);
+  const mspDb = createTenantDb(mspConnectionString, env.ENCRYPTION_KEY);
   const flow = new FlowProducer({ connection: redis });
 
   const rows = await mspDb
@@ -142,7 +175,8 @@ export async function scheduleLink(
 
   const providerId = row.link.integrationId;
   const providerFacets = getProviderFacets(providerId);
-  if (providerFacets.length === 0) throw new Error(`No facets registered for provider: ${providerId}`);
+  if (providerFacets.length === 0)
+    throw new Error(`No facets registered for provider: ${providerId}`);
 
   const ingestRunId = crypto.randomUUID();
   const linkMeta = (row.link.meta as Record<string, unknown> | null) ?? {};
@@ -153,9 +187,10 @@ export async function scheduleLink(
     linkMeta,
     requestedFacets: options.facets,
     includeDependencies: options.includeDependencies,
-    force: options.force ?? true,
+    force: options.force ?? true
   });
-  if (facets.length === 0) throw new Error(`No enabled facets selected for provider: ${providerId}`);
+  if (facets.length === 0)
+    throw new Error(`No enabled facets selected for provider: ${providerId}`);
 
   const [syncRunRow] = await mspDb
     .insert(syncRuns)
@@ -166,7 +201,7 @@ export async function scheduleLink(
       type: mode === 'replay' ? 'replay' : 'manual',
       status: 'pending',
       mode: 'full',
-      startedAt: new Date(),
+      startedAt: new Date()
     })
     .returning();
 
@@ -183,7 +218,7 @@ export async function scheduleLink(
     facets,
     ingestRunId,
     syncRunId: syncRunRow.id,
-    mode,
+    mode
   });
 
   await flow.add(flowJob as Parameters<typeof flow.add>[0]);

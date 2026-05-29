@@ -29,7 +29,7 @@
   const integrationsQuery = createQuery(() => ({
     queryKey: ['integrations.list'],
     queryFn: () => trpc.integrations.list.query(),
-    enabled: !!data.authOrgId,
+    enabled: !!data.orgId,
   }));
 
   $effect(() => {
@@ -107,7 +107,7 @@
       </div>
     </div>
     <div class="flex h-full px-2 items-center gap-1">
-      <UserAccount />
+      <UserAccount orgId={data.orgId} orgName={data.orgName} />
     </div>
   </div>
   <div class="flex flex-col relative size-full overflow-hidden">

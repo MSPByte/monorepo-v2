@@ -5,8 +5,8 @@ import { createServerCaller } from '$lib/server/trpc';
 
 const AddUserSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
-  roleId: z.string().uuid('Role is required'),
+  email: z.email('Invalid email address'),
+  roleId: z.uuid('Role is required'),
 });
 
 export const actions: Actions = {

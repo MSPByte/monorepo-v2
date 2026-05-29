@@ -1,4 +1,4 @@
-import { db, dbCatalog } from "$lib/db";
+import { db, dbCatalog } from '$lib/db';
 
 declare global {
   namespace App {
@@ -7,12 +7,11 @@ declare global {
       auth: {
         userId: string;
         orgId: string;
-        authOrgId: string;
         email: string;
       };
       user: db.User;
       role: db.Role;
-      org: dbCatalog.Org;
+      org: dbCatalog.AuthOrganization;
       connectionString: string;
     }
     // interface PageData {}

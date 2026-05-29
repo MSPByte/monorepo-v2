@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { t, authProcedure } from '../trpc.js';
 import { hasPermission } from '@mspbyte/shared';
-import { getCatalogDb, user as catalogUser, member as catalogMember } from '@mspbyte/drizzle-catalog';
+import {
+  getCatalogDb,
+  user as catalogUser,
+  member as catalogMember
+} from '@mspbyte/drizzle-catalog';
 
 export type UserWithRole = typeof users.$inferSelect & { role: typeof roles.$inferSelect | null };
 
@@ -22,8 +26,8 @@ export const usersRouter = t.router({
     .input(
       z.object({
         name: z.string().min(1),
-        email: z.string().email(),
-        roleId: z.string().uuid(),
+        email: z.email(),
+        roleId: z.uuid()
       })
     )
     .mutation(async ({ ctx, input }): Promise<UserWithRole> => {
@@ -56,7 +60,7 @@ export const usersRouter = t.router({
             id: crypto.randomUUID(),
             name: input.name,
             email: input.email,
-            emailVerified: true,
+            emailVerified: true
           })
           .returning();
       }
@@ -65,19 +69,16 @@ export const usersRouter = t.router({
         .select()
         .from(catalogMember)
         .where(
-          and(
-            eq(catalogMember.userId, authUser!.id),
-            eq(catalogMember.organizationId, ctx.authOrgId)
-          )
+          and(eq(catalogMember.userId, authUser!.id), eq(catalogMember.organizationId, ctx.orgId))
         )
         .limit(1);
 
       if (!existingMember) {
         await catalogDb.insert(catalogMember).values({
           id: crypto.randomUUID(),
-          organizationId: ctx.authOrgId,
+          organizationId: ctx.orgId,
           userId: authUser!.id,
-          role: 'member',
+          role: 'member'
         });
       }
 
@@ -87,7 +88,7 @@ export const usersRouter = t.router({
           authUserId: authUser!.id,
           name: input.name,
           email: input.email,
-          roleId: input.roleId,
+          roleId: input.roleId
         })
         .returning();
 
@@ -95,12 +96,8 @@ export const usersRouter = t.router({
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create user' });
       }
 
-      const [role] = await ctx.db
-        .select()
-        .from(roles)
-        .where(eq(roles.id, input.roleId))
-        .limit(1);
+      const [role] = await ctx.db.select().from(roles).where(eq(roles.id, input.roleId)).limit(1);
 
       return { ...tenantUser, role: role ?? null };
-    }),
+    })
 });

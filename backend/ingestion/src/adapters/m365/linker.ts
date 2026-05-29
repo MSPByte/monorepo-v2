@@ -8,7 +8,7 @@ import {
   m365IdentityRoles,
   m365PolicyIdentities,
   m365PolicyGroups,
-  m365PolicyRoles,
+  m365PolicyRoles
 } from '@mspbyte/drizzle';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { M365Connector } from '@mspbyte/shared';
@@ -18,20 +18,16 @@ import { env } from '../../env.js';
 
 // ─── CA policy conditions schema ─────────────────────────────────────────────
 
-const CAPolicyUsersSchema = z
-  .object({
-    includeUsers: z.array(z.string()).optional().default([]),
-    excludeUsers: z.array(z.string()).optional().default([]),
-    includeGroups: z.array(z.string()).optional().default([]),
-    excludeGroups: z.array(z.string()).optional().default([]),
-    includeRoles: z.array(z.string()).optional().default([]),
-    excludeRoles: z.array(z.string()).optional().default([]),
-  })
-  .passthrough();
+const CAPolicyUsersSchema = z.looseObject({
+  includeUsers: z.array(z.string()).optional().default([]),
+  excludeUsers: z.array(z.string()).optional().default([]),
+  includeGroups: z.array(z.string()).optional().default([]),
+  excludeGroups: z.array(z.string()).optional().default([]),
+  includeRoles: z.array(z.string()).optional().default([]),
+  excludeRoles: z.array(z.string()).optional().default([])
+});
 
-const CAPolicyConditionsSchema = z
-  .object({ users: CAPolicyUsersSchema.optional() })
-  .passthrough();
+const CAPolicyConditionsSchema = z.looseObject({ users: CAPolicyUsersSchema.optional() });
 
 // ─── M365 link logic ──────────────────────────────────────────────────────────
 
@@ -53,7 +49,7 @@ export async function linkM365(
   }
 
   const connector = new M365Connector(clientId, clientSecret, gdapTenantId);
-  const { db } = await getTenantServiceDb(orgId);
+  const { db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY);
   const now = new Date();
 
   const FETCH_CONCURRENCY = 5;
@@ -68,7 +64,7 @@ export async function linkM365(
     db
       .select({ id: m365Groups.id, externalId: m365Groups.externalId })
       .from(m365Groups)
-      .where(eq(m365Groups.linkId, linkId)),
+      .where(eq(m365Groups.linkId, linkId))
   ]);
 
   const identityByExternalId = new Map(identityDocs.map((i) => [i.externalId, i.id]));
@@ -149,32 +145,74 @@ export async function linkM365(
       if (uid === 'All') continue;
       const identityId = identityByExternalId.get(uid);
       if (!identityId) continue;
-      piRows.push({ policyId: policy.id, identityId, linkId, included: true, lastSeenAt: now, createdAt: now });
+      piRows.push({
+        policyId: policy.id,
+        identityId,
+        linkId,
+        included: true,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
     for (const uid of users.excludeUsers) {
       const identityId = identityByExternalId.get(uid);
       if (!identityId) continue;
-      piRows.push({ policyId: policy.id, identityId, linkId, included: false, lastSeenAt: now, createdAt: now });
+      piRows.push({
+        policyId: policy.id,
+        identityId,
+        linkId,
+        included: false,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
     for (const gid of users.includeGroups) {
       const groupId = groupByExternalId.get(gid);
       if (!groupId) continue;
-      pgRows.push({ policyId: policy.id, groupId, linkId, included: true, lastSeenAt: now, createdAt: now });
+      pgRows.push({
+        policyId: policy.id,
+        groupId,
+        linkId,
+        included: true,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
     for (const gid of users.excludeGroups) {
       const groupId = groupByExternalId.get(gid);
       if (!groupId) continue;
-      pgRows.push({ policyId: policy.id, groupId, linkId, included: false, lastSeenAt: now, createdAt: now });
+      pgRows.push({
+        policyId: policy.id,
+        groupId,
+        linkId,
+        included: false,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
     for (const rid of users.includeRoles) {
       const roleId = roleByTemplateId.get(rid);
       if (!roleId) continue;
-      prRows.push({ policyId: policy.id, roleId, linkId, included: true, lastSeenAt: now, createdAt: now });
+      prRows.push({
+        policyId: policy.id,
+        roleId,
+        linkId,
+        included: true,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
     for (const rid of users.excludeRoles) {
       const roleId = roleByTemplateId.get(rid);
       if (!roleId) continue;
-      prRows.push({ policyId: policy.id, roleId, linkId, included: false, lastSeenAt: now, createdAt: now });
+      prRows.push({
+        policyId: policy.id,
+        roleId,
+        linkId,
+        included: false,
+        lastSeenAt: now,
+        createdAt: now
+      });
     }
   }
 
@@ -183,14 +221,14 @@ export async function linkM365(
     await Promise.all([
       db.delete(m365PolicyIdentities).where(inArray(m365PolicyIdentities.policyId, policyIds)),
       db.delete(m365PolicyGroups).where(inArray(m365PolicyGroups.policyId, policyIds)),
-      db.delete(m365PolicyRoles).where(inArray(m365PolicyRoles.policyId, policyIds)),
+      db.delete(m365PolicyRoles).where(inArray(m365PolicyRoles.policyId, policyIds))
     ]);
   }
 
   await Promise.all([
     piRows.length > 0 ? db.insert(m365PolicyIdentities).values(piRows) : Promise.resolve(),
     pgRows.length > 0 ? db.insert(m365PolicyGroups).values(pgRows) : Promise.resolve(),
-    prRows.length > 0 ? db.insert(m365PolicyRoles).values(prRows) : Promise.resolve(),
+    prRows.length > 0 ? db.insert(m365PolicyRoles).values(prRows) : Promise.resolve()
   ]);
 
   logger.info(

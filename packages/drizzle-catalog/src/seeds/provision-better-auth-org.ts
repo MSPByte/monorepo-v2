@@ -24,11 +24,14 @@ const tenant = postgres(tenantUrl);
 try {
   await catalog.begin(async (sql) => {
     await sql`
-      insert into "organization" ("id", "name", "slug", "created_at")
-      values (${authOrgId}, ${orgName}, ${orgSlug}, now())
+      insert into "organization" ("id", "name", "slug", "neon_project_id", "service_connection_string", "status", "created_at")
+      values (${authOrgId}, ${orgName}, ${orgSlug}, ${required('NEON_PROJECT_ID')}, ${required('NEON_CONNECTION_STRING')}, 'active', now())
       on conflict ("id") do update set
         "name" = excluded."name",
-        "slug" = excluded."slug"
+        "slug" = excluded."slug",
+        "neon_project_id" = excluded."neon_project_id",
+        "service_connection_string" = excluded."service_connection_string",
+        "status" = 'active'
     `;
 
     await sql`
@@ -45,34 +48,6 @@ try {
       insert into "member" ("id", "organization_id", "user_id", "role", "created_at")
       values (${crypto.randomUUID()}, ${authOrgId}, ${authUserId}, 'owner', now())
       on conflict ("user_id", "organization_id") do update set "role" = 'owner'
-    `;
-
-    await sql`
-      insert into "orgs" (
-        "auth_org_id",
-        "name",
-        "slug",
-        "neon_project_id",
-        "neon_connection_string",
-        "service_connection_string",
-        "status"
-      )
-      values (
-        ${authOrgId},
-        ${orgName},
-        ${orgSlug},
-        ${required('NEON_PROJECT_ID')},
-        ${required('NEON_CONNECTION_STRING')},
-        ${tenantUrl},
-        'active'
-      )
-      on conflict ("auth_org_id") do update set
-        "name" = excluded."name",
-        "slug" = excluded."slug",
-        "neon_project_id" = excluded."neon_project_id",
-        "neon_connection_string" = excluded."neon_connection_string",
-        "service_connection_string" = excluded."service_connection_string",
-        "status" = 'active'
     `;
   });
 

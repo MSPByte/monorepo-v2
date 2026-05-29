@@ -1,9 +1,9 @@
-import type { MspServiceDb } from '@mspbyte/drizzle/clients';
+import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 
 export type CheckInput = {
   siteId?: string;
   linkId?: string;
-  db: MspServiceDb;
+  db: TenantServiceDb;
 };
 
 export type Detection = {

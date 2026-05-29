@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
-import { agentTickets, agentLogs, agents, sites, integrations, integrationLinks } from '@mspbyte/drizzle';
+import {
+  agentTickets,
+  agentLogs,
+  agents,
+  sites,
+  integrations,
+  integrationLinks
+} from '@mspbyte/drizzle';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { HaloPSAConnector, Encryption } from '@mspbyte/shared';
 import type { HaloPSAAsset, HaloPSASite } from '@mspbyte/shared';
@@ -17,14 +24,16 @@ const BodySchema = z.object({
   phone: z.string(),
   impact: z.string(),
   urgency: z.string(),
-  rmm_id: z.string().optional(),
+  rmm_id: z.string().optional()
 });
 
-const PSAConfigSchema = z.object({
-  url: z.string().default(''),
-  clientId: z.string().default(''),
-  clientSecret: z.string().default(''),
-}).catch({ url: '', clientId: '', clientSecret: '' });
+const PSAConfigSchema = z
+  .object({
+    url: z.string().default(''),
+    clientId: z.string().default(''),
+    clientSecret: z.string().default('')
+  })
+  .catch({ url: '', clientId: '', clientSecret: '' });
 
 const URGENCY_MAP: Record<string, string> = { '1': '5', '2': '6', '3': '7' };
 
@@ -46,7 +55,7 @@ function buildDetailsHtml(params: {
     `Email: ${params.email}`,
     `Phone: ${params.phone}`,
     `Details: ${params.description}`,
-    '',
+    ''
   ];
   if (params.assetIds.length === 0) lines.push(`Device: ${params.hostname}`);
 
@@ -63,23 +72,43 @@ export function ticketRoute(fastify: FastifyInstance) {
     const deviceId = req.headers['x-device-id'] as string | undefined;
 
     if (!siteId || !deviceId) {
-      return reply.status(401).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Missing x-site-id or x-device-id headers' } });
+      return reply
+        .status(401)
+        .send({
+          error: {
+            module: 'v1.0/ticket/create',
+            context: 'POST',
+            message: 'Missing x-site-id or x-device-id headers'
+          }
+        });
     }
 
     let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
     try {
-      ({ db } = await getTenantServiceDb(env.ORG_ID));
+      ({ db } = await getTenantServiceDb(env.ORG_ID, env.ENCRYPTION_KEY));
     } catch {
-      return reply.status(404).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Org not found' } });
+      return reply
+        .status(404)
+        .send({
+          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Org not found' }
+        });
     }
 
     const [[agent], [site]] = await Promise.all([
       db.select().from(agents).where(eq(agents.id, deviceId)).limit(1),
-      db.select().from(sites).where(eq(sites.id, siteId)).limit(1),
+      db.select().from(sites).where(eq(sites.id, siteId)).limit(1)
     ]);
 
     if (!agent || !site) {
-      return reply.status(404).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Agent or site not found' } });
+      return reply
+        .status(404)
+        .send({
+          error: {
+            module: 'v1.0/ticket/create',
+            context: 'POST',
+            message: 'Agent or site not found'
+          }
+        });
     }
 
     // Parse body — multipart or JSON
@@ -96,7 +125,10 @@ export function ticketRoute(fastify: FastifyInstance) {
             for await (const chunk of part.file) {
               if (Buffer.isBuffer(chunk)) chunks.push(chunk);
             }
-            screenshotFile = { filename: part.filename ?? 'screenshot.png', data: Buffer.concat(chunks) };
+            screenshotFile = {
+              filename: part.filename ?? 'screenshot.png',
+              data: Buffer.concat(chunks)
+            };
           }
         } else {
           rawBody[part.fieldname] = part.value;
@@ -105,7 +137,7 @@ export function ticketRoute(fastify: FastifyInstance) {
       if (screenshotFile) {
         rawBody.screenshot = {
           name: screenshotFile.filename,
-          data: screenshotFile.data.toString('base64'),
+          data: screenshotFile.data.toString('base64')
         };
       }
     } else {
@@ -114,7 +146,11 @@ export function ticketRoute(fastify: FastifyInstance) {
 
     const bodyResult = BodySchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return reply.status(400).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Invalid request body' } });
+      return reply
+        .status(400)
+        .send({
+          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Invalid request body' }
+        });
     }
 
     const body = bodyResult.data;
@@ -122,14 +158,22 @@ export function ticketRoute(fastify: FastifyInstance) {
     // Look up PSA integration config + site link
     const [[psaIntegration], [psaLink]] = await Promise.all([
       db.select().from(integrations).where(eq(integrations.id, 'halopsa')).limit(1),
-      db.select().from(integrationLinks)
-        .where(and(eq(integrationLinks.integrationId, 'halopsa'), eq(integrationLinks.siteId, siteId)))
-        .limit(1),
+      db
+        .select()
+        .from(integrationLinks)
+        .where(
+          and(eq(integrationLinks.integrationId, 'halopsa'), eq(integrationLinks.siteId, siteId))
+        )
+        .limit(1)
     ]);
 
     if (!psaIntegration || !psaLink) {
       logger.warn({ siteId, deviceId }, 'PSA not configured for site');
-      return reply.status(200).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'PSA not configured' } });
+      return reply
+        .status(200)
+        .send({
+          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'PSA not configured' }
+        });
     }
 
     const psaConfig = PSAConfigSchema.parse(psaIntegration.config);
@@ -205,7 +249,7 @@ export function ticketRoute(fastify: FastifyInstance) {
       phone: body.phone,
       hostname: agent.hostname,
       assetIds,
-      imageUrls,
+      imageUrls
     });
 
     const urgency = URGENCY_MAP[body.urgency] ?? body.urgency;
@@ -232,7 +276,7 @@ export function ticketRoute(fastify: FastifyInstance) {
       dont_do_rules: true,
       return_this: false,
       phonenumber: body.phone,
-      assets: assetIds.map((id) => ({ id })),
+      assets: assetIds.map((id) => ({ id }))
     } as Parameters<typeof connector.tickets.create>[0];
 
     let ticketId: string;
@@ -240,10 +284,21 @@ export function ticketRoute(fastify: FastifyInstance) {
       ticketId = await connector.tickets.create(ticketBody);
     } catch (err) {
       logger.error({ err, hostname: agent.hostname }, 'Failed to create HaloPSA ticket');
-      return reply.status(500).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Failed to create ticket' } });
+      return reply
+        .status(500)
+        .send({
+          error: {
+            module: 'v1.0/ticket/create',
+            context: 'POST',
+            message: 'Failed to create ticket'
+          }
+        });
     }
 
-    logger.info({ ticketId, hostname: agent.hostname, clientId: psaParentCompanyId }, 'HaloPSA ticket created');
+    logger.info(
+      { ticketId, hostname: agent.hostname, clientId: psaParentCompanyId },
+      'HaloPSA ticket created'
+    );
 
     // Record ticket + log (best-effort — don't fail the response if logging fails)
     try {
@@ -252,7 +307,7 @@ export function ticketRoute(fastify: FastifyInstance) {
         siteId: site.id,
         ticketId,
         summary: body.summary,
-        meta: { description: body.description, impact: body.impact, urgency, assetIds, imageUrls },
+        meta: { description: body.description, impact: body.impact, urgency, assetIds, imageUrls }
       });
     } catch (err) {
       logger.warn({ err }, 'Failed to insert agentTickets record');
@@ -265,7 +320,7 @@ export function ticketRoute(fastify: FastifyInstance) {
         method: 'POST',
         message: `Ticket created: ${body.summary} (HaloPSA #${ticketId})`,
         status: 200,
-        timeElapsedMs: 0,
+        timeElapsedMs: 0
       });
     } catch {
       // non-fatal

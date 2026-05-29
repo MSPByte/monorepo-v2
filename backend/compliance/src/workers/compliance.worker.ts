@@ -1,13 +1,14 @@
 import { Worker } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { ComplianceJobData } from '@mspbyte/shared';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDb, type TenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { complianceFrameworkChecks, complianceResults } from '@mspbyte/drizzle';
 import { eq, and } from 'drizzle-orm';
 import { checkTypeRegistry } from '../evaluators/registry.js';
 import { scoreFramework } from '../scoring.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
+import { env } from '../env.js';
 
 export function createComplianceWorker(redis: Redis) {
   return new Worker<ComplianceJobData>(
@@ -15,9 +16,9 @@ export function createComplianceWorker(redis: Redis) {
     async (job) => {
       const { siteId, orgId, frameworkId, linkId } = job.data;
 
-      let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
+      let db: TenantServiceDb;
       try {
-        ({ db } = await getTenantServiceDb(orgId));
+        ({ db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY));
       } catch (err) {
         logger.error({ orgId, err }, 'Org not found — skipping compliance job');
         return;

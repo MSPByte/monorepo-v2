@@ -9,11 +9,12 @@ import {
   recordFetchSuccess,
   recordFetchFailure,
   logRawRecords
-} from '@mspbyte/drizzle';
+} from '@mspbyte/shared';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
+import { env } from '../env.js';
 
 const RAW_LOG_ENABLED = process.env.PIPELINE_RAW_LOG === 'true';
 const PRE_FETCH_TIMEOUT_MS = 30_000;
@@ -66,7 +67,10 @@ export function createFetchWorker(redis: Redis) {
 
       let tenant: Awaited<ReturnType<typeof getTenantServiceDb>>;
       try {
-        tenant = await withTimeout('Tenant service DB lookup', getTenantServiceDb(data.orgId));
+        tenant = await withTimeout(
+          'Tenant service DB lookup',
+          getTenantServiceDb(data.orgId, env.ENCRYPTION_KEY)
+        );
       } catch (err) {
         logger.error(
           {

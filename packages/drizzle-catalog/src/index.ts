@@ -1,8 +1,6 @@
 export * from './catalog/schema.js';
 export * from './clients.js';
-export {
-  getCatalogDb,
-  getTenantDb,
-  getTenantServiceDbByAuthOrg as getTenantDbByAuthOrg,
-  getTenantServiceDb
-} from './tenant-factory.js';
+import { getCatalogDb, getTenantServiceDbByOrgId, createTenantDb } from './tenant-factory.js';
+
+export type TenantServiceDb = Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>['db'];
+export { getCatalogDb, getTenantServiceDbByOrgId as getTenantServiceDb, createTenantDb };

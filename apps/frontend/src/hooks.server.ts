@@ -1,25 +1,24 @@
-import { building } from "$app/environment";
-import { redirect, type Handle } from "@sveltejs/kit";
-import { eq } from "drizzle-orm";
-import { auth } from "$lib/server/auth";
-import { getTenantDbByAuthOrg } from "@mspbyte/drizzle-catalog";
-import { roles, users, createMspServiceDb } from "@mspbyte/drizzle";
+import { building } from '$app/environment';
+import { redirect, type Handle } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
+import { auth } from '$lib/server/auth';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { roles, users } from '@mspbyte/drizzle';
 import {
   BETTER_AUTH_SECRET,
   BETTER_AUTH_URL,
   CATALOG_DATABASE_URL,
-} from "$env/static/private";
-import { svelteKitHandler } from "better-auth/svelte-kit";
+  ENCRYPTION_KEY,
+} from '$env/static/private';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
 
 const isPublicRoute = (route: string): boolean => {
-  return (
-    route.startsWith("/auth") || route.startsWith("/api/auth") || route === "/"
-  );
+  return route.startsWith('/auth') || route.startsWith('/api/auth') || route === '/';
 };
 
 const handleAuth: Handle = async ({ event, resolve }) => {
   if (!building && (!BETTER_AUTH_SECRET || !BETTER_AUTH_URL)) {
-    throw new Error("BETTER_AUTH_SECRET and BETTER_AUTH_URL are required");
+    throw new Error('BETTER_AUTH_SECRET and BETTER_AUTH_URL are required');
   }
 
   if (isPublicRoute(event.url.pathname)) {
@@ -32,7 +31,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
     });
 
     if (!session) {
-      return redirect(302, "/auth/login");
+      return redirect(302, '/auth/login');
     }
 
     let authOrgId = session.session.activeOrganizationId;
@@ -48,24 +47,25 @@ const handleAuth: Handle = async ({ event, resolve }) => {
             body: { organizationId: authOrgId },
           })
           .catch(() => null);
+      } else {
+        return redirect(302, '/auth/organization');
       }
     }
 
     if (!authOrgId) {
-      throw { message: "No active organization", state: "invalid" };
+      throw { message: 'No active organization', state: 'invalid' };
     }
 
-    const result = await getTenantDbByAuthOrg(authOrgId, CATALOG_DATABASE_URL);
+    const result = await getTenantServiceDb(authOrgId, ENCRYPTION_KEY, CATALOG_DATABASE_URL);
     if (!result) {
-      throw { message: "Org not found", state: "invalid" };
+      throw { message: 'Org not found', state: 'invalid' };
     }
 
-    const { org } = result;
-    if (org.status !== "active") {
-      throw { message: "Org is not active", state: "invalid" };
+    const { org, db } = result;
+    if (org.status !== 'active') {
+      throw { message: 'Org is not active', state: 'invalid' };
     }
 
-    const db = await createMspServiceDb(org.serviceConnectionString);
     const [user] = await db
       .select()
       .from(users)
@@ -73,22 +73,17 @@ const handleAuth: Handle = async ({ event, resolve }) => {
       .limit(1);
 
     if (!user || !user.roleId) {
-      throw { message: "User not found", state: "invalid" };
+      throw { message: 'User not found', state: 'invalid' };
     }
 
-    const [role] = await db
-      .select()
-      .from(roles)
-      .where(eq(roles.id, user.roleId))
-      .limit(1);
+    const [role] = await db.select().from(roles).where(eq(roles.id, user.roleId)).limit(1);
     if (!role) {
-      throw { message: "Role not found", state: "invalid" };
+      throw { message: 'Role not found', state: 'invalid' };
     }
 
     event.locals.auth = {
       userId: session.user.id,
       orgId: org.id,
-      authOrgId,
       email: session.user.email,
     };
     event.locals.user = user;
@@ -97,20 +92,16 @@ const handleAuth: Handle = async ({ event, resolve }) => {
     event.locals.connectionString = org.serviceConnectionString;
   } catch (err: unknown) {
     const message =
-      err instanceof Error
-        ? err.message
-        : String((err as { message?: unknown })?.message ?? err);
+      err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
     const state = (err as { state?: string })?.state;
     console.error(`HOOK_ERR: ${message}`);
 
-    if (state === "invalid") {
-      await auth.api
-        .signOut({ headers: event.request.headers })
-        .catch(() => null);
-      return redirect(302, "/auth/login?error=account");
+    if (state === 'invalid') {
+      await auth.api.signOut({ headers: event.request.headers }).catch(() => null);
+      return redirect(302, '/auth/login?error=account');
     }
 
-    return redirect(302, "/auth/login");
+    return redirect(302, '/auth/login');
   }
 
   return svelteKitHandler({ event, resolve, auth, building });

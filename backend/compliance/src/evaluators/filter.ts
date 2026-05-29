@@ -20,8 +20,8 @@ import {
   dattoEndpoints,
   coveEndpoints
 } from '@mspbyte/drizzle';
-import type { MspServiceDb } from '@mspbyte/drizzle';
 import type { ConditionOperator } from '@mspbyte/shared';
+import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 
 // ─── Table map (string name → Drizzle table) ──────────────────────────────────
 
@@ -165,7 +165,7 @@ export function buildJsFilter(
 export async function resolveRows(
   tableName: string,
   linkId: string,
-  db: MspServiceDb
+  db: TenantServiceDb
 ): Promise<Record<string, unknown>[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const table = TABLE_MAP[tableName] as any;

@@ -7,7 +7,7 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.TEST_MSP_DATABASE_URL!
+    url: process.env.MSP_DATABASE_URL!
   },
-  schemaFilter: ['public', 'agent', 'audit', 'compliance', 'definitions', 'ingestor', 'vendors']
+  schemaFilter: ['public', 'agent', 'audit', 'compliance', 'ingestor', 'vendors']
 });

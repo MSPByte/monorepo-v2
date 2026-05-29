@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { getTenantDbByAuthOrg } from '@mspbyte/drizzle-catalog';
-import { createMspServiceDb } from '@mspbyte/drizzle/clients';
+import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { roles, users } from '@mspbyte/drizzle';
 import { eq } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
@@ -25,7 +24,17 @@ function toHeaders(headers: IncomingRequest['headers']) {
 
 export async function createContext({ req, redis }: { req: IncomingRequest; redis?: Redis }) {
   if (!process.env.BETTER_AUTH_SECRET || !process.env.BETTER_AUTH_URL) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Better Auth is not configured' });
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Better Auth is not configured'
+    });
+  }
+
+  if (!process.env.ENCRYPTION_KEY) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Encryption Key is not configured'
+    });
   }
 
   const headers = toHeaders(req.headers);
@@ -51,7 +60,7 @@ export async function createContext({ req, redis }: { req: IncomingRequest; redi
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No active organization in session' });
   }
 
-  const result = await getTenantDbByAuthOrg(authOrgId).catch(() => null);
+  const result = await getTenantServiceDb(authOrgId, process.env.ENCRYPTION_KEY).catch(() => null);
   if (!result) {
     throw new TRPCError({
       code: 'NOT_FOUND',
@@ -59,15 +68,17 @@ export async function createContext({ req, redis }: { req: IncomingRequest; redi
     });
   }
 
-  const { org } = result;
+  const { org, db } = result;
   if (org.status !== 'active') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Organization is not active' });
   }
 
-  const db = await createMspServiceDb(org.serviceConnectionString);
   const [tenantUser] = await db.select().from(users).where(eq(users.authUserId, userId)).limit(1);
   if (!tenantUser?.roleId) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'User is not provisioned for this organization' });
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'User is not provisioned for this organization'
+    });
   }
 
   const [role] = await db.select().from(roles).where(eq(roles.id, tenantUser.roleId)).limit(1);
@@ -78,7 +89,6 @@ export async function createContext({ req, redis }: { req: IncomingRequest; redi
   return {
     userId,
     orgId: org.id,
-    authOrgId,
     db,
     org,
     user: tenantUser,

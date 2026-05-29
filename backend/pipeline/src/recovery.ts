@@ -1,21 +1,25 @@
 import { Queue } from 'bullmq';
 import { eq, inArray } from 'drizzle-orm';
-import { createCatalogDb } from '@mspbyte/drizzle-catalog';
-import { orgs } from '@mspbyte/drizzle-catalog/catalog';
-import { createMspDb, syncRuns } from '@mspbyte/drizzle';
-import { QUEUES } from '@mspbyte/shared';
+import { createCatalogDb, createTenantDb } from '@mspbyte/drizzle-catalog';
+import { organization } from '@mspbyte/drizzle-catalog/catalog';
+import { syncRuns } from '@mspbyte/drizzle';
+import { Encryption, QUEUES } from '@mspbyte/shared';
 import { logger } from './logger.js';
 import type { Redis } from 'ioredis';
+import { env } from './env.js';
 
 export async function recoverOrphanedRuns(redis: Redis): Promise<void> {
   const catalogDb = createCatalogDb();
-  const allOrgs = await catalogDb.select().from(orgs).where(eq(orgs.status, 'active'));
+  const allOrgs = await catalogDb
+    .select()
+    .from(organization)
+    .where(eq(organization.status, 'active'));
 
   const alertsQueue = new Queue(QUEUES.ALERTS, { connection: redis });
 
   try {
     for (const org of allOrgs) {
-      const mspDb = createMspDb(org.serviceConnectionString);
+      const mspDb = createTenantDb(org.serviceConnectionString, env.ENCRYPTION_KEY);
 
       const pendingRuns = await mspDb
         .select({ id: syncRuns.id, bullmqJobId: syncRuns.bullmqJobId, linkId: syncRuns.linkId })
