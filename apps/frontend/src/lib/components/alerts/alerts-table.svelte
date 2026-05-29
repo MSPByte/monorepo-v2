@@ -19,7 +19,8 @@
     siteName?: string | null;
   };
 
-  let { linkId, integrationId, links = [], scopeColumn = 'link' }: {
+  let { siteId, linkId, integrationId, links = [], scopeColumn = 'link' }: {
+    siteId?: string;
     linkId?: string;
     integrationId?: string;
     links?: AlertLinkOption[];
@@ -96,6 +97,7 @@
 
   async function fetchData(input: PaginationInput) {
     return trpc.alerts.tableData.query({
+      siteId,
       linkId: normalizedLinkId,
       integrationId,
       page: input.page,
@@ -180,7 +182,7 @@
   </div>
 {/snippet}
 
-{#key `${normalizedLinkId ?? 'all'}-${scopeColumn}`}
+{#key `${siteId ?? ''}-${normalizedLinkId ?? 'all'}-${scopeColumn}`}
   <DataTable
     {fetchData}
     {columns}

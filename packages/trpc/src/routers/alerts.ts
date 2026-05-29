@@ -1,5 +1,20 @@
 import { z } from 'zod';
-import { eq, ne, and, or, not, inArray, ilike, gt, lt, gte, lte, asc, desc, sql } from 'drizzle-orm';
+import {
+  eq,
+  ne,
+  and,
+  or,
+  not,
+  inArray,
+  ilike,
+  gt,
+  lt,
+  gte,
+  lte,
+  asc,
+  desc,
+  sql
+} from 'drizzle-orm';
 import { alerts, integrationLinks } from '@mspbyte/drizzle';
 import { TRPCError } from '@trpc/server';
 import { t, authProcedure } from '../trpc.js';
@@ -57,7 +72,9 @@ function buildAlertConditions(input: {
   if (input.severity != null) conditions.push(eq(alerts.severity, input.severity));
   if (input.entityType) conditions.push(eq(alerts.entityType, input.entityType));
   if (input.definitionPrefixes?.length) {
-    conditions.push(or(...input.definitionPrefixes.map((prefix) => ilike(alerts.definitionId, `${prefix}%`)))!);
+    conditions.push(
+      or(...input.definitionPrefixes.map((prefix) => ilike(alerts.definitionId, `${prefix}%`)))!
+    );
   }
   if (input.definitionExcludePrefixes?.length) {
     const excluded = or(
@@ -91,7 +108,8 @@ export const alertsRouter = t.router({
     )
     .query(async ({ ctx, input }) => {
       const conditions = [eq(alerts.status, input.status)];
-      if (input.integrationId) conditions.push(eq(integrationLinks.integrationId, input.integrationId));
+      if (input.integrationId)
+        conditions.push(eq(integrationLinks.integrationId, input.integrationId));
       if (input.linkIds?.length) conditions.push(inArray(alerts.linkId, input.linkIds));
 
       return ctx.db
@@ -165,7 +183,9 @@ export const alertsRouter = t.router({
           highestSeverity: sql<number>`max(${alerts.severity})::int`,
           lastSeenAt: sql<Date>`max(${alerts.lastSeenAt})`,
           primaryAlertId: sql<string>`(array_agg(${alerts.id} order by ${alerts.severity} desc, ${alerts.lastSeenAt} desc))[1]`,
-          primaryDefinitionId: sql<string | null>`(array_agg(${alerts.definitionId} order by ${alerts.severity} desc, ${alerts.lastSeenAt} desc))[1]`,
+          primaryDefinitionId: sql<
+            string | null
+          >`(array_agg(${alerts.definitionId} order by ${alerts.severity} desc, ${alerts.lastSeenAt} desc))[1]`,
           primaryMessage: sql<string>`(array_agg(${alerts.message} order by ${alerts.severity} desc, ${alerts.lastSeenAt} desc))[1]`,
           primaryMetadata: sql<unknown>`(array_agg(${alerts.metadata} order by ${alerts.severity} desc, ${alerts.lastSeenAt} desc))[1]`,
           moduleIds: sql<string[]>`array_remove(array_agg(distinct ${alerts.definitionId}), null)`
@@ -174,7 +194,11 @@ export const alertsRouter = t.router({
         .innerJoin(integrationLinks, eq(alerts.linkId, integrationLinks.id))
         .where(where)
         .groupBy(entityKey)
-        .orderBy(sql`max(${alerts.severity}) desc`, sql`count(*) desc`, sql`max(${alerts.lastSeenAt}) desc`)
+        .orderBy(
+          sql`max(${alerts.severity}) desc`,
+          sql`count(*) desc`,
+          sql`max(${alerts.lastSeenAt}) desc`
+        )
         .limit(input.pageSize)
         .offset(input.page * input.pageSize);
 
@@ -308,6 +332,7 @@ export const alertsRouter = t.router({
   tableData: authProcedure
     .input(
       z.object({
+        siteId: z.string().uuid().optional(),
         linkId: z.string().optional(),
         integrationId: z.string().optional(),
         page: z.number().int().default(0),
@@ -329,7 +354,8 @@ export const alertsRouter = t.router({
     .query(async ({ ctx, input }): Promise<{ rows: AlertRow[]; total: number }> => {
       const conditions = [];
 
-      if (input.linkId) conditions.push(eq(alerts.linkId, input.linkId));
+      if (input.siteId) conditions.push(eq(alerts.siteId, input.siteId));
+      else if (input.linkId) conditions.push(eq(alerts.linkId, input.linkId));
       if (input.integrationId) {
         conditions.push(
           inArray(

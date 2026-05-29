@@ -1,43 +1,25 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { getContext } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { useQueryClient } from '@tanstack/svelte-query';
   import type { createTrpcClient } from '$lib/trpc';
   import { INTEGRATIONS } from '@mspbyte/shared';
   import { cn } from '$lib/utils';
-  import { LoaderCircle } from '@lucide/svelte';
-  import { Input } from '$lib/components/ui/input/index.js';
+  import { DataTable } from '$lib/components/data-table';
+  import type { DataTableColumn, PaginationInput } from '$lib/components/data-table/types';
+  import { textColumn } from '$lib/components/data-table/column-defs';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
-  const sitesQuery = createQuery(() => ({
-    queryKey: ['sites.list'],
-    queryFn: () => trpc.sites.list.query(),
-  }));
-
-  const linksQuery = createQuery(() => ({
-    queryKey: ['integrationLinks.list'],
-    queryFn: () => trpc.integrationLinks.list.query({}),
-  }));
-
-  let search = $state('');
-
-  const linksBySite = $derived.by(() => {
-    const map = new Map<string, string[]>();
-    for (const link of linksQuery.data ?? []) {
-      if (!link.siteId) continue;
-      const existing = map.get(link.siteId) ?? [];
-      if (!existing.includes(link.integrationId)) {
-        existing.push(link.integrationId);
-        map.set(link.siteId, existing);
-      }
-    }
-    return map;
-  });
-
-  const filteredSites = $derived(
-    (sitesQuery.data ?? []).filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
-  );
+  type SiteRow = {
+    id: string;
+    name: string;
+    description: string | null;
+    integrations: string[];
+    updatedAt: Date | string | null;
+    [key: string]: unknown;
+  };
 
   const integrationColors: Record<string, string> = {
     'microsoft-365': 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
@@ -50,65 +32,88 @@
     return integrationColors[id] ?? 'bg-muted text-muted-foreground border-border';
   }
 
-  function relativeTime(ts: Date | string | null): string {
-    if (!ts) return '—';
-    const diff = Date.now() - new Date(ts).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+  const columns = $derived([
+    textColumn('name', 'Name'),
+    { key: 'integrations', title: 'Integrations', cell: integrationsCell },
+  ] as DataTableColumn<SiteRow>[]);
+
+  async function fetchData(opts: PaginationInput): Promise<{ rows: SiteRow[]; total: number }> {
+    const [sites, links] = await Promise.all([
+      queryClient.fetchQuery({
+        queryKey: ['sites.list'],
+        queryFn: () => trpc.sites.list.query(),
+      }),
+      queryClient.fetchQuery({
+        queryKey: ['integrationLinks.list'],
+        queryFn: () => trpc.integrationLinks.list.query({}),
+      }),
+    ]);
+
+    const linksBySite = new Map<string, string[]>();
+    for (const link of links) {
+      if (!link.siteId) continue;
+      const existing = linksBySite.get(link.siteId) ?? [];
+      if (!existing.includes(link.integrationId)) {
+        existing.push(link.integrationId);
+        linksBySite.set(link.siteId, existing);
+      }
+    }
+
+    const rows: SiteRow[] = sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      integrations: linksBySite.get(s.id) ?? [],
+      updatedAt: s.updatedAt,
+    }));
+
+    const search = opts.globalSearch.toLowerCase();
+    const filtered = search
+      ? rows.filter(
+          (r) =>
+            r.name.toLowerCase().includes(search) ||
+            r.integrations.some((intId) => {
+              const label = INTEGRATIONS[intId as keyof typeof INTEGRATIONS]?.name ?? intId;
+              return label.toLowerCase().includes(search);
+            }),
+        )
+      : rows;
+
+    const sorted = opts.sortField
+      ? [...filtered].sort((a, b) => {
+          const av = String(a[opts.sortField!] ?? '');
+          const bv = String(b[opts.sortField!] ?? '');
+          return opts.sortDir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv);
+        })
+      : filtered;
+
+    const start = opts.page * opts.pageSize;
+    return { rows: sorted.slice(start, start + opts.pageSize), total: sorted.length };
   }
 </script>
 
-<div class="flex flex-col size-full p-4 gap-3 overflow-hidden">
-  <div class="flex items-center gap-2 shrink-0">
-    <h2 class="text-sm font-semibold">Sites</h2>
-    <div class="flex-1"></div>
-    <div class="w-64">
-      <Input bind:value={search} placeholder="Search sites..." class="h-8" />
-    </div>
-  </div>
-
-  <div class="flex-1 overflow-hidden border rounded-lg bg-card">
-    {#if sitesQuery.isLoading}
-      <div class="flex h-full items-center justify-center text-muted-foreground">
-        <LoaderCircle class="size-5 animate-spin" />
-      </div>
-    {:else}
-      <div class="size-full overflow-auto">
-        <table class="w-full text-sm">
-          <thead class="border-b sticky top-0 bg-card">
-            <tr>
-              <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</th>
-              <th class="text-left px-4 py-2 text-xs font-medium text-muted-foreground w-72">Integrations</th>
-              <th class="text-right px-4 py-2 text-xs font-medium text-muted-foreground w-36">Last Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each filteredSites as site}
-              {@const integrations = linksBySite.get(site.id) ?? []}
-              <tr class="border-b hover:bg-muted/30 transition-colors cursor-pointer" onclick={() => goto(`/sites/${site.id}`)}>
-                <td class="px-4 py-3 font-medium">{site.name}</td>
-                <td class="px-4 py-3">
-                  <div class="flex flex-wrap gap-1">
-                    {#each integrations as intId}
-                      <span class={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', integrationColor(intId))}>
-                        {INTEGRATIONS[intId as keyof typeof INTEGRATIONS]?.name ?? intId}
-                      </span>
-                    {/each}
-                    {#if integrations.length === 0}
-                      <span class="text-xs text-muted-foreground">—</span>
-                    {/if}
-                  </div>
-                </td>
-                <td class="px-4 py-3 text-right text-muted-foreground">{relativeTime(site.updatedAt)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+{#snippet integrationsCell({ row }: { row: SiteRow; value: unknown })}
+  <div class="flex flex-wrap gap-1">
+    {#each row.integrations as intId}
+      <span class={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', integrationColor(intId))}>
+        {INTEGRATIONS[intId as keyof typeof INTEGRATIONS]?.name ?? intId}
+      </span>
+    {/each}
+    {#if row.integrations.length === 0}
+      <span class="text-xs text-muted-foreground">—</span>
     {/if}
   </div>
+{/snippet}
+
+<div class="flex size-full p-4 overflow-hidden">
+  <DataTable
+    {columns}
+    {fetchData}
+    enableGlobalSearch
+    enableFilters={false}
+    enableExport={false}
+    enableURLState={false}
+    defaultPageSize={50}
+    onrowclick={(row) => goto(`/sites/${row.id}`)}
+  />
 </div>
