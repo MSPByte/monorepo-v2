@@ -1,6 +1,9 @@
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import { env } from './env.js';
 import { logger } from './logger.js';
 import { registerRoute } from './routes/register.js';
@@ -13,12 +16,21 @@ const fastify = Fastify({ logger: false });
 await fastify.register(cors, { origin: true, credentials: true });
 await fastify.register(multipart);
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+await fastify.register(fastifyStatic, {
+  root: path.resolve(__dirname, '../assets/installers/scripts'),
+  decorateReply: true,
+  serve: false,
+});
+
 // Bearer token auth hook for agent endpoints
 fastify.addHook('onRequest', async (req, reply) => {
   const path = req.url;
 
-  // Debug and health routes don't require auth
+  // Debug, health, and download routes don't require auth
   if (path.startsWith('/debug')) return;
+  if (path.startsWith('/downloads')) return;
   if (path === '/health') return;
 
   const authHeader = req.headers['authorization'] ?? '';
