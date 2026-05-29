@@ -1,5 +1,6 @@
 import { ProviderFacet } from '../../../libs/provider.js';
 import type { Integration } from '../../../types/integration.js';
+import { SyncIntervals } from '../intervals.js';
 
 export const COVE_CONFIG: Integration = {
   id: 'cove',
@@ -10,7 +11,8 @@ export const COVE_CONFIG: Integration = {
     {
       facet: ProviderFacet.CoveEndpoints,
       scopeLevel: 'link',
-      db: { table: 'coveEndpoints', name: 'Cove Endpoints', shape: {} }
+      db: { table: 'coveEndpoints', name: 'Cove Endpoints', shape: {} },
+      sync: { intervalMs: SyncIntervals['12_HOURS'] }
     }
   ],
   navigation: [{ label: 'Endpoints', route: '/endpoints', isNullable: false }]

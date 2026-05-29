@@ -5,54 +5,53 @@ import {
   m365IdentityGroups,
   m365IdentityRoles,
   m365Groups,
-  m365Roles,
+  m365Roles
 } from '@mspbyte/drizzle';
 import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { eq, inArray, and } from 'drizzle-orm';
 import { logger } from '../../logger.js';
 
 const CAPolicyGrantControlsSchema = z
-  .object({ builtInControls: z.array(z.string()).optional().nullable() })
-  .passthrough()
+  .looseObject({ builtInControls: z.array(z.string()).optional().nullable() })
   .optional()
   .nullable();
 
-const CAPolicyConditionsSchema = z
-  .object({
-    users: z
-      .object({
-        includeUsers: z.array(z.string()).optional().default([]),
-        excludeUsers: z.array(z.string()).optional().default([]),
-        includeGroups: z.array(z.string()).optional().default([]),
-        excludeGroups: z.array(z.string()).optional().default([]),
-        includeRoles: z.array(z.string()).optional().default([]),
-        excludeRoles: z.array(z.string()).optional().default([]),
-      })
-      .passthrough()
-      .optional()
-      .nullable(),
-    applications: z
-      .object({
-        includeApplications: z.array(z.string()).optional().default([]),
-      })
-      .passthrough()
-      .optional()
-      .nullable(),
-  })
-  .passthrough();
+const CAPolicyConditionsSchema = z.looseObject({
+  users: z
+    .looseObject({
+      includeUsers: z.array(z.string()).optional().default([]),
+      excludeUsers: z.array(z.string()).optional().default([]),
+      includeGroups: z.array(z.string()).optional().default([]),
+      excludeGroups: z.array(z.string()).optional().default([]),
+      includeRoles: z.array(z.string()).optional().default([]),
+      excludeRoles: z.array(z.string()).optional().default([])
+    })
+    .optional()
+    .nullable(),
+  applications: z
+    .looseObject({
+      includeApplications: z.array(z.string()).optional().default([])
+    })
+    .optional()
+    .nullable()
+});
 
 export async function enrichM365(linkId: string, orgId: string): Promise<void> {
   const { db } = await getTenantServiceDb(orgId);
 
   const [policyDocs, identityDocs] = await Promise.all([
     db
-      .select({ id: m365Policies.id, conditions: m365Policies.conditions, grantControls: m365Policies.grantControls })
+      .select({
+        id: m365Policies.id,
+        conditions: m365Policies.conditions,
+        grantControls: m365Policies.grantControls
+      })
       .from(m365Policies)
       .where(and(eq(m365Policies.linkId, linkId), eq(m365Policies.policyState, 'enabled'))),
     db
       .select({ id: m365Identities.id, externalId: m365Identities.externalId })
       .from(m365Identities)
-      .where(eq(m365Identities.linkId, linkId)),
+      .where(eq(m365Identities.linkId, linkId))
   ]);
 
   const mfaPolicies = policyDocs
@@ -88,18 +87,20 @@ export async function enrichM365(linkId: string, orgId: string): Promise<void> {
       .select({ identityId: m365IdentityRoles.identityId, roleTemplateId: m365Roles.templateId })
       .from(m365IdentityRoles)
       .innerJoin(m365Roles, eq(m365IdentityRoles.roleId, m365Roles.id))
-      .where(eq(m365IdentityRoles.linkId, linkId)),
+      .where(eq(m365IdentityRoles.linkId, linkId))
   ]);
 
   const identityGroupExtIds = new Map<string, Set<string>>();
   for (const row of igRows) {
-    if (!identityGroupExtIds.has(row.identityId)) identityGroupExtIds.set(row.identityId, new Set());
+    if (!identityGroupExtIds.has(row.identityId))
+      identityGroupExtIds.set(row.identityId, new Set());
     identityGroupExtIds.get(row.identityId)!.add(row.groupExternalId);
   }
 
   const identityRoleTemplateIds = new Map<string, Set<string>>();
   for (const row of irRows) {
-    if (!identityRoleTemplateIds.has(row.identityId)) identityRoleTemplateIds.set(row.identityId, new Set());
+    if (!identityRoleTemplateIds.has(row.identityId))
+      identityRoleTemplateIds.set(row.identityId, new Set());
     identityRoleTemplateIds.get(row.identityId)!.add(row.roleTemplateId);
   }
 
@@ -147,7 +148,7 @@ export async function enrichM365(linkId: string, orgId: string): Promise<void> {
         .update(m365Identities)
         .set({ mfaEnforced: false })
         .where(inArray(m365Identities.id, falseIds.slice(i * CHUNK, (i + 1) * CHUNK)))
-    ),
+    )
   ]);
 
   logger.info(

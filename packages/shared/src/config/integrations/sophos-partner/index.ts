@@ -1,5 +1,6 @@
 import { ProviderFacet } from '../../../libs/provider.js';
 import type { Integration } from '../../../types/integration.js';
+import { SyncIntervals } from '../intervals.js';
 
 export const SOPHOS_PARTNER_CONFIG: Integration = {
   id: 'sophos-partner',
@@ -10,17 +11,20 @@ export const SOPHOS_PARTNER_CONFIG: Integration = {
     {
       facet: ProviderFacet.SophosEndpoints,
       scopeLevel: 'link',
-      db: { table: 'sophosEndpoints', name: 'Sophos Endpoints', shape: {} }
+      db: { table: 'sophosEndpoints', name: 'Sophos Endpoints', shape: {} },
+      sync: { intervalMs: SyncIntervals['4_HOURS'] }
     },
     {
       facet: ProviderFacet.SophosFirewalls,
       scopeLevel: 'link',
-      db: { table: 'sophosFirewalls', name: 'Sophos Firewalls', shape: {} }
+      db: { table: 'sophosFirewalls', name: 'Sophos Firewalls', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.SophosLicenses,
       scopeLevel: 'link',
-      db: { table: 'sophosLicenses', name: 'Sophos Licenses', shape: {} }
+      db: { table: 'sophosLicenses', name: 'Sophos Licenses', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     }
   ],
   navigation: [

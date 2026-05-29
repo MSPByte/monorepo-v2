@@ -64,4 +64,58 @@ describe('resolveFacetPlan', () => {
       ProviderFacet.M365CAPolicies,
     ]);
   });
+
+  it('skips fresh dependencies during scheduled runs', () => {
+    const now = new Date('2026-05-27T12:00:00.000Z');
+
+    const plan = resolveFacetPlan({
+      providerId: 'microsoft-365',
+      now,
+      contexts: [
+        { type: ProviderFacet.M365Identities, lastSuccessAt: new Date('2026-05-27T10:30:00.000Z') },
+        { type: ProviderFacet.M365CAPolicies, lastSuccessAt: new Date('2026-05-27T11:37:00.000Z') },
+        { type: ProviderFacet.M365Groups, lastSuccessAt: new Date('2026-05-27T11:37:00.000Z') },
+      ],
+    });
+
+    expect(plan.facets).toContain(ProviderFacet.M365Identities);
+    expect(plan.facets).not.toContain(ProviderFacet.M365CAPolicies);
+    expect(plan.facets).not.toContain(ProviderFacet.M365Groups);
+  });
+
+  it('includes never-synced dependencies even when not forced', () => {
+    const now = new Date('2026-05-27T12:00:00.000Z');
+
+    const plan = resolveFacetPlan({
+      providerId: 'microsoft-365',
+      now,
+      contexts: [
+        { type: ProviderFacet.M365Identities, lastSuccessAt: new Date('2026-05-27T10:30:00.000Z') },
+      ],
+    });
+
+    expect(plan.facets).toContain(ProviderFacet.M365Identities);
+    expect(plan.facets).toContain(ProviderFacet.M365CAPolicies);
+    expect(plan.facets).toContain(ProviderFacet.M365Groups);
+  });
+
+  it('includes all dependencies when force=true regardless of freshness', () => {
+    const now = new Date('2026-05-27T12:00:00.000Z');
+
+    const plan = resolveFacetPlan({
+      providerId: 'microsoft-365',
+      now,
+      contexts: [
+        { type: ProviderFacet.M365CAPolicies, lastSuccessAt: new Date('2026-05-27T11:37:00.000Z') },
+        { type: ProviderFacet.M365Groups, lastSuccessAt: new Date('2026-05-27T11:55:00.000Z') },
+      ],
+      requestedFacets: [ProviderFacet.M365Identities],
+      includeDependencies: true,
+      force: true,
+    });
+
+    expect(plan.facets).toContain(ProviderFacet.M365Identities);
+    expect(plan.facets).toContain(ProviderFacet.M365CAPolicies);
+    expect(plan.facets).toContain(ProviderFacet.M365Groups);
+  });
 });

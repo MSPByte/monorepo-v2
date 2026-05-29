@@ -728,6 +728,7 @@ export const m365Adapter: ProviderAdapter = {
           return;
         }
 
+        // TODO: Should this use the m365_identities table instead
         let activeUpns: string[] = [];
         try {
           const allUsers = await connector.users.listForInboxRules();

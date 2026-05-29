@@ -23,7 +23,7 @@ export const INTEGRATIONS: Record<ProviderId, Integration> = {
   dattormm: DATTO_RMM_CONFIG,
   cove: COVE_CONFIG,
   mspagent: MSPAGENT_CONFIG,
-  halopsa: HALOPSA_CONFIG,
+  halopsa: HALOPSA_CONFIG
 };
 
 export function getIntegration(id: ProviderId): Integration {
@@ -41,8 +41,8 @@ export function getAllDbRoutedFacets(): {
       .map((t) => ({
         providerId: integration.id,
         facet: t.facet,
-        db: t.db,
-      })),
+        db: t.db
+      }))
   );
 }
 

@@ -19,6 +19,7 @@
     "test:e2e": "turbo run test:e2e --filter=frontend",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:clean": "docker compose -f infra/docker-compose.yml down -v",
     "db:generate": "turbo run db:generate --filter=@mspbyte/drizzle",
     "db:migrate": "turbo run db:migrate --filter=@mspbyte/drizzle",
     "db:push": "turbo run db:push --filter=@mspbyte/drizzle",

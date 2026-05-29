@@ -89,6 +89,9 @@ function addWithDependencies(
   facet: ProviderFacet,
   selected: Set<ProviderFacet>,
   known: Set<ProviderFacet>,
+  contexts: SyncContextLike[],
+  now: Date,
+  force: boolean,
   integrationConfig?: Record<string, unknown>,
   linkMeta?: Record<string, unknown>,
 ) {
@@ -97,7 +100,11 @@ function addWithDependencies(
 
   const cfg = mergeFacetConfig(providerId, facet, integrationConfig, linkMeta);
   for (const dependency of cfg.dependencies ?? []) {
-    addWithDependencies(providerId, dependency, selected, known, integrationConfig, linkMeta);
+    if (!force) {
+      const { due } = isFacetDue(providerId, dependency, contexts, now, integrationConfig, linkMeta);
+      if (!due) continue;
+    }
+    addWithDependencies(providerId, dependency, selected, known, contexts, now, force, integrationConfig, linkMeta);
   }
 }
 
@@ -155,7 +162,7 @@ export function resolveFacetPlan(params: ResolveFacetPlanParams): ResolvedFacetP
     }
 
     if (includeDependencies) {
-      addWithDependencies(providerId, facet, selected, known, integrationConfig, linkMeta);
+      addWithDependencies(providerId, facet, selected, known, contexts, now, force, integrationConfig, linkMeta);
     } else {
       selected.add(facet);
     }

@@ -1,5 +1,6 @@
 import { ProviderFacet } from '../../../libs/provider.js';
 import type { Integration } from '../../../types/integration.js';
+import { SyncIntervals } from '../intervals.js';
 import { M365PoliciesShape } from './policies.js';
 
 export const CONSENT_VERSION = 4;
@@ -20,70 +21,91 @@ export const M365_INTEGRATION_CONFIG: Integration = {
       scopeLevel: 'link',
       db: { table: 'm365Identities', name: 'M365 Identities', shape: {} },
       sync: {
-        intervalMs: 60 * 60 * 1000,
+        intervalMs: SyncIntervals['1_HOURS'],
         dependencies: [ProviderFacet.M365CAPolicies, ProviderFacet.M365Groups]
       }
     },
     {
       facet: ProviderFacet.M365AuthMethods,
       scopeLevel: 'link',
-      db: { table: 'm365AuthMethods', name: 'M365 Auth Methods', shape: {} }
+      db: { table: 'm365AuthMethods', name: 'M365 Auth Methods', shape: {} },
+      sync: {
+        intervalMs: SyncIntervals['4_HOURS'],
+        dependencies: [ProviderFacet.M365Identities]
+      }
     },
     {
       facet: ProviderFacet.M365Groups,
       scopeLevel: 'link',
-      db: { table: 'm365Groups', name: 'M365 Groups', shape: {} }
+      db: { table: 'm365Groups', name: 'M365 Groups', shape: {} },
+      sync: {
+        intervalMs: SyncIntervals['8_HOURS']
+      }
     },
     {
       facet: ProviderFacet.M365Licenses,
       scopeLevel: 'link',
-      db: { table: 'm365Licenses', name: 'M365 Roles', shape: {} }
+      db: { table: 'm365Licenses', name: 'M365 Roles', shape: {} },
+      sync: {
+        intervalMs: SyncIntervals['24_HOURS']
+      }
     },
     {
       facet: ProviderFacet.M365CAPolicies,
       scopeLevel: 'link',
-      db: { table: 'm365Policies', name: 'M365 CA Policies', shape: M365PoliciesShape }
+      db: { table: 'm365Policies', name: 'M365 CA Policies', shape: M365PoliciesShape },
+      sync: {
+        intervalMs: SyncIntervals['24_HOURS'],
+        dependencies: [ProviderFacet.M365Identities, ProviderFacet.M365Groups]
+      }
     },
     {
       facet: ProviderFacet.M365ExchangeConfig,
       scopeLevel: 'link',
-      db: { table: 'm365ExchangeConfigs', name: 'M365 Exchange', shape: {} }
+      db: { table: 'm365ExchangeConfigs', name: 'M365 Exchange', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.M365Devices,
       scopeLevel: 'link',
-      db: { table: 'm365Devices', name: 'M365 Devices', shape: {} }
+      db: { table: 'm365Devices', name: 'M365 Devices', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.M365OAuthGrants,
       scopeLevel: 'link',
-      db: { table: 'm365OAuthGrants', name: 'M365 OAuth Grants', shape: {} }
+      db: { table: 'm365OAuthGrants', name: 'M365 OAuth Grants', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.M365DomainConfig,
       scopeLevel: 'link',
-      db: { table: 'm365DomainConfig', name: 'M365 Domains', shape: {} }
+      db: { table: 'm365DomainConfig', name: 'M365 Domains', shape: {} },
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.M365TeamsConfig,
       scopeLevel: 'link',
       db: { table: 'm365TeamsConfig', name: 'M365 Teams', shape: {} },
-      sync: { intervalMs: 24 * 60 * 60 * 1000 }
+      sync: { intervalMs: SyncIntervals['24_HOURS'] }
     },
     {
       facet: ProviderFacet.M365RiskyUsers,
       scopeLevel: 'link',
-      db: { table: 'm365RiskyUsers', name: 'M365 Risky Users', shape: {} }
+      db: { table: 'm365RiskyUsers', name: 'M365 Risky Users', shape: {} },
+      sync: { intervalMs: SyncIntervals['2_HOURS'] }
     },
     {
       facet: ProviderFacet.M365MailboxForwarding,
       scopeLevel: 'link',
-      db: { table: 'm365MailboxForwarding', name: 'M365 Mailbox Forwarding', shape: {} }
+      db: { table: 'm365MailboxForwarding', name: 'M365 Mailbox Forwarding', shape: {} },
+      sync: { intervalMs: SyncIntervals['8_HOURS'] }
     },
     {
       facet: ProviderFacet.M365InboxRules,
       scopeLevel: 'link',
-      db: { table: 'm365InboxRules', name: 'M365 Inbox Rules', shape: {} }
+      db: { table: 'm365InboxRules', name: 'M365 Inbox Rules', shape: {} },
+      sync: { intervalMs: SyncIntervals['12_HOURS'] }
     }
   ],
   navigation: [
