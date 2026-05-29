@@ -7,21 +7,21 @@ import { env } from '../env.js';
 import type { FastifyInstance } from 'fastify';
 
 const BodySchema = z.object({
-  site_id: z.string().uuid(),
+  site_id: z.uuid(),
   hostname: z.string(),
   version: z.string(),
   platform: z.string(),
-  device_id: z.string().uuid().optional().nullable(),
+  device_id: z.uuid().optional().nullable(),
   mac: z.string().optional().nullable(),
   ip_address: z.string().optional().nullable(),
   ext_address: z.string().optional().nullable()
 });
 
 export function registerRoute(fastify: FastifyInstance) {
-  fastify.post('/api/v1.0/register', async (req, reply) => {
+  fastify.post('/v1.0/register', async (req, reply) => {
     const body = BodySchema.safeParse(req.body);
     if (!body.success) {
-      return reply.status(400).send({ error: 'Invalid request body', issues: body.error.issues });
+      return reply.status(400).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Invalid request body' } });
     }
 
     const { site_id, hostname, version, platform, device_id, mac, ip_address, ext_address } =
@@ -31,13 +31,13 @@ export function registerRoute(fastify: FastifyInstance) {
     try {
       ({ db } = await getTenantServiceDb(env.ORG_ID));
     } catch {
-      return reply.status(404).send({ error: 'Org not found' });
+      return reply.status(404).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Org not found' } });
     }
 
     // Verify site exists in this org's MSP DB
     const [site] = await db.select().from(sites).where(eq(sites.id, site_id)).limit(1);
     if (!site) {
-      return reply.status(404).send({ error: 'Site not found' });
+      return reply.status(404).send({ error: { module: 'v1.0/register', context: 'POST', message: 'Site not found' } });
     }
 
     const now = new Date();
@@ -106,6 +106,6 @@ export function registerRoute(fastify: FastifyInstance) {
       timeElapsedMs: 0
     });
 
-    return reply.status(200).send({ device_id: agentId, guid: agentId });
+    return reply.status(200).send({ data: { device_id: agentId, guid: agentId } });
   });
 }

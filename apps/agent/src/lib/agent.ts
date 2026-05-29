@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Logger, APIResponse } from '@workspace/shared/lib/utils/logger';
+import { Logger, type APIResponse } from '@/lib/logger';
 
 export type AgentSettings = {
   site_id: string;

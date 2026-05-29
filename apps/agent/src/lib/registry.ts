@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Logger, APIResponse } from '@workspace/shared/lib/utils/logger';
+import { Logger, type APIResponse } from '@/lib/logger';
 
 export async function getRegistryValue(path: string, key: string): Promise<APIResponse<string>> {
   try {

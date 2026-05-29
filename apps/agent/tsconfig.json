@@ -20,8 +20,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@workspace/shared/*": ["../../packages/shared/src/*"]
+      "@/*": ["./src/*"]
     },
     "types": []
   },

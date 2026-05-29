@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "dev:agent": "turbo run dev --filter=agent --filter=agents",
     "dev:web": "turbo run dev --filter=frontend --filter=api --filter=@mspbyte/trpc --filter=@mspbyte/shared",
     "dev:api": "turbo run dev --filter=api",
     "dev:pipeline": "turbo run dev --filter=pipeline --filter=ingestion --filter=alerts --filter=compliance",

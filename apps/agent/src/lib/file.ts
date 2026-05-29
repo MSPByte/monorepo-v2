@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Logger, APIResponse } from '@workspace/shared/lib/utils/logger';
+import { Logger, type APIResponse } from '@/lib/logger';
 
 export async function takeScreenshot(): Promise<APIResponse<string>> {
   try {

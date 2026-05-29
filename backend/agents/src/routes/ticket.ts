@@ -58,19 +58,19 @@ function buildDetailsHtml(params: {
 }
 
 export function ticketRoute(fastify: FastifyInstance) {
-  fastify.post('/api/v1.0/ticket/create', async (req, reply) => {
+  fastify.post('/v1.0/ticket/create', async (req, reply) => {
     const siteId = req.headers['x-site-id'] as string | undefined;
     const deviceId = req.headers['x-device-id'] as string | undefined;
 
     if (!siteId || !deviceId) {
-      return reply.status(401).send({ error: 'Missing x-site-id or x-device-id headers' });
+      return reply.status(401).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Missing x-site-id or x-device-id headers' } });
     }
 
     let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
     try {
       ({ db } = await getTenantServiceDb(env.ORG_ID));
     } catch {
-      return reply.status(404).send({ error: 'Org not found' });
+      return reply.status(404).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Org not found' } });
     }
 
     const [[agent], [site]] = await Promise.all([
@@ -79,7 +79,7 @@ export function ticketRoute(fastify: FastifyInstance) {
     ]);
 
     if (!agent || !site) {
-      return reply.status(404).send({ error: 'Agent or site not found' });
+      return reply.status(404).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Agent or site not found' } });
     }
 
     // Parse body — multipart or JSON
@@ -114,7 +114,7 @@ export function ticketRoute(fastify: FastifyInstance) {
 
     const bodyResult = BodySchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return reply.status(400).send({ error: 'Invalid request body', issues: bodyResult.error.issues });
+      return reply.status(400).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Invalid request body' } });
     }
 
     const body = bodyResult.data;
@@ -129,7 +129,7 @@ export function ticketRoute(fastify: FastifyInstance) {
 
     if (!psaIntegration || !psaLink) {
       logger.warn({ siteId, deviceId }, 'PSA not configured for site');
-      return reply.status(200).send({ ticket_id: null, error: 'PSA not configured' });
+      return reply.status(200).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'PSA not configured' } });
     }
 
     const psaConfig = PSAConfigSchema.parse(psaIntegration.config);
@@ -240,7 +240,7 @@ export function ticketRoute(fastify: FastifyInstance) {
       ticketId = await connector.tickets.create(ticketBody);
     } catch (err) {
       logger.error({ err, hostname: agent.hostname }, 'Failed to create HaloPSA ticket');
-      return reply.status(500).send({ error: 'Failed to create ticket' });
+      return reply.status(500).send({ error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Failed to create ticket' } });
     }
 
     logger.info({ ticketId, hostname: agent.hostname, clientId: psaParentCompanyId }, 'HaloPSA ticket created');
@@ -271,6 +271,6 @@ export function ticketRoute(fastify: FastifyInstance) {
       // non-fatal
     }
 
-    return reply.status(200).send({ ticket_id: ticketId });
+    return reply.status(200).send({ data: ticketId });
   });
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/agent",
+  "name": "agent",
   "private": true,
   "version": "0.1.21",
   "type": "module",
@@ -22,7 +22,7 @@
     "@tauri-apps/plugin-notification": "~2",
     "@tauri-apps/plugin-opener": "~2",
     "@tauri-apps/plugin-store": "~2",
-    "@mspbyte/shared": "workspace:*",
+
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
