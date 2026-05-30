@@ -95,7 +95,7 @@ export const alerts = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     definitionId: text('definition_id'),
-    linkId: uuid('link_id').references(() => integrationLinks.id),
+    linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     entityType: text('entity_type'),
     entityRef: text('entity_ref'),

@@ -54,7 +54,8 @@
 
   const linksQuery = createQuery(() => ({
     queryKey: ['integrationLinks.list', integration],
-    queryFn: () => trpc.integrationLinks.list.query({ integrationId: integration, status: 'active' }),
+    queryFn: () =>
+      trpc.integrationLinks.list.query({ integrationId: integration, status: 'active' }),
     enabled: isConfigured,
   }));
 
@@ -66,18 +67,21 @@
   const createLinkMutation = createMutation(() => ({
     mutationFn: (input: Parameters<typeof trpc.integrationLinks.create.mutate>[0]) =>
       trpc.integrationLinks.create.mutate(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
   }));
 
   const updateLinkMutation = createMutation(() => ({
     mutationFn: (input: Parameters<typeof trpc.integrationLinks.update.mutate>[0]) =>
       trpc.integrationLinks.update.mutate(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
   }));
 
   const deleteLinkMutation = createMutation(() => ({
     mutationFn: (ids: string[]) => trpc.integrationLinks.delete.mutate({ ids }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
   }));
 
   const dbSites = $derived(sitesQuery.data ?? []);
@@ -88,22 +92,20 @@
     Object.fromEntries(
       dbLinks
         .filter((l) => !!l.siteId && !!l.externalId)
-        .map((l) => [l.siteId as string, l.externalId]),
-    ),
+        .map((l) => [l.siteId as string, l.externalId])
+    )
   );
   const committedDispositions = $derived(
     Object.fromEntries(
       dbLinks
         .filter((l) => !!l.siteId && !!l.disposition)
-        .map((l) => [l.siteId as string, l.disposition as DispositionType]),
-    ),
+        .map((l) => [l.siteId as string, l.disposition as DispositionType])
+    )
   );
   const committedNotes = $derived(
     Object.fromEntries(
-      dbLinks
-        .filter((l) => !!l.siteId && !!l.note)
-        .map((l) => [l.siteId as string, l.note!]),
-    ),
+      dbLinks.filter((l) => !!l.siteId && !!l.note).map((l) => [l.siteId as string, l.note!])
+    )
   );
 
   let pendingMappings = $state<Record<string, string | undefined>>({});
@@ -138,19 +140,20 @@
   });
 
   const linkedSiteIds = $derived(
-    new Set(Object.keys(pendingMappings).filter((k) => !!pendingMappings[k])),
+    new Set(Object.keys(pendingMappings).filter((k) => !!pendingMappings[k]))
   );
   const dispositionedSiteIds = $derived(
-    new Set(Object.keys(pendingDispositions).filter((k) => !!pendingDispositions[k])),
+    new Set(Object.keys(pendingDispositions).filter((k) => !!pendingDispositions[k]))
   );
 
   const isDirty = $derived(
     dbSites.some((s) => {
       const mappingDiff = (pendingMappings[s.id] ?? null) !== (committedMappings[s.id] ?? null);
-      const dispositionDiff = (pendingDispositions[s.id] ?? null) !== (committedDispositions[s.id] ?? null);
+      const dispositionDiff =
+        (pendingDispositions[s.id] ?? null) !== (committedDispositions[s.id] ?? null);
       const noteDiff = (pendingNotes[s.id] || null) !== (committedNotes[s.id] || null);
       return mappingDiff || dispositionDiff || noteDiff;
-    }),
+    })
   );
 
   const metrics = $derived({
@@ -165,21 +168,22 @@
       .filter((s) => s.name.toLowerCase().includes(siteSearch.toLowerCase()))
       .filter((s) => {
         if (activeFilter === 'Linked') return linkedSiteIds.has(s.id);
-        if (activeFilter === 'Unlinked') return !linkedSiteIds.has(s.id) && !dispositionedSiteIds.has(s.id);
+        if (activeFilter === 'Unlinked')
+          return !linkedSiteIds.has(s.id) && !dispositionedSiteIds.has(s.id);
         if (activeFilter === 'Dispositioned') return dispositionedSiteIds.has(s.id);
         return true;
       })
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
   );
 
   const mappedExternalIds = $derived(
-    new Set(Object.values(pendingMappings).filter(Boolean) as string[]),
+    new Set(Object.values(pendingMappings).filter(Boolean) as string[])
   );
   const unmappedExternal = $derived(
     externalOptions
       .filter((o) => !mappedExternalIds.has(o.id))
       .filter((o) => o.name.toLowerCase().includes(unmappedSearch.toLowerCase()))
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
   );
 
   function setMapping(siteId: string, externalId: string | undefined) {
@@ -193,7 +197,11 @@
   }
 
   function normalize(s: string): string[] {
-    return s.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+    return s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(Boolean);
   }
 
   function jaccardSimilarity(a: string, b: string): number {
@@ -215,9 +223,15 @@
       for (const opt of externalOptions) {
         if (taken.has(opt.id)) continue;
         const score = jaccardSimilarity(site.name, opt.name);
-        if (score > bestScore) { bestScore = score; bestId = opt.id; }
+        if (score > bestScore) {
+          bestScore = score;
+          bestId = opt.id;
+        }
       }
-      if (bestId) { next[site.id] = bestId; taken.add(bestId); }
+      if (bestId) {
+        next[site.id] = bestId;
+        taken.add(bestId);
+      }
     }
     pendingMappings = next;
   }
@@ -227,7 +241,8 @@
     try {
       const changes = dbSites.filter((s) => {
         const mappingDiff = (pendingMappings[s.id] ?? null) !== (committedMappings[s.id] ?? null);
-        const dispositionDiff = (pendingDispositions[s.id] ?? null) !== (committedDispositions[s.id] ?? null);
+        const dispositionDiff =
+          (pendingDispositions[s.id] ?? null) !== (committedDispositions[s.id] ?? null);
         const noteDiff = (pendingNotes[s.id] || null) !== (committedNotes[s.id] || null);
         return mappingDiff || dispositionDiff || noteDiff;
       });
@@ -284,6 +299,7 @@
         externalId: opt.id,
         name: opt.name,
         status: 'active',
+        meta: opt.meta,
       });
       toast.success(`Site "${opt.name}" created and linked!`);
       await queryClient.invalidateQueries({ queryKey: ['sites.list'] });
@@ -415,7 +431,7 @@
           {@const takenByOthers = new Set(
             Object.entries(pendingMappings)
               .filter(([k, v]) => k !== site.id && !!v)
-              .map(([, v]) => v as string),
+              .map(([, v]) => v as string)
           )}
           {@const rowOptions = externalOptions
             .filter((o) => !takenByOthers.has(o.id))
@@ -426,15 +442,24 @@
             <div class="flex items-center gap-2 min-w-0">
               <span class="font-medium text-sm truncate">{site.name}</span>
               {#if isLinked}
-                <Badge class="text-xs shrink-0 bg-primary/15 text-primary border-primary/30" variant="outline">
+                <Badge
+                  class="text-xs shrink-0 bg-primary/15 text-primary border-primary/30"
+                  variant="outline"
+                >
                   LINKED
                 </Badge>
               {:else if isDispositioned}
-                <Badge class="text-xs shrink-0 bg-warning/15 text-warning border-warning/30" variant="outline">
+                <Badge
+                  class="text-xs shrink-0 bg-warning/15 text-warning border-warning/30"
+                  variant="outline"
+                >
                   {disposition === 'third_party' ? 'THIRD PARTY' : 'NOT MANAGED'}
                 </Badge>
               {:else}
-                <Badge class="text-xs shrink-0 bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30" variant="outline">
+                <Badge
+                  class="text-xs shrink-0 bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30"
+                  variant="outline"
+                >
                   UNLINKED
                 </Badge>
               {/if}
@@ -501,7 +526,9 @@
     >
       <div class="flex items-center gap-2">
         <span class="text-sm font-medium text-warning">
-          {unmappedExternal.length} unmapped {externalLabel}{unmappedExternal.length !== 1 ? 's' : ''}
+          {unmappedExternal.length} unmapped {externalLabel}{unmappedExternal.length !== 1
+            ? 's'
+            : ''}
         </span>
         <span class="text-xs text-muted-foreground">not linked to any site</span>
       </div>
@@ -509,7 +536,11 @@
         <Search
           class="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none"
         />
-        <Input bind:value={unmappedSearch} placeholder="Search unmapped..." class="h-7 pl-7 text-xs" />
+        <Input
+          bind:value={unmappedSearch}
+          placeholder="Search unmapped..."
+          class="h-7 pl-7 text-xs"
+        />
       </div>
     </div>
 

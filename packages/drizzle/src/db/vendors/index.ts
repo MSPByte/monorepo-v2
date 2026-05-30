@@ -20,7 +20,7 @@ export const m365Identities = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     name: text('name').notNull(),
@@ -46,7 +46,7 @@ export const m365Groups = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -70,7 +70,7 @@ export const m365IdentityGroups = vendorsSchema.table(
       .references(() => m365Groups.id, { onDelete: 'cascade' }),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
   },
@@ -100,7 +100,7 @@ export const m365IdentityRoles = vendorsSchema.table(
       .references(() => m365Roles.id, { onDelete: 'cascade' }),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
   },
@@ -113,7 +113,7 @@ export const m365Policies = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -187,7 +187,7 @@ export const m365Licenses = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     skuId: text('sku_id').notNull(),
     skuPartNumber: text('sku_part_number').notNull(),
@@ -212,7 +212,7 @@ export const m365ExchangeConfigs = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     rejectDirectSend: boolean('reject_direct_send').notNull(),
     autoForwardingMode: text('auto_forwarding_mode'),
@@ -231,7 +231,7 @@ export const sophosEndpoints = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     hostname: text('hostname').notNull(),
@@ -260,7 +260,7 @@ export const sophosFirewalls = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     name: text('name').notNull(),
@@ -288,7 +288,7 @@ export const sophosLicenses = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     licenseId: text('license_id').notNull(),
@@ -314,7 +314,7 @@ export const dattoEndpoints = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     hostname: text('hostname').notNull(),
@@ -339,7 +339,7 @@ export const coveEndpoints = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id),
     externalId: text('external_id').notNull(),
     endpointName: text('endpoint_name').notNull(),
@@ -369,7 +369,7 @@ export const m365AuthMethods = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     identityExternalId: text('identity_external_id').notNull(),
     type: text('type').notNull(),
@@ -388,7 +388,7 @@ export const m365Devices = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     displayName: text('display_name').notNull(),
     operatingSystem: text('operating_system'),
@@ -411,7 +411,7 @@ export const m365OAuthGrants = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     clientId: text('client_id').notNull(),
     clientDisplayName: text('client_display_name'),
@@ -433,7 +433,7 @@ export const m365DomainConfig = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     domainName: text('domain_name').notNull(),
     spfRecord: text('spf_record'),
@@ -456,7 +456,7 @@ export const m365TeamsConfig = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     allowAnonymousUsersToJoinMeeting: boolean('allow_anonymous_users_to_join_meeting'),
     allowExternalParticipantGiveRequestControl: boolean(
@@ -481,7 +481,7 @@ export const m365RiskyUsers = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     userPrincipalName: text('user_principal_name').notNull(),
     userDisplayName: text('user_display_name'),
@@ -502,7 +502,7 @@ export const m365MailboxForwarding = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     userPrincipalName: text('user_principal_name').notNull(),
     forwardingAddress: text('forwarding_address'),
@@ -521,7 +521,7 @@ export const m365InboxRules = vendorsSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     linkId: uuid('link_id')
       .notNull()
-      .references(() => integrationLinks.id),
+      .references(() => integrationLinks.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     mailboxUpn: text('mailbox_upn').notNull(),
     ruleName: text('rule_name').notNull(),

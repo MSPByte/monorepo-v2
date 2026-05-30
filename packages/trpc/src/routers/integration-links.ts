@@ -102,7 +102,7 @@ export const integrationLinksRouter = t.router({
     }),
 
   delete: authProcedure
-    .input(z.object({ ids: z.array(z.string().uuid()) }))
+    .input(z.object({ ids: z.array(z.uuid()) }))
     .mutation(async ({ ctx, input }): Promise<void> => {
       if (input.ids.length === 0) return;
       await ctx.db.delete(integrationLinks).where(inArray(integrationLinks.id, input.ids));

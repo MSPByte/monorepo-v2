@@ -57,7 +57,7 @@ export const complianceAssignments = complianceSchema.table(
       .references(() => complianceFrameworks.id, { onDelete: 'cascade' }),
     siteId: uuid('site_id').references(() => sites.id, { onDelete: 'cascade' }),
     integrationId: text('integration_id').references(() => integrations.id),
-    linkId: uuid('link_id').references(() => integrationLinks.id),
+    linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -72,7 +72,7 @@ export const complianceResults = complianceSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     frameworkCheckId: uuid('framework_check_id').references(() => complianceFrameworkChecks.id),
     siteId: uuid('site_id').references(() => sites.id),
-    linkId: uuid('link_id').references(() => integrationLinks.id),
+    linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
     status: text('status', { enum: ['pass', 'fail', 'suppressed', 'error'] }).notNull(),
     detail: jsonb('detail'),
     evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull().defaultNow(),
