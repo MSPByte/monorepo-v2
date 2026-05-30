@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { FlowProducer } from 'bullmq';
 import { eq, and, isNull } from 'drizzle-orm';
 import { createCatalogDb, createTenantDb } from '@mspbyte/drizzle-catalog';
@@ -74,7 +75,7 @@ export async function scheduleIngestion(
         continue;
       }
 
-      const ingestRunId = crypto.randomUUID();
+      const ingestRunId = randomUUID();
       const linkMeta = (link.meta as Record<string, unknown> | null) ?? {};
       const config = (integrationConfig as Record<string, unknown> | null) ?? {};
       const { facets, skipped } = resolveFacetPlan({
@@ -178,7 +179,7 @@ export async function scheduleLink(
   if (providerFacets.length === 0)
     throw new Error(`No facets registered for provider: ${providerId}`);
 
-  const ingestRunId = crypto.randomUUID();
+  const ingestRunId = randomUUID();
   const linkMeta = (row.link.meta as Record<string, unknown> | null) ?? {};
   const config = (row.integrationConfig as Record<string, unknown> | null) ?? {};
   const { facets } = resolveFacetPlan({
