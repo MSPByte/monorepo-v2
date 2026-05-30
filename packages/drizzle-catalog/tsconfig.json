@@ -1,13 +1,9 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "types": ["node"],
-    "paths": {
-      "@mspbyte/drizzle-catalog/*": ["./src/*"]
-    }
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "drizzle"]
