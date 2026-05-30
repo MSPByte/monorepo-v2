@@ -99,5 +99,42 @@ export const usersRouter = t.router({
       const [role] = await ctx.db.select().from(roles).where(eq(roles.id, input.roleId)).limit(1);
 
       return { ...tenantUser, role: role ?? null };
+    }),
+
+  delete: authProcedure
+    .input(z.object({ id: z.uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const attrs = (ctx.role.attributes as Record<string, boolean>) ?? null;
+      if (!hasPermission(attrs, 'Users.Delete')) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Users.Delete permission required' });
+      }
+
+      const [tenantUser] = await ctx.db
+        .select()
+        .from(users)
+        .where(eq(users.id, input.id))
+        .limit(1);
+
+      if (!tenantUser) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+      }
+
+      if (tenantUser.authUserId === ctx.userId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot delete yourself' });
+      }
+
+      await ctx.db.delete(users).where(eq(users.id, input.id));
+
+      const catalogDb = getCatalogDb();
+      await catalogDb
+        .delete(catalogMember)
+        .where(
+          and(
+            eq(catalogMember.userId, tenantUser.authUserId),
+            eq(catalogMember.organizationId, ctx.orgId)
+          )
+        );
+
+      return { success: true };
     })
 });

@@ -33,6 +33,7 @@
     filterMap,
     defaultPageSize = 100,
     defaultSort,
+    refreshKey = 0,
     onrowclick,
     onselectionchange,
   }: DataTableProps<TData> = $props();
@@ -200,7 +201,7 @@
     window.history.replaceState(window.history.state, '', url.toString());
   }
 
-  // Refetch on pagination/filter/sort changes
+  // Refetch on pagination/filter/sort changes or external refresh
   $effect(() => {
     currentPage;
     pageSize;
@@ -209,6 +210,7 @@
     activeViewId;
     sortField;
     sortDir;
+    refreshKey;
 
     untrack(() => {
       fetchData();
@@ -326,6 +328,12 @@
     }
   }
 
+  // Destructive action confirmation state
+  let confirmDialogOpen = $state(false);
+  let pendingAction = $state<RowAction<TData> | null>(null);
+  let pendingActionRows = $state<TData[]>([]);
+  let actionRunning = $state(false);
+
   // Export modal state
   let exportModalOpen = $state(false);
   let pendingExportFormat = $state<'csv' | 'xlsx' | null>(null);
@@ -343,19 +351,42 @@
     await exportData(result.rows, columns, pendingExportFormat, keys);
   }
 
-  async function handleAction(action: RowAction<TData>) {
-    let rows: TData[];
+  async function resolveActionRows(): Promise<TData[]> {
     if (allSelected) {
       const result = await fetchDataProp(
         buildPaginationInput({ page: 0, pageSize: total || 10000 })
       );
-      rows = result.rows;
-    } else {
-      rows = selectedRows;
+      return result.rows;
+    }
+    return selectedRows;
+  }
+
+  async function handleAction(action: RowAction<TData>) {
+    const rows = await resolveActionRows();
+    if (action.variant === 'destructive') {
+      pendingAction = action;
+      pendingActionRows = rows;
+      confirmDialogOpen = true;
+      return;
     }
     await action.onclick(rows, fetchData);
     allSelected = false;
     selectedRowIds = new Set();
+  }
+
+  async function confirmDestructiveAction() {
+    if (!pendingAction) return;
+    actionRunning = true;
+    try {
+      await pendingAction.onclick(pendingActionRows, fetchData);
+      allSelected = false;
+      selectedRowIds = new Set();
+    } finally {
+      actionRunning = false;
+      confirmDialogOpen = false;
+      pendingAction = null;
+      pendingActionRows = [];
+    }
   }
 </script>
 
@@ -516,7 +547,8 @@
             disabled={!allSelected && action.disabled ? action.disabled(selectedRows) : false}
           >
             {#if action.icon}
-              <span class="mr-2">{@render action.icon()}</span>
+              {@const Icon = action.icon}
+              <Icon class="h-4 w-4 mr-2" />
             {/if}
             {action.label}
           </Button>
@@ -549,6 +581,26 @@
       <div class="flex gap-2 justify-end">
         <Button variant="outline" onclick={() => executeExport('visible')}>Visible columns</Button>
         <Button onclick={() => executeExport('all')}>All columns</Button>
+      </div>
+    </Dialog.Content>
+  </Dialog.Root>
+
+  <!-- Destructive action confirmation -->
+  <Dialog.Root bind:open={confirmDialogOpen}>
+    <Dialog.Content class="max-w-sm">
+      <Dialog.Header>
+        <Dialog.Title>{pendingAction?.label ?? 'Confirm'}</Dialog.Title>
+        <Dialog.Description>
+          Are you sure you want to {pendingAction?.label?.toLowerCase() ?? 'perform this action on'}
+          {pendingActionRows.length} {pendingActionRows.length === 1 ? 'row' : 'rows'}?
+          This cannot be undone.
+        </Dialog.Description>
+      </Dialog.Header>
+      <div class="flex gap-2 justify-end">
+        <Button variant="outline" onclick={() => (confirmDialogOpen = false)}>Cancel</Button>
+        <Button variant="destructive" disabled={actionRunning} onclick={confirmDestructiveAction}>
+          {actionRunning ? 'Processing...' : pendingAction?.label ?? 'Confirm'}
+        </Button>
       </div>
     </Dialog.Content>
   </Dialog.Root>

@@ -1,10 +1,14 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery } from '@tanstack/svelte-query';
   import { enhance } from '$app/forms';
   import type { createTrpcClient } from '$lib/trpc';
   import { DataTable } from '$lib/components/data-table';
-  import type { DataTableColumn, PaginationInput } from '$lib/components/data-table/types';
+  import type {
+    DataTableColumn,
+    PaginationInput,
+    RowAction,
+  } from '$lib/components/data-table/types';
   import { authStore } from '$lib/stores/auth.store.svelte';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Button } from '$lib/components/ui/button';
@@ -12,15 +16,16 @@
   import { Label } from '$lib/components/ui/label';
   import SingleSelect from '$lib/components/single-select.svelte';
   import UserPlusIcon from '@lucide/svelte/icons/user-plus';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
   import Separator from '$lib/components/ui/separator/separator.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
-  const queryClient = useQueryClient();
 
   let addDialogOpen = $state(false);
   let formError = $state<string | null>(null);
   let submitting = $state(false);
   let selectedRoleId = $state<string | undefined>(undefined);
+  let refreshKey = $state(0);
 
   const rolesQuery = createQuery(() => ({
     queryKey: ['roles.list'],
@@ -45,11 +50,24 @@
     { key: 'role', title: 'Role', sortable: true },
   ];
 
+  const rowActions: RowAction<UserRow>[] = $derived.by(() =>
+    authStore.isAllowed('Users.Delete')
+      ? [
+          {
+            label: 'Delete',
+            icon: Trash2,
+            variant: 'destructive',
+            async onclick(rows) {
+              await Promise.all(rows.map((r) => trpc.users.delete.mutate({ id: r.id })));
+              refreshKey++;
+            },
+          },
+        ]
+      : []
+  );
+
   async function fetchData(opts: PaginationInput): Promise<{ rows: UserRow[]; total: number }> {
-    const raw = await queryClient.fetchQuery({
-      queryKey: ['users.list'],
-      queryFn: () => trpc.users.list.query(),
-    });
+    const raw = await trpc.users.list.query();
 
     const rows: UserRow[] = raw.map((u) => ({
       id: u.id,
@@ -115,7 +133,7 @@
                   if (result.type === 'success') {
                     addDialogOpen = false;
                     selectedRoleId = undefined;
-                    queryClient.invalidateQueries({ queryKey: ['users.list'] });
+                    refreshKey++;
                     await update();
                   } else if (result.type === 'failure') {
                     formError =
@@ -169,6 +187,9 @@
     <DataTable
       {columns}
       {fetchData}
+      {refreshKey}
+      {rowActions}
+      enableRowSelection={rowActions.length > 0}
       enableGlobalSearch
       enableFilters={false}
       enableExport={false}

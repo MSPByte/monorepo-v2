@@ -1,33 +1,34 @@
-import type { Component, Snippet } from "svelte";
+import type { LucideProps } from '@lucide/svelte';
+import type { Component, Snippet } from 'svelte';
 
 export type FilterOperator =
-  | "eq"
-  | "neq"
-  | "lt"
-  | "lte"
-  | "gt"
-  | "gte"
-  | "like"
-  | "ilike"
-  | "in"
-  | "is"
-  | "not"
-  | "cs"
-  | "cd"
-  | "ov"
-  | "not.eq"
-  | "not.neq"
-  | "not.lt"
-  | "not.lte"
-  | "not.gt"
-  | "not.gte"
-  | "not.like"
-  | "not.ilike"
-  | "not.in"
-  | "not.is"
-  | "not.cs"
-  | "not.cd"
-  | "not.ov";
+  | 'eq'
+  | 'neq'
+  | 'lt'
+  | 'lte'
+  | 'gt'
+  | 'gte'
+  | 'like'
+  | 'ilike'
+  | 'in'
+  | 'is'
+  | 'not'
+  | 'cs'
+  | 'cd'
+  | 'ov'
+  | 'not.eq'
+  | 'not.neq'
+  | 'not.lt'
+  | 'not.lte'
+  | 'not.gt'
+  | 'not.gte'
+  | 'not.like'
+  | 'not.ilike'
+  | 'not.in'
+  | 'not.is'
+  | 'not.cs'
+  | 'not.cd'
+  | 'not.ov';
 
 export interface TableFilter {
   id: string;
@@ -39,7 +40,7 @@ export interface TableFilter {
 
 export type FilterConfig = {
   label?: string;
-  type: "text" | "select" | "date" | "number" | "boolean";
+  type: 'text' | 'select' | 'date' | 'number' | 'boolean';
   operators: FilterOperator[];
   defaultOperator?: FilterOperator;
   options?: { label: string; value: unknown }[];
@@ -57,10 +58,7 @@ export type DataTableColumn<TData> = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cellProps?: Record<string, any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  exportValue?: (context: {
-    row: TData;
-    value: any;
-  }) => string | number | boolean | null;
+  exportValue?: (context: { row: TData; value: any }) => string | number | boolean | null;
   sortable?: boolean;
   searchable?: boolean;
   hideable?: boolean;
@@ -75,19 +73,16 @@ export interface TableView<TData = unknown> {
   label: string;
   description?: string;
   icon?: Component;
-  filters: Omit<TableFilter, "id">[];
-  sort?: { field: string; dir: "asc" | "desc" };
+  filters: Omit<TableFilter, 'id'>[];
+  sort?: { field: string; dir: 'asc' | 'desc' };
   isDefault?: boolean;
 }
 
 export interface RowAction<TData> {
   label: string;
-  icon?: Snippet;
-  onclick: (
-    rows: TData[],
-    fetchData: () => Promise<void>,
-  ) => void | Promise<void>;
-  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
+  icon?: Component<LucideProps, {}, ''>;
+  onclick: (rows: TData[], fetchData: () => Promise<void>) => void | Promise<void>;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost';
   disabled?: (rows: TData[]) => boolean;
 }
 
@@ -98,13 +93,11 @@ export type PaginationInput = {
   globalSearch: string;
   filters: TableFilter[];
   sortField?: string;
-  sortDir?: "asc" | "desc";
+  sortDir?: 'asc' | 'desc';
 };
 
 export interface DataTableProps<TData> {
-  fetchData: (
-    opts: PaginationInput,
-  ) => Promise<{ rows: TData[]; total: number }>;
+  fetchData: (opts: PaginationInput) => Promise<{ rows: TData[]; total: number }>;
   columns: DataTableColumn<TData>[];
   loading?: boolean;
 
@@ -123,7 +116,10 @@ export interface DataTableProps<TData> {
   globalSearchFields?: string[];
   filterMap?: Record<string, string>;
   defaultPageSize?: number;
-  defaultSort?: { field: string; dir: "asc" | "desc" };
+  defaultSort?: { field: string; dir: 'asc' | 'desc' };
+
+  // Bump to force a re-fetch from outside
+  refreshKey?: number;
 
   // Events
   onrowclick?: (row: TData) => void;
@@ -136,7 +132,7 @@ export interface DataTableState {
   globalSearch: string;
   filters: TableFilter[];
   activeViewId?: string;
-  sorting: Record<string, "asc" | "desc">;
+  sorting: Record<string, 'asc' | 'desc'>;
   selectedRows: Set<string>;
   visibleColumns: Set<string>;
 }
