@@ -10,7 +10,7 @@ import {
   recordFetchFailure,
   logRawRecords
 } from '@mspbyte/shared';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
@@ -65,11 +65,11 @@ export function createFetchWorker(redis: Redis) {
         'Fetch job started'
       );
 
-      let tenant: Awaited<ReturnType<typeof getTenantServiceDb>>;
+      let tenant: Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>;
       try {
         tenant = await withTimeout(
           'Tenant service DB lookup',
-          getTenantServiceDb(data.orgId, env.ENCRYPTION_KEY)
+          getTenantServiceDbByOrgId(data.orgId, env.ENCRYPTION_KEY)
         );
       } catch (err) {
         logger.error(

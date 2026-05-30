@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import { QUEUES } from '@mspbyte/shared';
 import type { EnrichJobData } from '@mspbyte/shared';
 import { startStage, completeStage, failStage } from '@mspbyte/shared';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { enrichM365 } from '../adapters/m365/enricher.js';
 import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
@@ -19,7 +19,7 @@ export function createEnrichWorker(redis: Redis) {
         'Enrich job started'
       );
 
-      const { db } = await getTenantServiceDb(data.orgId, env.ENCRYPTION_KEY);
+      const { db } = await getTenantServiceDbByOrgId(data.orgId, env.ENCRYPTION_KEY);
       const stageId = await startStage(
         db,
         data.syncRunId,

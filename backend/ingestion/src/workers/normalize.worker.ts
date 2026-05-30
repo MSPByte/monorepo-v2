@@ -5,7 +5,7 @@ import { vendorTableRegistry } from '@mspbyte/drizzle';
 import type { VendorTableName } from '@mspbyte/drizzle';
 import { startStage, completeStage, failStage, logEntityChanges } from '@mspbyte/shared';
 import type { XmaxRow } from '@mspbyte/shared';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { getM365FacetSchema } from '../adapters/m365/index.js';
 import { getSophosFacetSchema } from '../adapters/sophos/index.js';
@@ -175,7 +175,7 @@ export function createNormalizeWorker(redis: Redis) {
         );
       }
 
-      const { db } = await getTenantServiceDb(data.orgId, env.ENCRYPTION_KEY);
+      const { db } = await getTenantServiceDbByOrgId(data.orgId, env.ENCRYPTION_KEY);
       const stageId = await startStage(
         db,
         data.syncRunId,

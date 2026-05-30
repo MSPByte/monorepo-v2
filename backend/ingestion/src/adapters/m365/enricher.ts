@@ -7,7 +7,7 @@ import {
   m365Groups,
   m365Roles
 } from '@mspbyte/drizzle';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { eq, inArray, and } from 'drizzle-orm';
 import { logger } from '../../logger.js';
 import { env } from '../../env.js';
@@ -38,7 +38,7 @@ const CAPolicyConditionsSchema = z.looseObject({
 });
 
 export async function enrichM365(linkId: string, orgId: string): Promise<void> {
-  const { db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY);
+  const { db } = await getTenantServiceDbByOrgId(orgId, env.ENCRYPTION_KEY);
 
   const [policyDocs, identityDocs] = await Promise.all([
     db

@@ -10,7 +10,7 @@ import {
   m365PolicyGroups,
   m365PolicyRoles
 } from '@mspbyte/drizzle';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { M365Connector } from '@mspbyte/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { logger } from '../../logger.js';
@@ -49,7 +49,7 @@ export async function linkM365(
   }
 
   const connector = new M365Connector(clientId, clientSecret, gdapTenantId);
-  const { db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY);
+  const { db } = await getTenantServiceDbByOrgId(orgId, env.ENCRYPTION_KEY);
   const now = new Date();
 
   const FETCH_CONCURRENCY = 5;

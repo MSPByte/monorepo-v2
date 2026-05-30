@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { roles, users } from '@mspbyte/drizzle';
 import { eq } from 'drizzle-orm';
 import type { Redis } from 'ioredis';
@@ -60,7 +60,9 @@ export async function createContext({ req, redis }: { req: IncomingRequest; redi
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No active organization in session' });
   }
 
-  const result = await getTenantServiceDb(authOrgId, process.env.ENCRYPTION_KEY).catch(() => null);
+  const result = await getTenantServiceDbByOrgId(authOrgId, process.env.ENCRYPTION_KEY).catch(
+    () => null
+  );
   if (!result) {
     throw new TRPCError({
       code: 'NOT_FOUND',

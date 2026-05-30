@@ -2,7 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { QUEUES, MAX_CONSECUTIVE_FAILURES, getFacetTableMap } from '@mspbyte/shared';
 import type { AlertsJobData, ComplianceJobData, ProviderFacet } from '@mspbyte/shared';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import {
   complianceAssignments,
   complianceFrameworks,
@@ -79,7 +79,7 @@ function checkMatchesTouchedTables(
 }
 
 async function enqueueAssignedComplianceJobs(params: {
-  db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
+  db: Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>['db'];
   queue: Queue<ComplianceJobData>;
   orgId: string;
   ingestRunId: string;
@@ -259,9 +259,9 @@ export function createAlertsWorker(redis: Redis) {
     async (job) => {
       const { siteId, linkId, orgId, ingestRunId, syncRunId, mode, facets } = job.data;
 
-      let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
+      let db: Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>['db'];
       try {
-        ({ db } = await getTenantServiceDb(orgId, env.ENCRYPTION_KEY));
+        ({ db } = await getTenantServiceDbByOrgId(orgId, env.ENCRYPTION_KEY));
       } catch (err) {
         logger.error({ orgId, err }, 'Org not found — skipping alerts job');
         return;

@@ -2,7 +2,7 @@ import { building } from '$app/environment';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { auth } from '$lib/server/auth';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { roles, users } from '@mspbyte/drizzle';
 import {
   BETTER_AUTH_SECRET,
@@ -56,7 +56,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
       throw { message: 'No active organization', state: 'invalid' };
     }
 
-    const result = await getTenantServiceDb(authOrgId, ENCRYPTION_KEY, CATALOG_DATABASE_URL);
+    const result = await getTenantServiceDbByOrgId(authOrgId, ENCRYPTION_KEY, CATALOG_DATABASE_URL);
     if (!result) {
       throw { message: 'Org not found', state: 'invalid' };
     }
