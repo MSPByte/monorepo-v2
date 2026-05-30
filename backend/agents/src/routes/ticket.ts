@@ -8,7 +8,7 @@ import {
   integrations,
   integrationLinks
 } from '@mspbyte/drizzle';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { HaloPSAConnector, Encryption } from '@mspbyte/shared';
 import type { HaloPSAAsset, HaloPSASite } from '@mspbyte/shared';
 import { logger } from '../logger.js';
@@ -72,26 +72,22 @@ export function ticketRoute(fastify: FastifyInstance) {
     const deviceId = req.headers['x-device-id'] as string | undefined;
 
     if (!siteId || !deviceId) {
-      return reply
-        .status(401)
-        .send({
-          error: {
-            module: 'v1.0/ticket/create',
-            context: 'POST',
-            message: 'Missing x-site-id or x-device-id headers'
-          }
-        });
+      return reply.status(401).send({
+        error: {
+          module: 'v1.0/ticket/create',
+          context: 'POST',
+          message: 'Missing x-site-id or x-device-id headers'
+        }
+      });
     }
 
-    let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
+    let db: Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>['db'];
     try {
-      ({ db } = await getTenantServiceDb(env.ORG_ID, env.ENCRYPTION_KEY));
+      ({ db } = await getTenantServiceDbByOrgId(env.ORG_ID, env.ENCRYPTION_KEY));
     } catch {
-      return reply
-        .status(404)
-        .send({
-          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Org not found' }
-        });
+      return reply.status(404).send({
+        error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Org not found' }
+      });
     }
 
     const [[agent], [site]] = await Promise.all([
@@ -100,15 +96,13 @@ export function ticketRoute(fastify: FastifyInstance) {
     ]);
 
     if (!agent || !site) {
-      return reply
-        .status(404)
-        .send({
-          error: {
-            module: 'v1.0/ticket/create',
-            context: 'POST',
-            message: 'Agent or site not found'
-          }
-        });
+      return reply.status(404).send({
+        error: {
+          module: 'v1.0/ticket/create',
+          context: 'POST',
+          message: 'Agent or site not found'
+        }
+      });
     }
 
     // Parse body — multipart or JSON
@@ -146,11 +140,9 @@ export function ticketRoute(fastify: FastifyInstance) {
 
     const bodyResult = BodySchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return reply
-        .status(400)
-        .send({
-          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Invalid request body' }
-        });
+      return reply.status(400).send({
+        error: { module: 'v1.0/ticket/create', context: 'POST', message: 'Invalid request body' }
+      });
     }
 
     const body = bodyResult.data;
@@ -169,11 +161,9 @@ export function ticketRoute(fastify: FastifyInstance) {
 
     if (!psaIntegration || !psaLink) {
       logger.warn({ siteId, deviceId }, 'PSA not configured for site');
-      return reply
-        .status(200)
-        .send({
-          error: { module: 'v1.0/ticket/create', context: 'POST', message: 'PSA not configured' }
-        });
+      return reply.status(200).send({
+        error: { module: 'v1.0/ticket/create', context: 'POST', message: 'PSA not configured' }
+      });
     }
 
     const psaConfig = PSAConfigSchema.parse(psaIntegration.config);
@@ -284,15 +274,13 @@ export function ticketRoute(fastify: FastifyInstance) {
       ticketId = await connector.tickets.create(ticketBody);
     } catch (err) {
       logger.error({ err, hostname: agent.hostname }, 'Failed to create HaloPSA ticket');
-      return reply
-        .status(500)
-        .send({
-          error: {
-            module: 'v1.0/ticket/create',
-            context: 'POST',
-            message: 'Failed to create ticket'
-          }
-        });
+      return reply.status(500).send({
+        error: {
+          module: 'v1.0/ticket/create',
+          context: 'POST',
+          message: 'Failed to create ticket'
+        }
+      });
     }
 
     logger.info(

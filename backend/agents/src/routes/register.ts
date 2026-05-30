@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { agents, agentLogs, sites } from '@mspbyte/drizzle';
-import { getTenantServiceDb } from '@mspbyte/drizzle-catalog';
+import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { logger } from '../logger.js';
 import { env } from '../env.js';
 import type { FastifyInstance } from 'fastify';
@@ -21,19 +21,17 @@ export function registerRoute(fastify: FastifyInstance) {
   fastify.post('/v1.0/register', async (req, reply) => {
     const body = BodySchema.safeParse(req.body);
     if (!body.success) {
-      return reply
-        .status(400)
-        .send({
-          error: { module: 'v1.0/register', context: 'POST', message: 'Invalid request body' }
-        });
+      return reply.status(400).send({
+        error: { module: 'v1.0/register', context: 'POST', message: 'Invalid request body' }
+      });
     }
 
     const { site_id, hostname, version, platform, device_id, mac, ip_address, ext_address } =
       body.data;
 
-    let db: Awaited<ReturnType<typeof getTenantServiceDb>>['db'];
+    let db: Awaited<ReturnType<typeof getTenantServiceDbByOrgId>>['db'];
     try {
-      ({ db } = await getTenantServiceDb(env.ORG_ID, env.ENCRYPTION_KEY));
+      ({ db } = await getTenantServiceDbByOrgId(env.ORG_ID, env.ENCRYPTION_KEY));
     } catch {
       return reply
         .status(404)
