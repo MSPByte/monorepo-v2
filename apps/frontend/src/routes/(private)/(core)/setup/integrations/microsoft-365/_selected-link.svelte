@@ -13,6 +13,7 @@
     CircleHelp,
     Check,
     Pencil,
+    LoaderCircle,
   } from '@lucide/svelte';
   import SingleSelect from '$lib/components/single-select.svelte';
   import { getContext } from 'svelte';
@@ -109,6 +110,7 @@
   let saving = $state(false);
   let editingName = $state(false);
   let nameValue = $state('');
+  let refreshing = $state(false);
 
   $effect(() => {
     localMappings = { ...mappings };
@@ -144,7 +146,7 @@
         if (existingLink) {
           await updateLinkMut.mutateAsync({
             id: existingLink.id,
-            meta: { ...(existingLink.meta as Record<string, unknown> ?? {}), domains },
+            meta: { ...((existingLink.meta as Record<string, unknown>) ?? {}), domains },
           });
         } else {
           await createLinkMut.mutateAsync({
@@ -244,9 +246,12 @@
   </div>
 
   {#if selectedLink.status === 'active'}
-    {@const needsConsent = (selectedLink.meta as Record<string, unknown>)?.consentVersion !== CONSENT_VERSION}
+    {@const needsConsent =
+      (selectedLink.meta as Record<string, unknown>)?.consentVersion !== CONSENT_VERSION}
     {#if needsConsent}
-      <div class="flex items-center justify-between gap-3 mx-4 mt-3 px-3 py-2 rounded bg-warning/10 text-warning border border-warning/30 shrink-0">
+      <div
+        class="flex items-center justify-between gap-3 mx-4 mt-3 px-3 py-2 rounded bg-warning/10 text-warning border border-warning/30 shrink-0"
+      >
         <div class="flex items-center gap-2">
           <TriangleAlert class="size-4 shrink-0" />
           <span class="text-xs">Consent is outdated — re-consent to restore full access.</span>
@@ -272,7 +277,8 @@
       </Tabs.List>
 
       <Tabs.Content value="domains" class="flex flex-col overflow-y-auto p-4 gap-2">
-        {@const metaDomains = ((selectedLink.meta as Record<string, unknown>)?.domains as string[] | undefined) ?? []}
+        {@const metaDomains =
+          ((selectedLink.meta as Record<string, unknown>)?.domains as string[] | undefined) ?? []}
         {#if !metaDomains.length}
           <div class="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
             <Globe class="size-8 opacity-40" />
@@ -285,7 +291,8 @@
               <span>Mapped Site</span>
             </div>
             {#each metaDomains as domain}
-              {@const mappedSiteId = localMappings[domain as string] ?? domainSiteMap.get(domain as string)}
+              {@const mappedSiteId =
+                localMappings[domain as string] ?? domainSiteMap.get(domain as string)}
               <div class="grid grid-cols-2 gap-2 items-center">
                 <span class="text-sm font-mono truncate">{domain}</span>
                 <SingleSelect
@@ -321,9 +328,17 @@
               method="POST"
               action="?/refreshCapabilities"
               use:enhance={() => {
+                refreshing = true;
+
                 return async ({ result }) => {
+                  refreshing = false;
                   if (result.type === 'failure') {
-                    toast.error((result.data as Record<string, unknown>)?.error as string ?? 'Failed to refresh capabilities');
+                    toast.error(
+                      ((result.data as Record<string, unknown>)?.error as string) ??
+                        'Failed to refresh capabilities'
+                    );
+                  } else {
+                    toast.info('Refreshed capabilities!');
                   }
                 };
               }}
@@ -334,16 +349,22 @@
                 size="sm"
                 variant="outline"
                 type="submit"
-                disabled={!authStore.isAllowed('Integrations.Write')}
+                disabled={!authStore.isAllowed('Integrations.Write') || refreshing}
               >
-                <Activity class="size-4 mr-1.5" />
+                {#if refreshing}
+                  <LoaderCircle class="size-4 animate-spin" />
+                {:else}
+                  <Activity class="size-4 mr-1.5" />
+                {/if}
                 Refresh Capabilities
               </Button>
             </form>
           </div>
           <div class="flex flex-col gap-2">
             {#each Object.entries(MS_CAPABILITIES) as [key, cap]}
-              {@const capsMeta = (selectedLink.meta as Record<string, unknown>)?.capabilities as Record<string, boolean> | undefined}
+              {@const capsMeta = (selectedLink.meta as Record<string, unknown>)?.capabilities as
+                | Record<string, boolean>
+                | undefined}
               {@const hasCapability = capsMeta?.[key] as boolean | undefined}
               <div class="flex items-start gap-3 p-3 rounded border bg-muted/30">
                 {#if hasCapability === true}
@@ -369,7 +390,9 @@
   {:else}
     <div class="flex flex-col size-full p-4 items-center justify-center">
       <div class="flex flex-col h-fit justify-center items-center w-full gap-2">
-        <span class="text-sm text-muted-foreground">Process consent flow to activate this tenant.</span>
+        <span class="text-sm text-muted-foreground"
+          >Process consent flow to activate this tenant.</span
+        >
         {#if authStore.isAllowed('Integrations.Write')}
           <form method="POST" action="?/gdapConsent" use:enhance>
             <input name="gdapTenantId" value={selectedLink.externalId} hidden />

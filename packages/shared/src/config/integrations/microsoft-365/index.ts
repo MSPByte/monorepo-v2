@@ -10,6 +10,20 @@ export const REQUIRED_DIRECTORY_ROLES: Record<string, string> = {
   'Teams Administrator': '69091246-20e8-4a56-aa4d-066075b2a7a8'
 };
 
+export const MS_GRAPH_CAPABILITIES = {
+  signInActivity: 'signInActivity',
+  conditionalAccess: 'conditionalAccess',
+  identityProtection: 'identityProtection'
+} as const;
+export type MSGraphCapabilities =
+  (typeof MS_GRAPH_CAPABILITIES)[keyof typeof MS_GRAPH_CAPABILITIES];
+
+export const CAPABILITY_PLANS: Record<MSGraphCapabilities, string[]> = {
+  signInActivity: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
+  conditionalAccess: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
+  identityProtection: ['AAD_PREMIUM_P2']
+};
+
 export const M365_INTEGRATION_CONFIG: Integration = {
   id: 'microsoft-365',
   name: 'Microsoft 365',

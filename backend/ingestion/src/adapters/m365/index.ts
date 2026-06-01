@@ -16,6 +16,7 @@ import {
   runMailboxForwardingFull,
   runInboxRules
 } from './ps-runner.js';
+import { type MSGraphCapabilities } from '@mspbyte/shared/config/integrations/microsoft-365';
 
 function getConnector(gdapTenantId: string): M365Connector {
   const clientId = env.MICROSOFT_CLIENT_ID;
@@ -419,12 +420,25 @@ export const m365Adapter: ProviderAdapter = {
       );
     }
     const connector = getConnector(gdapTenantId);
+    const capabilities = (ctx?.linkMeta?.capabilities ?? {}) as Record<
+      MSGraphCapabilities,
+      unknown
+    >;
 
     switch (facet) {
       case ProviderFacet.M365Identities: {
-        const select =
-          'id,displayName,userType,userPrincipalName,accountEnabled,assignedLicenses,signInActivity';
-        const users = await connector.users.listAll(select);
+        const fields = [
+          'id',
+          'displayName',
+          'userType',
+          'userPrincipalName',
+          'accountEnabled',
+          'assignedLicenses'
+        ];
+        if (capabilities['signInActivity']) {
+          fields.push('signInActivity');
+        }
+        const users = await connector.users.listAll(fields.join(','));
         if (users.length > 0) yield users;
         break;
       }
@@ -459,8 +473,7 @@ export const m365Adapter: ProviderAdapter = {
       }
 
       case ProviderFacet.M365CAPolicies: {
-        const capabilities = (ctx?.linkMeta?.capabilities ?? {}) as Record<string, unknown>;
-        if (!capabilities.conditionalAccess) {
+        if (!capabilities['conditionalAccess']) {
           logger.warn(
             { linkId },
             'Skipping policies: conditionalAccess capability not enabled (requires Azure AD P1)'
@@ -555,8 +568,7 @@ export const m365Adapter: ProviderAdapter = {
       }
 
       case ProviderFacet.M365RiskyUsers: {
-        const capabilities = (ctx?.linkMeta?.capabilities ?? {}) as Record<string, unknown>;
-        if (!capabilities.identityProtection) {
+        if (!capabilities['identityProtection']) {
           logger.warn(
             { linkId },
             'Skipping risky_users: identityProtection capability not enabled (requires Azure AD P2)'

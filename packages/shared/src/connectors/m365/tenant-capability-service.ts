@@ -1,10 +1,5 @@
+import { CAPABILITY_PLANS } from '../../config/integrations/microsoft-365/index.js';
 import type { M365Connector } from './connector.js';
-
-const CAPABILITY_PLANS: Record<string, string[]> = {
-  signInActivity: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
-  conditionalAccess: ['AAD_PREMIUM', 'AAD_PREMIUM_P2'],
-  identityProtection: ['AAD_PREMIUM_P2'],
-};
 
 export class TenantCapabilityService {
   constructor(private connector: M365Connector) {}
@@ -21,7 +16,7 @@ export class TenantCapabilityService {
     return Object.fromEntries(
       Object.entries(CAPABILITY_PLANS).map(([key, plans]) => [
         key,
-        plans.some((plan) => activePlans.has(plan)),
+        plans.some((plan) => activePlans.has(plan))
       ])
     );
   }
