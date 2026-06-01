@@ -75,7 +75,7 @@ export const pipelineRouter = t.router({
           type: input.mode === 'replay' ? 'replay' : 'manual',
           status: 'pending',
           mode: 'full',
-          startedAt: new Date()
+          startedAt: new Date().toISOString()
         })
         .returning();
 

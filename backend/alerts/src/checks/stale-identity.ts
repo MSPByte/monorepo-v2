@@ -10,7 +10,7 @@ export const staleIdentityCheck: CheckEvaluator = {
   sourceTables: ['m365_identities'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
-    const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     // Identities that have never signed in OR whose last sign-in is before cutoff
     const filters = [eq(m365Identities.enabled, true), lt(m365Identities.lastSignInAt, cutoff)];

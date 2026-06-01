@@ -37,7 +37,7 @@ export const integrationsRouter = t.router({
           id: input.id,
           config: input.config,
           credentialExpiration: input.credentialExpiration
-            ? new Date(input.credentialExpiration)
+            ? new Date(input.credentialExpiration).toISOString()
             : undefined,
           deletedAt: null
         })
@@ -46,10 +46,10 @@ export const integrationsRouter = t.router({
           set: {
             config: input.config,
             credentialExpiration: input.credentialExpiration
-              ? new Date(input.credentialExpiration)
+              ? new Date(input.credentialExpiration).toISOString()
               : null,
             deletedAt: null,
-            updatedAt: new Date()
+            updatedAt: new Date().toISOString()
           }
         })
         .returning();
@@ -62,7 +62,7 @@ export const integrationsRouter = t.router({
     .mutation(async ({ ctx, input }): Promise<IntegrationRow> => {
       const [row] = await ctx.db
         .update(integrations)
-        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .set({ deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
         .where(eq(integrations.id, input.id))
         .returning();
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' });

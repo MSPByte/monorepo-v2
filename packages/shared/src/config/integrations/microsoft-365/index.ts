@@ -24,6 +24,16 @@ export const CAPABILITY_PLANS: Record<MSGraphCapabilities, string[]> = {
   identityProtection: ['AAD_PREMIUM_P2']
 };
 
+export const M365_BLOAT_LICENSES = [
+  'MCOPSTNC',
+  'POWER_BI_STANDARD',
+  'WINDOWS_STORE',
+  'RIGHTSMANAGEMENT_ADHOC',
+  'FLOW_FREE',
+  'DYN365_ENTERPRISE_P1_IW',
+  'POWERAPPS_VIRAL'
+];
+
 export const M365_INTEGRATION_CONFIG: Integration = {
   id: 'microsoft-365',
   name: 'Microsoft 365',

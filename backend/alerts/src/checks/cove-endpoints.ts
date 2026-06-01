@@ -56,7 +56,7 @@ export const coveEndpointLastSuccessStaleCheck: CheckEvaluator = {
   sourceTables: ['cove_endpoints'],
 
   async evaluate({ linkId, db }: CheckInput): Promise<Detection[]> {
-    const cutoff = new Date(Date.now() - STALE_SUCCESS_HOURS * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - STALE_SUCCESS_HOURS * 60 * 60 * 1000).toISOString();
     const staleCondition = or(
       isNull(coveEndpoints.lastSuccessAt),
       lt(coveEndpoints.lastSuccessAt, cutoff)

@@ -50,7 +50,7 @@ export async function linkM365(
 
   const connector = new M365Connector(clientId, clientSecret, gdapTenantId);
   const { db } = await getTenantServiceDbByOrgId(orgId, env.ENCRYPTION_KEY);
-  const now = new Date();
+  const now = new Date().toISOString();
 
   const FETCH_CONCURRENCY = 5;
 

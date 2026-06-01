@@ -94,7 +94,7 @@ export const integrationLinksRouter = t.router({
       const { id, ...rest } = input;
       const [row] = await ctx.db
         .update(integrationLinks)
-        .set({ ...rest, updatedAt: new Date() })
+        .set({ ...rest, updatedAt: new Date().toISOString() })
         .where(eq(integrationLinks.id, id))
         .returning();
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
@@ -147,7 +147,7 @@ async function triggerLinkSync(
         type: 'manual',
         status: 'pending',
         mode: 'full',
-        startedAt: new Date()
+        startedAt: new Date().toISOString()
       })
       .returning();
 

@@ -305,11 +305,11 @@ export const alertsRouter = t.router({
         .update(alerts)
         .set({
           status: 'suppressed',
-          suppressedAt: new Date(),
-          suppressedUntil: new Date(input.until),
+          suppressedAt: new Date().toISOString(),
+          suppressedUntil: new Date(input.until).toISOString(),
           suppressionNote: input.note,
           suppressedBy: ctx.userId,
-          updatedAt: new Date()
+          updatedAt: new Date().toISOString()
         })
         .where(eq(alerts.id, input.alertId))
         .returning();
@@ -322,7 +322,11 @@ export const alertsRouter = t.router({
     .mutation(async ({ ctx, input }): Promise<AlertRow> => {
       const [updated] = await ctx.db
         .update(alerts)
-        .set({ status: 'resolved', resolvedAt: new Date(), updatedAt: new Date() })
+        .set({
+          status: 'resolved',
+          resolvedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
         .where(eq(alerts.id, input.alertId))
         .returning();
       if (!updated) throw new TRPCError({ code: 'NOT_FOUND' });

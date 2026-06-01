@@ -17,7 +17,10 @@ import {
   runInboxRules,
   INBOX_RULES_BATCH_SIZE
 } from './ps-runner.js';
-import { type MSGraphCapabilities } from '@mspbyte/shared/config/integrations/microsoft-365';
+import {
+  M365_BLOAT_LICENSES,
+  type MSGraphCapabilities
+} from '@mspbyte/shared/config/integrations/microsoft-365';
 
 function getConnector(gdapTenantId: string): M365Connector {
   const clientId = env.MICROSOFT_CLIENT_ID;
@@ -450,17 +453,24 @@ export const m365Adapter: ProviderAdapter = {
           SkuCatalogService.resolve()
         ]);
         if (skus.length > 0) {
-          yield skus.map((sku) => {
-            const record = sku as Record<string, unknown>;
-            const skuPartNumber =
-              typeof record.skuPartNumber === 'string' ? record.skuPartNumber : undefined;
-            return {
-              ...record,
-              _friendlyName: skuPartNumber
-                ? (skuNames.get(skuPartNumber) ?? skuPartNumber)
-                : record.skuId
-            };
-          });
+          yield skus
+            .filter((sku) => {
+              const record = sku as Record<string, unknown>;
+              return typeof record.skuPartNumber === 'string'
+                ? !M365_BLOAT_LICENSES.includes(record.skuPartNumber)
+                : true;
+            })
+            .map((sku) => {
+              const record = sku as Record<string, unknown>;
+              const skuPartNumber =
+                typeof record.skuPartNumber === 'string' ? record.skuPartNumber : undefined;
+              return {
+                ...record,
+                _friendlyName: skuPartNumber
+                  ? (skuNames.get(skuPartNumber) ?? skuPartNumber)
+                  : record.skuId
+              };
+            });
         }
         break;
       }
@@ -749,7 +759,10 @@ export const m365Adapter: ProviderAdapter = {
         }
 
         const totalBatches = Math.ceil(activeUpns.length / INBOX_RULES_BATCH_SIZE);
-        logger.info({ linkId, users: activeUpns.length, batches: totalBatches }, 'Starting inbox rules batched fetch');
+        logger.info(
+          { linkId, users: activeUpns.length, batches: totalBatches },
+          'Starting inbox rules batched fetch'
+        );
 
         for (let i = 0; i < activeUpns.length; i += INBOX_RULES_BATCH_SIZE) {
           const batch = activeUpns.slice(i, i + INBOX_RULES_BATCH_SIZE);
@@ -763,9 +776,15 @@ export const m365Adapter: ProviderAdapter = {
             );
             const rules = ((result as Record<string, unknown>)?.InboxRules ?? []) as unknown[];
             if (rules.length > 0) yield rules;
-            logger.info({ linkId, batch: batchNum, totalBatches, rules: rules.length }, 'Inbox rules batch complete');
+            logger.info(
+              { linkId, batch: batchNum, totalBatches, rules: rules.length },
+              'Inbox rules batch complete'
+            );
           } catch (err) {
-            logger.warn({ linkId, batch: batchNum, totalBatches, err }, 'Inbox rules batch failed, continuing');
+            logger.warn(
+              { linkId, batch: batchNum, totalBatches, err },
+              'Inbox rules batch failed, continuing'
+            );
           }
         }
         break;

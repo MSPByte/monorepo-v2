@@ -22,7 +22,7 @@ export async function hasActiveRun(db: TenantServiceDb, linkId: string): Promise
     .limit(1);
 
   if (!run) return false;
-  return run.createdAt > staleThreshold;
+  return new Date(run.createdAt) > staleThreshold;
 }
 
 export async function getSyncContexts(db: TenantServiceDb, linkId: string): Promise<SyncContext[]> {

@@ -46,7 +46,7 @@ export function registerRoute(fastify: FastifyInstance) {
         .send({ error: { module: 'v1.0/register', context: 'POST', message: 'Site not found' } });
     }
 
-    const now = new Date();
+    const now = new Date().toISOString();
 
     let agentId: string;
 

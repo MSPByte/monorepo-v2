@@ -15,7 +15,7 @@ export type Detection = {
 };
 
 export async function upsertAlert(db: TenantServiceDb, detection: Detection): Promise<void> {
-  const now = new Date();
+  const now = new Date().toISOString();
 
   const scopeConditions = buildScopeConditions(detection);
 
@@ -69,7 +69,7 @@ export async function resolveMissingAlerts(
 ): Promise<void> {
   if (params.definitionIds.length === 0) return;
 
-  const now = new Date();
+  const now = new Date().toISOString();
   const conditions = [
     ...buildScopeConditions(params),
     inArray(alerts.definitionId, [...params.definitionIds]),

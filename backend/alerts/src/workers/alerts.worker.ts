@@ -357,7 +357,7 @@ export function createAlertsWorker(redis: Redis) {
         // Finalize the sync_run
         await db
           .update(syncRuns)
-          .set({ status: 'completed', finishedAt: new Date() })
+          .set({ status: 'completed', finishedAt: new Date().toISOString() })
           .where(eq(syncRuns.id, syncRunId));
 
         // Link-health feedback loop: if mode is not replay, check consecutive failures
@@ -371,7 +371,7 @@ export function createAlertsWorker(redis: Redis) {
           if (unhealthy) {
             await db
               .update(integrationLinks)
-              .set({ status: 'error', updatedAt: new Date() })
+              .set({ status: 'error', updatedAt: new Date().toISOString() })
               .where(eq(integrationLinks.id, linkId));
             logger.warn(
               { orgId, linkId },
@@ -387,7 +387,7 @@ export function createAlertsWorker(redis: Redis) {
             if (link?.status === 'error') {
               await db
                 .update(integrationLinks)
-                .set({ status: 'active', updatedAt: new Date() })
+                .set({ status: 'active', updatedAt: new Date().toISOString() })
                 .where(eq(integrationLinks.id, linkId));
               logger.info({ orgId, linkId }, 'Link auto-recovered to active');
             }
@@ -399,7 +399,7 @@ export function createAlertsWorker(redis: Redis) {
         await failStage(db, stageId, err);
         await db
           .update(syncRuns)
-          .set({ status: 'failed', finishedAt: new Date() })
+          .set({ status: 'failed', finishedAt: new Date().toISOString() })
           .where(eq(syncRuns.id, syncRunId));
         throw err;
       }

@@ -76,7 +76,7 @@ export function createComplianceWorker(redis: Redis) {
               linkId: linkId ?? null,
               status,
               detail,
-              evaluatedAt: new Date()
+              evaluatedAt: new Date().toISOString()
             })
             .onConflictDoUpdate({
               target: [
@@ -84,7 +84,7 @@ export function createComplianceWorker(redis: Redis) {
                 complianceResults.siteId,
                 complianceResults.linkId
               ],
-              set: { status, detail, evaluatedAt: new Date() }
+              set: { status, detail, evaluatedAt: new Date().toISOString() }
             });
         } catch (err) {
           logger.error(

@@ -43,7 +43,7 @@ export async function scheduleIngestion(
       if (providerFacets.length === 0) continue;
 
       // Skip if credentials are expired
-      if (credentialExpiration && credentialExpiration < new Date()) {
+      if (credentialExpiration && credentialExpiration < new Date().toISOString()) {
         logger.warn(
           { orgId: org.id, linkId: link.id, provider: providerId },
           'Skipping link: credentials expired'
@@ -70,7 +70,7 @@ export async function scheduleIngestion(
         );
         await mspDb
           .update(integrationLinks)
-          .set({ status: 'error', updatedAt: new Date() })
+          .set({ status: 'error', updatedAt: new Date().toISOString() })
           .where(eq(integrationLinks.id, link.id));
         continue;
       }
@@ -109,7 +109,7 @@ export async function scheduleIngestion(
           type: triggerType,
           status: 'pending',
           mode: 'full',
-          startedAt: new Date()
+          startedAt: new Date().toISOString()
         })
         .returning();
 
@@ -202,7 +202,7 @@ export async function scheduleLink(
       type: mode === 'replay' ? 'replay' : 'manual',
       status: 'pending',
       mode: 'full',
-      startedAt: new Date()
+      startedAt: new Date().toISOString()
     })
     .returning();
 

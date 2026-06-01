@@ -26,7 +26,10 @@ export const complianceRouter = t.router({
 
       if (input.linkId) {
         const [link] = await ctx.db
-          .select({ integrationId: integrationLinks.integrationId, siteId: integrationLinks.siteId })
+          .select({
+            integrationId: integrationLinks.integrationId,
+            siteId: integrationLinks.siteId
+          })
           .from(integrationLinks)
           .where(eq(integrationLinks.id, input.linkId))
           .limit(1);
@@ -54,7 +57,10 @@ export const complianceRouter = t.router({
           linkId: complianceAssignments.linkId
         })
         .from(complianceAssignments)
-        .innerJoin(complianceFrameworks, eq(complianceFrameworks.id, complianceAssignments.frameworkId))
+        .innerJoin(
+          complianceFrameworks,
+          eq(complianceFrameworks.id, complianceAssignments.frameworkId)
+        )
         .where(
           and(
             eq(complianceFrameworks.integrationId, integrationId),
@@ -96,7 +102,13 @@ export const complianceRouter = t.router({
     }),
 
   results: authProcedure
-    .input(z.object({ siteId: z.string().optional(), linkId: z.string().optional(), frameworkId: z.string() }))
+    .input(
+      z.object({
+        siteId: z.string().optional(),
+        linkId: z.string().optional(),
+        frameworkId: z.string()
+      })
+    )
     .query(
       async ({ ctx, input }): Promise<Array<{ check: CheckRow; result: ResultRow | null }>> => {
         const checks = await ctx.db
@@ -179,7 +191,7 @@ export const complianceRouter = t.router({
       const { id, ...rest } = input;
       const [row] = await ctx.db
         .update(complianceFrameworks)
-        .set({ ...rest, updatedAt: new Date() })
+        .set({ ...rest, updatedAt: new Date().toISOString() })
         .where(eq(complianceFrameworks.id, id))
         .returning();
       return row!;
@@ -247,7 +259,7 @@ export const complianceRouter = t.router({
         .set({
           ...rest,
           ...(checkConfig !== undefined ? { checkConfig: checkConfig as JsonValue } : {}),
-          updatedAt: new Date()
+          updatedAt: new Date().toISOString()
         })
         .where(eq(complianceFrameworkChecks.id, id))
         .returning();

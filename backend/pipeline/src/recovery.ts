@@ -31,7 +31,7 @@ export async function recoverOrphanedRuns(redis: Redis): Promise<void> {
         if (!job) {
           await mspDb
             .update(syncRuns)
-            .set({ status: 'interrupted', finishedAt: new Date() })
+            .set({ status: 'interrupted', finishedAt: new Date().toISOString() })
             .where(eq(syncRuns.id, run.id));
           logger.info(
             { orgId: org.id, linkId: run.linkId, syncRunId: run.id, bullmqJobId: run.bullmqJobId },

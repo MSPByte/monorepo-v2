@@ -30,22 +30,18 @@ export async function startStage(
       type,
       stage,
       status: 'running',
-      startedAt: new Date()
+      startedAt: new Date().toISOString()
     })
     .returning();
   return row!.id;
 }
 
-export async function completeStage(
-  db: Db,
-  stageId: string,
-  m: StageMetrics = {}
-): Promise<void> {
+export async function completeStage(db: Db, stageId: string, m: StageMetrics = {}): Promise<void> {
   await db
     .update(syncRunStages)
     .set({
       status: 'completed',
-      finishedAt: new Date(),
+      finishedAt: new Date().toISOString(),
       recordsIn: m.recordsIn ?? 0,
       recordsOut: m.recordsOut ?? 0,
       createdCt: m.createdCt ?? 0,
@@ -62,7 +58,7 @@ export async function failStage(db: Db, stageId: string, error: unknown): Promis
     .update(syncRunStages)
     .set({
       status: 'failed',
-      finishedAt: new Date(),
+      finishedAt: new Date().toISOString(),
       error: msg
     })
     .where(eq(syncRunStages.id, stageId));
@@ -74,7 +70,7 @@ export async function recordFetchSuccess(
   integrationId: string,
   facet: string
 ): Promise<void> {
-  const now = new Date();
+  const now = new Date().toISOString();
   await db
     .insert(syncContext)
     .values({
@@ -102,7 +98,7 @@ export async function recordFetchFailure(
   const msg = error instanceof Error ? error.message : String(error);
   const kind =
     (error as { kind?: string })?.kind ?? (error instanceof Error ? error.name : 'Error');
-  const now = new Date();
+  const now = new Date().toISOString();
 
   const [existing] = await db
     .select({ failures: syncContext.consecutiveFailures })
