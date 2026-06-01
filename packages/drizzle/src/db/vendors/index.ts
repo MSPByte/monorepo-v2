@@ -29,13 +29,19 @@ export const m365Identities = vendorsSchema.table(
     enabled: boolean('enabled').notNull(),
     mfaEnforced: boolean('mfa_enforced').notNull().default(false),
     assignedLicenses: text('assigned_licenses').array(),
-    lastSignInAt: timestamp('last_sign_in_at', { withTimezone: true }),
+    lastSignInAt: timestamp('last_sign_in_at', { withTimezone: true, mode: 'string' }),
     lastNonInteractiveSignInAt: timestamp('last_non_interactive_sign_in_at', {
       withTimezone: true
     }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -52,9 +58,15 @@ export const m365Groups = vendorsSchema.table(
     description: text('description'),
     mailEnabled: boolean('mail_enabled').notNull(),
     securityEnabled: boolean('security_enabled').notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -71,8 +83,12 @@ export const m365IdentityGroups = vendorsSchema.table(
     linkId: uuid('link_id')
       .notNull()
       .references(() => integrationLinks.id, { onDelete: 'cascade' }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [rls]
 );
@@ -101,8 +117,12 @@ export const m365IdentityRoles = vendorsSchema.table(
     linkId: uuid('link_id')
       .notNull()
       .references(() => integrationLinks.id, { onDelete: 'cascade' }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [rls]
 );
@@ -123,9 +143,15 @@ export const m365Policies = vendorsSchema.table(
     conditions: jsonb('conditions'),
     grantControls: jsonb('grant_controls'),
     sessionControls: jsonb('session_controls'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -141,8 +167,12 @@ export const m365PolicyIdentities = vendorsSchema.table(
       .references(() => m365Identities.id, { onDelete: 'cascade' }),
     linkId: uuid('link_id').notNull(),
     included: boolean('included').notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [rls]
 );
@@ -158,8 +188,12 @@ export const m365PolicyGroups = vendorsSchema.table(
       .references(() => m365Groups.id, { onDelete: 'cascade' }),
     linkId: uuid('link_id').notNull(),
     included: boolean('included').notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [rls]
 );
@@ -175,8 +209,12 @@ export const m365PolicyRoles = vendorsSchema.table(
       .references(() => m365Roles.id, { onDelete: 'cascade' }),
     linkId: uuid('link_id').notNull(),
     included: boolean('included').notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [rls]
 );
@@ -199,9 +237,15 @@ export const m365Licenses = vendorsSchema.table(
     warningUnits: integer('warning_units').notNull().default(0),
     suspendedUnits: integer('suspended_units').notNull().default(0),
     servicePlanNames: text('service_plan_names').array(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -218,9 +262,15 @@ export const m365ExchangeConfigs = vendorsSchema.table(
     autoForwardingMode: text('auto_forwarding_mode'),
     allowBasicAuthSmtp: boolean('allow_basic_auth_smtp'),
     forwardingMailboxes: jsonb('forwarding_mailboxes'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -246,10 +296,16 @@ export const sophosEndpoints = vendorsSchema.table(
     lockdown: text('lockdown').notNull(),
     currentCode: text('current_code').notNull().default(''),
     previousCodes: text('previous_codes').array().notNull().default([]),
-    lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -274,10 +330,16 @@ export const sophosFirewalls = vendorsSchema.table(
     managing: text('managing').notNull(),
     reporting: text('reporting').notNull(),
     upgradeToVersion: text('upgrade_to_version'),
-    lastChangeAt: timestamp('last_change_at', { withTimezone: true }).notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastChangeAt: timestamp('last_change_at', { withTimezone: true, mode: 'string' }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -299,11 +361,17 @@ export const sophosLicenses = vendorsSchema.table(
     unlimited: boolean('unlimited').notNull(),
     quantity: integer('quantity'),
     usageCount: integer('usage_count'),
-    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
-    endsAt: timestamp('ends_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -324,11 +392,17 @@ export const dattoEndpoints = vendorsSchema.table(
     extAddress: text('ext_address').notNull(),
     online: boolean('online').notNull(),
     udfs: jsonb('udfs').notNull().default({}),
-    lastRebootAt: timestamp('last_reboot_at', { withTimezone: true }).notNull(),
-    lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastRebootAt: timestamp('last_reboot_at', { withTimezone: true, mode: 'string' }).notNull(),
+    lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -353,10 +427,16 @@ export const coveEndpoints = vendorsSchema.table(
     selectedSize: bigint('selected_size', { mode: 'number' }).notNull().default(0),
     usedStorage: bigint('used_storage', { mode: 'number' }).notNull().default(0),
     last28Days: text('last_28_days').notNull(),
-    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -373,11 +453,17 @@ export const m365AuthMethods = vendorsSchema.table(
     externalId: text('external_id').notNull(),
     identityExternalId: text('identity_external_id').notNull(),
     type: text('type').notNull(),
-    creationDateAt: timestamp('creation_date_at', { withTimezone: true }),
+    creationDateAt: timestamp('creation_date_at', { withTimezone: true, mode: 'string' }),
     meta: jsonb('meta'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -396,11 +482,20 @@ export const m365Devices = vendorsSchema.table(
     isCompliant: boolean('is_compliant'),
     isManaged: boolean('is_managed'),
     deviceOwnership: text('device_ownership'),
-    approximateLastSignInAt: timestamp('approximate_last_sign_in_at', { withTimezone: true }),
-    registeredAt: timestamp('registered_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    approximateLastSignInAt: timestamp('approximate_last_sign_in_at', {
+      withTimezone: true,
+      mode: 'string'
+    }),
+    registeredAt: timestamp('registered_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -420,9 +515,15 @@ export const m365OAuthGrants = vendorsSchema.table(
     resourceId: text('resource_id').notNull(),
     resourceDisplayName: text('resource_display_name'),
     scope: text('scope'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -443,9 +544,15 @@ export const m365DomainConfig = vendorsSchema.table(
     dkimEnabled: boolean('dkim_enabled'),
     dkimSelector1Present: boolean('dkim_selector1_present'),
     dkimSelector2Present: boolean('dkim_selector2_present'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -468,9 +575,15 @@ export const m365TeamsConfig = vendorsSchema.table(
     allowPublicUsers: boolean('allow_public_users'),
     allowTeamsConsumer: boolean('allow_teams_consumer'),
     allowedDomains: text('allowed_domains').array(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -488,10 +601,16 @@ export const m365RiskyUsers = vendorsSchema.table(
     riskLevel: text('risk_level').notNull(),
     riskState: text('risk_state').notNull(),
     riskDetail: text('risk_detail'),
-    riskLastUpdatedAt: timestamp('risk_last_updated_at', { withTimezone: true }),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    riskLastUpdatedAt: timestamp('risk_last_updated_at', { withTimezone: true, mode: 'string' }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -508,9 +627,15 @@ export const m365MailboxForwarding = vendorsSchema.table(
     forwardingAddress: text('forwarding_address'),
     forwardingSmtpAddress: text('forwarding_smtp_address'),
     deliverToMailboxAndForward: boolean('deliver_to_mailbox_and_forward'),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );
@@ -536,9 +661,15 @@ export const m365InboxRules = vendorsSchema.table(
     subjectContainsWords: text('subject_contains_words').array(),
     isSuspicious: boolean('is_suspicious').notNull().default(false),
     suspicionReasons: text('suspicion_reasons').array().notNull().default([]),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [unique().on(t.linkId, t.externalId), rls]
 );

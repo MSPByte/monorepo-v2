@@ -16,12 +16,18 @@ export const agents = agentSchema.table(
     ipAddress: text('ip_address'),
     extAddress: text('ext_address'),
     macAddress: text('mac_address'),
-    registeredAt: timestamp('registered_at', { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    registeredAt: timestamp('registered_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' })
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })]
 );
 
 export const agentLogs = agentSchema.table(
@@ -37,9 +43,11 @@ export const agentLogs = agentSchema.table(
     status: integer('status').notNull(),
     timeElapsedMs: integer('time_elapsed_ms').notNull(),
     metadata: jsonb('metadata'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })]
 );
 
 export const agentTickets = agentSchema.table(
@@ -55,9 +63,11 @@ export const agentTickets = agentSchema.table(
     ticketId: text('ticket_id').notNull(),
     summary: text('summary'),
     meta: jsonb('meta'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })]
 );
 
 export type Agent = typeof agents.$inferSelect;

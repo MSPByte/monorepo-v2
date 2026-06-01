@@ -1,4 +1,13 @@
-import { pgTable, uuid, text, boolean, integer, jsonb, timestamp, unique } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  boolean,
+  integer,
+  jsonb,
+  timestamp,
+  unique
+} from 'drizzle-orm/pg-core';
 import { crudPolicy, authenticatedRole } from 'drizzle-orm/neon';
 import { complianceSchema } from '../schemas.js';
 import { sites, integrations, integrationLinks } from '../public/index.js';
@@ -13,10 +22,14 @@ export const complianceFrameworks = complianceSchema.table(
     integrationId: text('integration_id').references(() => integrations.id),
     parentId: uuid('parent_id'),
     isManaged: boolean('is_managed').notNull().default(false),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: true })]
 );
 
 // checkTypeId references definitions.alertDefinitions.id — stored as plain text
@@ -39,13 +52,17 @@ export const complianceFrameworkChecks = complianceSchema.table(
     onPassWorkflowId: uuid('on_pass_workflow_id'),
     onChangeWorkflowId: uuid('on_change_workflow_id'),
     siteId: uuid('site_id').references(() => sites.id),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
     unique().on(t.frameworkId, t.checkTypeId),
-    crudPolicy({ role: authenticatedRole, read: true, modify: true }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: true })
+  ]
 );
 
 export const complianceAssignments = complianceSchema.table(
@@ -58,12 +75,14 @@ export const complianceAssignments = complianceSchema.table(
     siteId: uuid('site_id').references(() => sites.id, { onDelete: 'cascade' }),
     integrationId: text('integration_id').references(() => integrations.id),
     linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
     unique().on(t.frameworkId, t.siteId),
-    crudPolicy({ role: authenticatedRole, read: true, modify: true }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: true })
+  ]
 );
 
 export const complianceResults = complianceSchema.table(
@@ -75,12 +94,14 @@ export const complianceResults = complianceSchema.table(
     linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
     status: text('status', { enum: ['pass', 'fail', 'suppressed', 'error'] }).notNull(),
     detail: jsonb('detail'),
-    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull().defaultNow(),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
     unique().on(t.frameworkCheckId, t.siteId, t.linkId),
-    crudPolicy({ role: authenticatedRole, read: true, modify: false }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: false })
+  ]
 );
 
 export type ComplianceFramework = typeof complianceFrameworks.$inferSelect;

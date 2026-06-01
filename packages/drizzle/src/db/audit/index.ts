@@ -5,7 +5,11 @@ import { sites } from '../public/index.js';
 
 export const auditActorEnum = auditSchema.enum('e_audit_actor', ['user', 'system']);
 export const auditActionsEnum = auditSchema.enum('e_audit_actions', ['create', 'update', 'delete']);
-export const auditResultEnum = auditSchema.enum('e_audit_result', ['success', 'failure', 'partial']);
+export const auditResultEnum = auditSchema.enum('e_audit_result', [
+  'success',
+  'failure',
+  'partial'
+]);
 
 export const customerLogs = auditSchema.table(
   'customer_logs',
@@ -23,9 +27,11 @@ export const customerLogs = auditSchema.table(
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
     metadata: jsonb('metadata'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })]
 );
 
 export type CustomerLog = typeof customerLogs.$inferSelect;

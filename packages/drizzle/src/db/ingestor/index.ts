@@ -14,14 +14,16 @@ export const syncRuns = ingestorSchema.table(
     type: text('type').notNull(),
     status: text('status').notNull(),
     mode: text('mode').notNull(),
-    startedAt: timestamp('started_at', { withTimezone: true }),
-    finishedAt: timestamp('finished_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [
     check('valid_mode', sql`mode in ('full', 'incremental')`),
-    crudPolicy({ role: authenticatedRole, read: true, modify: false }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: false })
+  ]
 );
 
 export const syncRunStages = ingestorSchema.table(
@@ -42,12 +44,14 @@ export const syncRunStages = ingestorSchema.table(
     updatedCt: integer('updated_ct').notNull().default(0),
     failedCt: integer('failed_ct').notNull().default(0),
     metrics: jsonb('metrics'),
-    startedAt: timestamp('started_at', { withTimezone: true }),
-    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'string' }),
     error: text('error'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })]
 );
 
 export const syncContext = ingestorSchema.table(
@@ -58,19 +62,21 @@ export const syncContext = ingestorSchema.table(
     integrationId: text('integration_id').notNull(),
     type: text('type').notNull(),
     cursor: text('cursor'),
-    fullSyncAt: timestamp('full_sync_at', { withTimezone: true }),
-    incrementalSyncAt: timestamp('incremental_sync_at', { withTimezone: true }),
+    fullSyncAt: timestamp('full_sync_at', { withTimezone: true, mode: 'string' }),
+    incrementalSyncAt: timestamp('incremental_sync_at', { withTimezone: true, mode: 'string' }),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
-    lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true, mode: 'string' }),
+    lastFailureAt: timestamp('last_failure_at', { withTimezone: true, mode: 'string' }),
     lastErrorClass: text('last_error_class'),
     lastErrorMessage: text('last_error_message'),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
     unique('unique_sync_context').on(t.linkId, t.integrationId, t.type),
-    crudPolicy({ role: authenticatedRole, read: true, modify: false }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: false })
+  ]
 );
 
 export const rawIngestLog = ingestorSchema.table(
@@ -84,9 +90,11 @@ export const rawIngestLog = ingestorSchema.table(
     type: text('type').notNull(),
     externalId: text('external_id').notNull(),
     payload: jsonb('payload').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
-  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })],
+  () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })]
 );
 
 export const entityChangeLog = ingestorSchema.table(
@@ -101,12 +109,14 @@ export const entityChangeLog = ingestorSchema.table(
     externalId: text('external_id').notNull(),
     type: text('type').notNull(),
     changeType: text('change_type').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
   },
   () => [
     check('valid_change_type', sql`change_type in ('created', 'updated', 'deleted')`),
-    crudPolicy({ role: authenticatedRole, read: true, modify: false }),
-  ],
+    crudPolicy({ role: authenticatedRole, read: true, modify: false })
+  ]
 );
 
 export type SyncRun = typeof syncRuns.$inferSelect;
