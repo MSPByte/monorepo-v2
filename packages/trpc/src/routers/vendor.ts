@@ -430,5 +430,46 @@ export const vendorRouter = t.router({
           )
       ]);
       return { identities, groups, roles };
+    }),
+
+  m365TenantStats: authProcedure
+    .input(z.object({ linkId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+      const [identityRows, licenseRows, policyRows] = await Promise.all([
+        ctx.db
+          .select({
+            total: count(),
+            noMfa: sql<number>`count(*) filter (where ${m365Identities.mfaEnforced} = false)`,
+            stale: sql<number>`count(*) filter (where ${m365Identities.lastSignInAt} is null or ${m365Identities.lastSignInAt} < ${thirtyDaysAgo})`
+          })
+          .from(m365Identities)
+          .where(eq(m365Identities.linkId, input.linkId)),
+        ctx.db
+          .select({
+            skus: count(),
+            unused: sql<number>`coalesce(sum(greatest(0, ${m365Licenses.totalUnits} - ${m365Licenses.consumedUnits})), 0)`
+          })
+          .from(m365Licenses)
+          .where(eq(m365Licenses.linkId, input.linkId)),
+        ctx.db
+          .select({
+            total: count(),
+            enabled: sql<number>`count(*) filter (where ${m365Policies.policyState} in ('enabled', 'enabledForReportingButNotEnforced'))`
+          })
+          .from(m365Policies)
+          .where(eq(m365Policies.linkId, input.linkId))
+      ]);
+
+      const id = identityRows[0] ?? { total: 0, noMfa: 0, stale: 0 };
+      const lic = licenseRows[0] ?? { skus: 0, unused: 0 };
+      const pol = policyRows[0] ?? { total: 0, enabled: 0 };
+
+      return {
+        identities: { total: Number(id.total), noMfa: Number(id.noMfa), stale: Number(id.stale) },
+        licenses: { skus: Number(lic.skus), unused: Number(lic.unused) },
+        policies: { total: Number(pol.total), enabled: Number(pol.enabled) }
+      };
     })
 });

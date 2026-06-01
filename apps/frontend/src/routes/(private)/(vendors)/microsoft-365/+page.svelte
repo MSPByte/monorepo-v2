@@ -30,39 +30,9 @@
   }));
 
   // ── Per-tenant data ───────────────────────────────────────────────────────
-  const identitiesQuery = createQuery(() => ({
-    queryKey: ['vendor.tableData', 'm365_identities', scopeStore.currentLink],
-    queryFn: () =>
-      trpc.vendor.tableData.query({
-        table: 'm365_identities',
-        linkId: scopeStore.currentLink!,
-        page: 1,
-        pageSize: 1000,
-      }),
-    enabled: !!scopeStore.currentLink,
-  }));
-
-  const licensesQuery = createQuery(() => ({
-    queryKey: ['vendor.tableData', 'm365_licenses', scopeStore.currentLink],
-    queryFn: () =>
-      trpc.vendor.tableData.query({
-        table: 'm365_licenses',
-        linkId: scopeStore.currentLink!,
-        page: 1,
-        pageSize: 1000,
-      }),
-    enabled: !!scopeStore.currentLink,
-  }));
-
-  const policiesQuery = createQuery(() => ({
-    queryKey: ['vendor.tableData', 'm365_policies', scopeStore.currentLink],
-    queryFn: () =>
-      trpc.vendor.tableData.query({
-        table: 'm365_policies',
-        linkId: scopeStore.currentLink!,
-        page: 1,
-        pageSize: 1000,
-      }),
+  const tenantStatsQuery = createQuery(() => ({
+    queryKey: ['vendor.m365TenantStats', scopeStore.currentLink],
+    queryFn: () => trpc.vendor.m365TenantStats.query({ linkId: scopeStore.currentLink! }),
     enabled: !!scopeStore.currentLink,
   }));
 
@@ -76,48 +46,19 @@
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const identityStats = $derived.by(() => {
-    const ids = (identitiesQuery.data?.rows ?? []) as Array<{
-      mfaEnforced: boolean;
-      lastSignInAt: string | null;
-    }>;
-    const now = Date.now();
-    const noMfa = ids.filter((u) => u.mfaEnforced === false).length;
-    const stale = ids.filter(
-      (u) => !u.lastSignInAt || now - new Date(u.lastSignInAt).getTime() > 30 * 86_400_000
-    ).length;
-    return { total: ids.length, noMfa, stale };
-  });
-
-  const licenseStats = $derived.by(() => {
-    const lics = (licensesQuery.data?.rows ?? []) as Array<{
-      totalUnits: number;
-      consumedUnits: number;
-    }>;
-    const unused = lics.reduce(
-      (sum, l) => sum + Math.max(0, (l.totalUnits ?? 0) - (l.consumedUnits ?? 0)),
-      0
-    );
-    return { skus: lics.length, unused };
-  });
-
-  const policyStats = $derived.by(() => {
-    const pols = (policiesQuery.data?.rows ?? []) as Array<{ policyState: string }>;
-    const enabled = pols.filter(
-      (p) => p.policyState === 'enabled' || p.policyState === 'enabledForReportingButNotEnforced'
-    ).length;
-    return { total: pols.length, enabled };
-  });
+  const identityStats = $derived(
+    tenantStatsQuery.data?.identities ?? { total: 0, noMfa: 0, stale: 0 }
+  );
+  const licenseStats = $derived(tenantStatsQuery.data?.licenses ?? { skus: 0, unused: 0 });
+  const policyStats = $derived(tenantStatsQuery.data?.policies ?? { total: 0, enabled: 0 });
 
   const mfaPct = $derived.by(() => {
-    const ids = (identitiesQuery.data?.rows ?? []) as Array<{ mfaEnforced: boolean }>;
-    if (!ids.length) return 0;
-    return Math.round((ids.filter((u) => u.mfaEnforced !== false).length / ids.length) * 100);
+    const { total, noMfa } = identityStats;
+    if (!total) return 0;
+    return Math.round(((total - noMfa) / total) * 100);
   });
 
-  const metricsLoading = $derived(
-    identitiesQuery.isPending || licensesQuery.isPending || policiesQuery.isPending
-  );
+  const metricsLoading = $derived(tenantStatsQuery.isPending);
 
   // ── Global overview helpers ───────────────────────────────────────────────
   const links = $derived(linksQuery.data ?? []);
@@ -247,11 +188,8 @@
 
       <div class="flex flex-col gap-0.5">
         <div class="flex items-baseline gap-1.5">
-          <span class="text-lg font-semibold tabular-nums">
-            {metricsLoading ? '—' : policyStats.enabled}
-          </span>
-          <span class="text-xs text-muted-foreground">
-            / {metricsLoading ? '—' : policyStats.total} Policies
+          <span class="tabular-nums">
+            {metricsLoading ? '—' : policyStats.enabled} CA Policies
           </span>
         </div>
       </div>
