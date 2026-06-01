@@ -22,7 +22,11 @@ export const getCatalogDb = (connectionString?: string) => {
 };
 
 export function createTenantDb(connection: string, encryptionKey: string) {
-  const client = postgres(Encryption.decrypt(connection, encryptionKey) ?? '');
+  const client = postgres(Encryption.decrypt(connection, encryptionKey) ?? '', {
+    idle_timeout: 20,
+    max: 3,
+    connect_timeout: 10,
+  });
   return drizzle({ client });
 }
 

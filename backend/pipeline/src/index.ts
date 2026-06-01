@@ -5,7 +5,11 @@ import { recoverOrphanedRuns } from './recovery.js';
 import { env } from './env.js';
 import { logger } from './logger.js';
 
-const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const redis = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+  keepAlive: 10_000,
+  connectTimeout: 15_000,
+});
 
 // TODO: Self-Scheduling + Event Triggers
 // Right now the scheduler polls on a cron interval. Two improvements to make:
