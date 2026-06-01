@@ -155,13 +155,11 @@
 {/snippet}
 
 <div class="flex flex-col size-full p-4">
-  {#key `${table}-${normalizedLinkId ?? 'all'}-${scopeColumn || 'none'}`}
-    <DataTable
-      {fetchData}
-      columns={resolvedColumns}
-      {defaultPageSize}
-      {enableRowSelection}
-      {onrowclick}
-    />
-  {/key}
+  <DataTable
+    {fetchData}
+    columns={resolvedColumns}
+    {defaultPageSize}
+    {enableRowSelection}
+    {onrowclick}
+  />
 </div>

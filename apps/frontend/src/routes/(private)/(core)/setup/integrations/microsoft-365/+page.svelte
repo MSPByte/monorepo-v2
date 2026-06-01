@@ -29,6 +29,7 @@
   import SelectedLink from './_selected-link.svelte';
   import ComplianceTab from './_compliance-tab.svelte';
   import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   // Use looser types to accommodate tRPC JSON serialization (dates become strings over HTTP)
   type Link = {
@@ -533,7 +534,7 @@
         </div>
 
         <!-- Tenant list + selected panel -->
-        <div class="flex min-h-0 flex-1 gap-4 overflow-hidden">
+        <FadeIn class="flex min-h-0 flex-1 gap-4 overflow-hidden">
           <div
             class="flex flex-col gap-4 overflow-hidden transition-all duration-200 {selectedLinkId
               ? 'w-96'
@@ -627,7 +628,7 @@
               deselect={() => (selectedLinkId = null)}
             />
           {/if}
-        </div>
+        </FadeIn>
       </Tabs.Content>
 
       <Tabs.Content value="compliance" class="mt-0 flex-1 overflow-hidden">

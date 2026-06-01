@@ -592,14 +592,14 @@
         <Dialog.Title>{pendingAction?.label ?? 'Confirm'}</Dialog.Title>
         <Dialog.Description>
           Are you sure you want to {pendingAction?.label?.toLowerCase() ?? 'perform this action on'}
-          {pendingActionRows.length} {pendingActionRows.length === 1 ? 'row' : 'rows'}?
-          This cannot be undone.
+          {pendingActionRows.length}
+          {pendingActionRows.length === 1 ? 'row' : 'rows'}? This cannot be undone.
         </Dialog.Description>
       </Dialog.Header>
       <div class="flex gap-2 justify-end">
         <Button variant="outline" onclick={() => (confirmDialogOpen = false)}>Cancel</Button>
         <Button variant="destructive" disabled={actionRunning} onclick={confirmDestructiveAction}>
-          {actionRunning ? 'Processing...' : pendingAction?.label ?? 'Confirm'}
+          {actionRunning ? 'Processing...' : (pendingAction?.label ?? 'Confirm')}
         </Button>
       </div>
     </Dialog.Content>

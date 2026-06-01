@@ -17,7 +17,7 @@
     ...M365_INTEGRATION_CONFIG.navigation.map((n) => ({
       label: n.label,
       href: `/microsoft-365${n.route}`,
-      disabled: () => false,
+      disabled: () => n.isNullable && !scopeStore.currentLink,
     })),
   ];
 
@@ -33,7 +33,7 @@
 
   const isGdap = $derived(
     (currentLink?.meta as Record<string, unknown> | null)?.source === 'gdap' ||
-    (currentLink?.meta as Record<string, unknown> | null)?.source === 'msp'
+      (currentLink?.meta as Record<string, unknown> | null)?.source === 'msp'
   );
 
   const customerDomain = $derived.by(() => {
@@ -108,7 +108,8 @@
         url = `https://admin.microsoft.com/Partner/beginclientsession.aspx?CTID=${tid}&CSDEST=SharePoint`;
         break;
       case 'teams':
-        if (customerDomain) url = `https://admin.teams.microsoft.com/?delegatedOrg=${customerDomain}`;
+        if (customerDomain)
+          url = `https://admin.teams.microsoft.com/?delegatedOrg=${customerDomain}`;
         break;
     }
 

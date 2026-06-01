@@ -43,7 +43,6 @@ const VENDOR_TABLE_MAP = {
   m365_risky_users: m365RiskyUsers,
   m365_mailbox_forwarding: m365MailboxForwarding,
   m365_inbox_rules: m365InboxRules,
-  m365_roles: m365Roles,
   sophos_endpoints: sophosEndpoints,
   sophos_firewalls: sophosFirewalls,
   sophos_licenses: sophosLicenses,
@@ -98,7 +97,7 @@ export const vendorRouter = t.router({
     .input(
       z.object({
         table: z.string(),
-        linkId: z.string().uuid().optional(),
+        linkId: z.uuid().optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(1000).default(25),
         sortColumn: z.string().optional(),
@@ -161,18 +160,15 @@ export const vendorRouter = t.router({
           input.sortDirection === 'desc'
             ? sql`${colId} desc nulls last`
             : sql`${colId} asc nulls first`;
-      } else {
+      } else if ('createdAt' in table) {
         orderClause = sql`${sql.identifier('created_at')} desc`;
       }
 
+      const baseQuery = ctx.db.select().from(table).where(whereClause);
+      const sortedQuery = orderClause ? baseQuery.orderBy(orderClause) : baseQuery;
+
       const [rows, [countRow]] = await Promise.all([
-        ctx.db
-          .select()
-          .from(table)
-          .where(whereClause)
-          .orderBy(orderClause)
-          .limit(input.pageSize)
-          .offset(offset),
+        sortedQuery.limit(input.pageSize).offset(offset),
         ctx.db.select({ count: count() }).from(table).where(whereClause)
       ]);
 
@@ -191,7 +187,14 @@ export const vendorRouter = t.router({
   identityDetails: authProcedure
     .input(z.object({ linkId: z.string().uuid(), identityId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const [roles, groups, directAssignments, groupAssignments, roleAssignments, allUsersPolicies] = await Promise.all([
+      const [
+        roles,
+        groups,
+        directAssignments,
+        groupAssignments,
+        roleAssignments,
+        allUsersPolicies
+      ] = await Promise.all([
         ctx.db
           .select({ id: m365Roles.id, name: m365Roles.name })
           .from(m365IdentityRoles)
@@ -213,29 +216,77 @@ export const vendorRouter = t.router({
             )
           ),
         ctx.db
-          .select({ id: m365Policies.id, name: m365Policies.name, policyState: m365Policies.policyState, included: m365PolicyIdentities.included })
+          .select({
+            id: m365Policies.id,
+            name: m365Policies.name,
+            policyState: m365Policies.policyState,
+            included: m365PolicyIdentities.included
+          })
           .from(m365PolicyIdentities)
           .innerJoin(m365Policies, eq(m365PolicyIdentities.policyId, m365Policies.id))
-          .where(and(eq(m365PolicyIdentities.identityId, input.identityId), eq(m365PolicyIdentities.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365PolicyIdentities.identityId, input.identityId),
+              eq(m365PolicyIdentities.linkId, input.linkId)
+            )
+          ),
         ctx.db
-          .select({ id: m365Policies.id, name: m365Policies.name, policyState: m365Policies.policyState, included: m365PolicyGroups.included })
+          .select({
+            id: m365Policies.id,
+            name: m365Policies.name,
+            policyState: m365Policies.policyState,
+            included: m365PolicyGroups.included
+          })
           .from(m365IdentityGroups)
-          .innerJoin(m365PolicyGroups, and(eq(m365PolicyGroups.groupId, m365IdentityGroups.groupId), eq(m365PolicyGroups.linkId, m365IdentityGroups.linkId)))
+          .innerJoin(
+            m365PolicyGroups,
+            and(
+              eq(m365PolicyGroups.groupId, m365IdentityGroups.groupId),
+              eq(m365PolicyGroups.linkId, m365IdentityGroups.linkId)
+            )
+          )
           .innerJoin(m365Policies, eq(m365PolicyGroups.policyId, m365Policies.id))
-          .where(and(eq(m365IdentityGroups.identityId, input.identityId), eq(m365IdentityGroups.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365IdentityGroups.identityId, input.identityId),
+              eq(m365IdentityGroups.linkId, input.linkId)
+            )
+          ),
         ctx.db
-          .select({ id: m365Policies.id, name: m365Policies.name, policyState: m365Policies.policyState, included: m365PolicyRoles.included })
+          .select({
+            id: m365Policies.id,
+            name: m365Policies.name,
+            policyState: m365Policies.policyState,
+            included: m365PolicyRoles.included
+          })
           .from(m365IdentityRoles)
-          .innerJoin(m365PolicyRoles, and(eq(m365PolicyRoles.roleId, m365IdentityRoles.roleId), eq(m365PolicyRoles.linkId, m365IdentityRoles.linkId)))
+          .innerJoin(
+            m365PolicyRoles,
+            and(
+              eq(m365PolicyRoles.roleId, m365IdentityRoles.roleId),
+              eq(m365PolicyRoles.linkId, m365IdentityRoles.linkId)
+            )
+          )
           .innerJoin(m365Policies, eq(m365PolicyRoles.policyId, m365Policies.id))
-          .where(and(eq(m365IdentityRoles.identityId, input.identityId), eq(m365IdentityRoles.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365IdentityRoles.identityId, input.identityId),
+              eq(m365IdentityRoles.linkId, input.linkId)
+            )
+          ),
         ctx.db
-          .select({ id: m365Policies.id, name: m365Policies.name, policyState: m365Policies.policyState })
+          .select({
+            id: m365Policies.id,
+            name: m365Policies.name,
+            policyState: m365Policies.policyState
+          })
           .from(m365Policies)
-          .where(and(
-            eq(m365Policies.linkId, input.linkId),
-            sql`${m365Policies.conditions} @> '{"users":{"includeUsers":["All"]}}'::jsonb`
-          ))
+          .where(
+            and(
+              eq(m365Policies.linkId, input.linkId),
+              sql`${m365Policies.conditions} @> '{"users":{"includeUsers":["All"]}}'::jsonb`
+            )
+          )
       ]);
 
       type PolicyRow = { id: string; name: string; policyState: string; included: boolean };
@@ -258,20 +309,38 @@ export const vendorRouter = t.router({
     .input(z.object({ linkId: z.string().uuid(), groupId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.db
-        .select({ id: m365Identities.id, name: m365Identities.name, email: m365Identities.email, enabled: m365Identities.enabled })
+        .select({
+          id: m365Identities.id,
+          name: m365Identities.name,
+          email: m365Identities.email,
+          enabled: m365Identities.enabled
+        })
         .from(m365IdentityGroups)
         .innerJoin(
           m365Identities,
-          and(eq(m365IdentityGroups.identityId, m365Identities.id), eq(m365IdentityGroups.linkId, m365Identities.linkId))
+          and(
+            eq(m365IdentityGroups.identityId, m365Identities.id),
+            eq(m365IdentityGroups.linkId, m365Identities.linkId)
+          )
         )
-        .where(and(eq(m365IdentityGroups.groupId, input.groupId), eq(m365IdentityGroups.linkId, input.linkId)));
+        .where(
+          and(
+            eq(m365IdentityGroups.groupId, input.groupId),
+            eq(m365IdentityGroups.linkId, input.linkId)
+          )
+        );
     }),
 
   licenseUsers: authProcedure
     .input(z.object({ linkId: z.string().uuid(), skuId: z.string() }))
     .query(async ({ ctx, input }) => {
       return ctx.db
-        .select({ id: m365Identities.id, name: m365Identities.name, email: m365Identities.email, enabled: m365Identities.enabled })
+        .select({
+          id: m365Identities.id,
+          name: m365Identities.name,
+          email: m365Identities.email,
+          enabled: m365Identities.enabled
+        })
         .from(m365Identities)
         .where(
           and(
@@ -285,10 +354,40 @@ export const vendorRouter = t.router({
     .input(z.object({ linkId: z.string().uuid(), roleId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return ctx.db
-        .select({ id: m365Identities.id, name: m365Identities.name, email: m365Identities.email, enabled: m365Identities.enabled })
+        .select({
+          id: m365Identities.id,
+          name: m365Identities.name,
+          email: m365Identities.email,
+          enabled: m365Identities.enabled
+        })
         .from(m365IdentityRoles)
         .innerJoin(m365Identities, eq(m365IdentityRoles.identityId, m365Identities.id))
-        .where(and(eq(m365IdentityRoles.roleId, input.roleId), eq(m365IdentityRoles.linkId, input.linkId)));
+        .where(
+          and(
+            eq(m365IdentityRoles.roleId, input.roleId),
+            eq(m365IdentityRoles.linkId, input.linkId)
+          )
+        );
+    }),
+
+  assignedRoles: authProcedure
+    .input(z.object({ linkId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          id: m365Roles.id,
+          name: m365Roles.name,
+          templateId: m365Roles.templateId,
+          description: m365Roles.description,
+          assigneeCount: count(m365IdentityRoles.identityId)
+        })
+        .from(m365Roles)
+        .innerJoin(m365IdentityRoles, eq(m365IdentityRoles.roleId, m365Roles.id))
+        .where(eq(m365IdentityRoles.linkId, input.linkId))
+        .groupBy(m365Roles.id)
+        .orderBy(m365Roles.name);
+
+      return rows;
     }),
 
   policyDetails: authProcedure
@@ -296,20 +395,39 @@ export const vendorRouter = t.router({
     .query(async ({ ctx, input }) => {
       const [identities, groups, roles] = await Promise.all([
         ctx.db
-          .select({ name: m365Identities.name, email: m365Identities.email, included: m365PolicyIdentities.included })
+          .select({
+            name: m365Identities.name,
+            email: m365Identities.email,
+            included: m365PolicyIdentities.included
+          })
           .from(m365PolicyIdentities)
           .innerJoin(m365Identities, eq(m365PolicyIdentities.identityId, m365Identities.id))
-          .where(and(eq(m365PolicyIdentities.policyId, input.policyId), eq(m365PolicyIdentities.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365PolicyIdentities.policyId, input.policyId),
+              eq(m365PolicyIdentities.linkId, input.linkId)
+            )
+          ),
         ctx.db
           .select({ name: m365Groups.name, included: m365PolicyGroups.included })
           .from(m365PolicyGroups)
           .innerJoin(m365Groups, eq(m365PolicyGroups.groupId, m365Groups.id))
-          .where(and(eq(m365PolicyGroups.policyId, input.policyId), eq(m365PolicyGroups.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365PolicyGroups.policyId, input.policyId),
+              eq(m365PolicyGroups.linkId, input.linkId)
+            )
+          ),
         ctx.db
           .select({ name: m365Roles.name, included: m365PolicyRoles.included })
           .from(m365PolicyRoles)
           .innerJoin(m365Roles, eq(m365PolicyRoles.roleId, m365Roles.id))
-          .where(and(eq(m365PolicyRoles.policyId, input.policyId), eq(m365PolicyRoles.linkId, input.linkId))),
+          .where(
+            and(
+              eq(m365PolicyRoles.policyId, input.policyId),
+              eq(m365PolicyRoles.linkId, input.linkId)
+            )
+          )
       ]);
       return { identities, groups, roles };
     })
