@@ -1,16 +1,21 @@
 import { Queue, Worker } from 'bullmq';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
-import { QUEUES, MAX_CONSECUTIVE_FAILURES, getFacetTableMap } from '@mspbyte/shared';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { QUEUES, FACET_TABLE_MAP, MAX_CONSECUTIVE_FAILURES, getFacetTableMap } from '@mspbyte/shared';
 import type { AlertsJobData, ComplianceJobData, ProviderFacet } from '@mspbyte/shared';
 import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
+import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 import {
+  alerts,
   complianceAssignments,
   complianceFrameworks,
   complianceFrameworkChecks,
+  entityChangeLog,
   integrationLinks,
   syncContext,
-  syncRuns
+  syncRuns,
+  vendorTableRegistry
 } from '@mspbyte/drizzle';
+import type { VendorTableName } from '@mspbyte/drizzle';
 import { startStage, completeStage, failStage } from '@mspbyte/shared';
 import { checkRegistry } from '../checks/registry.js';
 import { resolveMissingAlerts, upsertAlert } from '../upsert.js';
@@ -76,6 +81,60 @@ function checkMatchesTouchedTables(
   if (sourceTables.length === 0) return true;
 
   return sourceTables.some((table) => touchedTables.has(table));
+}
+
+async function purgeStaleEntities(
+  db: TenantServiceDb,
+  syncRunId: string,
+  linkId: string,
+  facets: ProviderFacet[]
+): Promise<number> {
+  const [syncRun] = await db
+    .select({ startedAt: syncRuns.startedAt, integrationId: syncRuns.integrationId })
+    .from(syncRuns)
+    .where(eq(syncRuns.id, syncRunId))
+    .limit(1);
+
+  if (!syncRun?.startedAt) return 0;
+
+  let totalPurged = 0;
+
+  for (const facet of facets) {
+    const registryKey = FACET_TABLE_MAP[facet] as VendorTableName | undefined;
+    if (!registryKey || !vendorTableRegistry[registryKey]) continue;
+
+    const { table } = vendorTableRegistry[registryKey];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deleted: { id: string }[] = await (db.delete(table as any) as any)
+      .where(sql`link_id = ${linkId} AND last_seen_at < ${syncRun.startedAt}`)
+      .returning({ id: sql<string>`id::text` });
+
+    if (deleted.length === 0) continue;
+
+    const deletedIds = deleted.map((r) => r.id);
+    totalPurged += deletedIds.length;
+
+    await db.delete(alerts).where(inArray(alerts.entityId, deletedIds));
+
+    await db.insert(entityChangeLog).values(
+      deletedIds.map((id) => ({
+        linkId,
+        syncRunId,
+        integrationId: syncRun.integrationId,
+        externalId: id,
+        type: facet,
+        changeType: 'deleted' as const
+      }))
+    );
+
+    logger.info(
+      { linkId, facet, table: registryKey, purged: deletedIds.length },
+      'Purged stale vendor entities and associated alerts'
+    );
+  }
+
+  return totalPurged;
 }
 
 async function enqueueAssignedComplianceJobs(params: {
@@ -292,6 +351,11 @@ export function createAlertsWorker(redis: Redis) {
         'Alerts job started'
       );
 
+      let purgedCount = 0;
+      if (linkId && facets && facets.length > 0) {
+        purgedCount = await purgeStaleEntities(db, syncRunId, linkId, facets);
+      }
+
       let detectionCount = 0;
       try {
         for (const check of checks) {
@@ -342,7 +406,10 @@ export function createAlertsWorker(redis: Redis) {
           );
         }
 
-        await completeStage(db, stageId, { recordsOut: detectionCount });
+        await completeStage(db, stageId, {
+          recordsOut: detectionCount,
+          metrics: purgedCount > 0 ? { purgedEntities: purgedCount } : undefined
+        });
 
         await enqueueAssignedComplianceJobs({
           db,
