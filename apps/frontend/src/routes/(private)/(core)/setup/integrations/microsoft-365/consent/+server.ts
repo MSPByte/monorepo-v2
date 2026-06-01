@@ -6,6 +6,7 @@ import {
   TenantCapabilityService,
   Microsoft365RoleManagerService,
   Encryption,
+  fetchWithRetry,
 } from '@mspbyte/shared';
 import { MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, ENCRYPTION_KEY } from '$env/static/private';
 import { createServerCaller } from '$lib/server/trpc';
@@ -29,17 +30,25 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   }
 
   if (!msTenantId || !stateRaw) {
-    return redirect(302, `/setup/integrations/microsoft-365?error=${encodeURIComponent('Consent flow returned incomplete parameters')}`);
+    return redirect(
+      302,
+      `/setup/integrations/microsoft-365?error=${encodeURIComponent('Consent flow returned incomplete parameters')}`
+    );
   }
 
   let parsedState: { gdapTenantId?: string; orgId?: string } = {};
   try {
-    parsedState = z.object({
-      gdapTenantId: z.string().optional(),
-      orgId: z.string().optional(),
-    }).parse(JSON.parse(stateRaw));
+    parsedState = z
+      .object({
+        gdapTenantId: z.string().optional(),
+        orgId: z.string().optional(),
+      })
+      .parse(JSON.parse(stateRaw));
   } catch {
-    return redirect(302, `/setup/integrations/microsoft-365?error=${encodeURIComponent('Invalid state parameter')}`);
+    return redirect(
+      302,
+      `/setup/integrations/microsoft-365?error=${encodeURIComponent('Invalid state parameter')}`
+    );
   }
 
   const { gdapTenantId } = parsedState;
@@ -56,21 +65,34 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         if (cfg.success) {
           if (cfg.data.clientId) clientId = cfg.data.clientId;
           if (cfg.data.clientSecret) {
-            clientSecret = Encryption.decrypt(cfg.data.clientSecret, ENCRYPTION_KEY) ?? clientSecret;
+            clientSecret =
+              Encryption.decrypt(cfg.data.clientSecret, ENCRYPTION_KEY) ?? clientSecret;
           }
         }
       }
-    } catch { /* non-fatal — fall back to env vars */ }
+    } catch {
+      /* non-fatal — fall back to env vars */
+    }
 
     // Scoped to the selected customer tenant (MSP client credentials + target tenantId)
     const connector = new M365Connector(clientId, clientSecret, gdapTenantId);
 
-    // 1. Assign directory roles (non-fatal)
+    // 1. Assign directory roles (non-fatal, retry for post-consent API propagation delay)
     let assignedRoles: string[] = [];
     try {
-      const result = await new Microsoft365RoleManagerService(connector).ensureDirectoryRoles(REQUIRED_DIRECTORY_ROLES);
+      const result = await fetchWithRetry(
+        () => {
+          connector.clearTokenCache();
+          return new Microsoft365RoleManagerService(connector).ensureDirectoryRoles(
+            REQUIRED_DIRECTORY_ROLES
+          );
+        },
+        { maxRetries: 3, baseDelayMs: 1000 }
+      );
       assignedRoles = result.assigned;
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 2. Fetch verified domains (non-fatal)
     let domains: string[] = [];
@@ -79,20 +101,26 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       const allDomains = await connector.domains.listAll();
       domains = allDomains.filter((d) => d.isVerified).map((d) => d.id);
       defaultDomain = allDomains.find((d) => d.isDefault)?.id ?? null;
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 3. Probe capabilities (non-fatal)
     let capabilities: Record<string, boolean> | null = null;
     try {
       capabilities = await new TenantCapabilityService(connector).probe();
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 4. Count users (non-fatal)
     let userCount = 0;
     try {
       const userIds = await connector.users.listIdsAll();
       userCount = userIds.length;
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 5. Update link with all gathered data
     try {
@@ -111,7 +139,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             defaultDomain,
             userCount,
             roles: assignedRoles,
-            ...(capabilities ? { capabilities, capabilitiesCheckedAt: new Date().toISOString() } : {}),
+            ...(capabilities
+              ? { capabilities, capabilitiesCheckedAt: new Date().toISOString() }
+              : {}),
           },
         });
       }
@@ -119,14 +149,20 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       console.error('Failed to update link after GDAP consent:', err);
     }
 
-    return redirect(302, `/setup/integrations/microsoft-365?consentedTenant=${encodeURIComponent(gdapTenantId)}`);
+    return redirect(
+      302,
+      `/setup/integrations/microsoft-365?consentedTenant=${encodeURIComponent(gdapTenantId)}`
+    );
   }
 
   // Initial MSP consent — upsert integration with MSP tenant ID
   try {
     await caller.integrations.upsert({ id: 'microsoft-365', config: { tenantId: msTenantId } });
   } catch (err) {
-    return redirect(302, `/setup/integrations/microsoft-365?error=${encodeURIComponent(String(err))}`);
+    return redirect(
+      302,
+      `/setup/integrations/microsoft-365?error=${encodeURIComponent(String(err))}`
+    );
   }
 
   return redirect(302, '/setup/integrations/microsoft-365?initialConsent=success');

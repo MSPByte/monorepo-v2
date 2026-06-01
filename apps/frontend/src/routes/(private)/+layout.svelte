@@ -58,9 +58,6 @@
     <div class="flex w-fit h-full gap-2 items-center p-2">
       <a href="/home"><Aperture class="w-8 h-8" /></a>
       <Separator orientation="vertical" />
-      <IntegrationSelect />
-      <ScopeSelect />
-      <Separator orientation="vertical" />
       <div class="flex rounded-full p-1 bg-background/320 border gap-1">
         {@render navLink({ href: '/home', label: 'Home' })}
         {#each routeMap.entries() as [group, routes]}
@@ -105,6 +102,9 @@
           {/if}
         {/each}
       </div>
+      <Separator orientation="vertical" />
+      <IntegrationSelect />
+      <ScopeSelect />
     </div>
     <div class="flex h-full px-2 items-center gap-1">
       <UserAccount orgId={data.orgId} orgName={data.orgName} />

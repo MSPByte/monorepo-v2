@@ -25,6 +25,10 @@ export class M365GraphClient {
     return `${this.clientId}::${this.tenantId}`;
   }
 
+  clearCache() {
+    M365GraphClient.tokenCache.clear();
+  }
+
   async getToken(): Promise<string> {
     const key = this.cacheKey();
     const cached = M365GraphClient.tokenCache.get(key);
@@ -54,10 +58,9 @@ export class M365GraphClient {
       }
     );
     if (res.status === 401) {
-      throw Object.assign(
-        new Error(`M365 auth rejected for tenant ${this.tenantId}`),
-        { failParent: true }
-      );
+      throw Object.assign(new Error(`M365 auth rejected for tenant ${this.tenantId}`), {
+        failParent: true
+      });
     }
     if (!res.ok) throw new Error(`M365 token endpoint error: ${res.status}`);
     const data = TokenResponseSchema.parse(await res.json());
@@ -67,25 +70,31 @@ export class M365GraphClient {
     };
   }
 
-  async get<T>(url: string): Promise<T> {
+  async get<T>(url: string): Promise<{ data: T; res: Response }> {
     const token = await this.getToken();
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (res.status === 401) {
       throw Object.assign(new Error('M365 auth rejected'), { failParent: true });
     }
-    if (!res.ok) throw new Error(`Graph API error ${res.status}: ${url}`);
-    return res.json() as Promise<T>;
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Graph API error ${res.status}: ${url} – ${body}`);
+    }
+    return { data: (await res.json()) as T, res };
   }
 
-  async post<T>(url: string, body: unknown): Promise<T> {
+  async post<T>(url: string, body: unknown): Promise<{ data: T; res: Response }> {
     const token = await this.getToken();
     const res = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(`Graph API POST error ${res.status}: ${url}`);
-    return res.json() as Promise<T>;
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Graph API POST error ${res.status}: ${url} – ${body}`);
+    }
+    return { data: (await res.json()) as T, res };
   }
 
   // Fetches all pages of a Graph collection endpoint via @odata.nextLink.

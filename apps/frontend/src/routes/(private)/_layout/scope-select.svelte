@@ -39,11 +39,11 @@
 </script>
 
 {#if !currentScope}
-  <div class="w-44">
+  <div class="w-56">
     <SingleSelect placeholder="Select Scope..." options={[]} disabled />
   </div>
 {:else if currentScope === 'site'}
-  <div class="w-44">
+  <div class="w-56">
     <SingleSelect
       placeholder="Select Site..."
       searchPlaceholder="Search Sites"
@@ -53,7 +53,7 @@
     />
   </div>
 {:else if currentScope === 'link'}
-  <div class="w-44">
+  <div class="w-56">
     <SingleSelect
       placeholder="Select Tenant..."
       searchPlaceholder="Search Tenants"

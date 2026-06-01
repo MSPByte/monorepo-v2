@@ -10,6 +10,10 @@ export class M365Connector {
   private readonly clientId: string;
   private client: M365GraphClient;
 
+  clearTokenCache() {
+    this.client.clearCache();
+  }
+
   readonly users: {
     listAll: (select: string) => Promise<unknown[]>;
     listIdsAll: () => Promise<Array<{ id: string }>>;
@@ -43,7 +47,10 @@ export class M365Connector {
   };
 
   readonly directoryObjects: {
-    getByIds: (ids: string[], types: string[]) => Promise<Array<{ id: string; displayName?: string }>>;
+    getByIds: (
+      ids: string[],
+      types: string[]
+    ) => Promise<Array<{ id: string; displayName?: string }>>;
   };
 
   readonly identityProtection: {
@@ -95,9 +102,11 @@ export class M365Connector {
         ),
 
       authMethods: (userId) =>
-        this.client.get<{ value: Array<Record<string, unknown>> }>(
-          `https://graph.microsoft.com/v1.0/users/${userId}/authentication/methods`
-        )
+        this.client
+          .get<{ value: Array<Record<string, unknown>> }>(
+            `https://graph.microsoft.com/v1.0/users/${userId}/authentication/methods`
+          )
+          .then((r) => r.data)
     };
 
     this.groups = {
@@ -137,18 +146,16 @@ export class M365Connector {
     };
 
     this.oauthGrants = {
-      listAll: () =>
-        this.client.getAll('https://graph.microsoft.com/v1.0/oauth2PermissionGrants')
+      listAll: () => this.client.getAll('https://graph.microsoft.com/v1.0/oauth2PermissionGrants')
     };
 
     this.directoryObjects = {
       getByIds: (ids, types) =>
         this.client
-          .post<{ value: Array<{ id: string; displayName?: string }> }>(
-            'https://graph.microsoft.com/v1.0/directoryObjects/getByIds',
-            { ids, types }
-          )
-          .then((r) => r.value)
+          .post<{
+            value: Array<{ id: string; displayName?: string }>;
+          }>('https://graph.microsoft.com/v1.0/directoryObjects/getByIds', { ids, types })
+          .then((r) => r.data.value)
     };
 
     this.identityProtection = {
@@ -169,10 +176,10 @@ export class M365Connector {
 
     this.organization = {
       get: async () => {
-        const res = await this.client.get<{ value: Array<{ id: string; displayName: string }> }>(
-          'https://graph.microsoft.com/v1.0/organization?$select=id,displayName'
-        );
-        const org = res.value[0];
+        const { data } = await this.client.get<{
+          value: Array<{ id: string; displayName: string }>;
+        }>('https://graph.microsoft.com/v1.0/organization?$select=id,displayName');
+        const org = data.value[0];
         if (!org) throw new Error('No organization found');
         return org;
       }
@@ -187,10 +194,10 @@ export class M365Connector {
 
     this.servicePrincipals = {
       findOwn: async () => {
-        const res = await this.client.get<{ value: Array<{ id: string }> }>(
+        const { data } = await this.client.get<{ value: Array<{ id: string }> }>(
           `https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '${this.clientId}'&$select=id`
         );
-        return res.value[0] ?? null;
+        return data.value[0] ?? null;
       }
     };
 
@@ -204,8 +211,13 @@ export class M365Connector {
                 { principalId, roleDefinitionId, directoryScopeId: '/' }
               );
             } catch (err) {
-              // 409 = already assigned — treat as success
-              if (err instanceof Error && err.message.includes('409')) return;
+              if (
+                err instanceof Error &&
+                err.message.includes(
+                  'A conflicting object with one or more of the specified property values'
+                )
+              )
+                return;
               throw err;
             }
           }

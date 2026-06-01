@@ -1,18 +1,21 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { cn } from "$lib/utils";
+  import type { Snippet } from "svelte";
 
-  const { tabs }: { 
+  const { tabs, children }: { 
     tabs: { 
       href: string; 
       label: string;
       exact?: boolean;
       disabled?: () => boolean;
-    }[] 
+    }[],
+    children?: Snippet;
   } = $props();
 </script>
 
-<div class="flex items-center gap-0 border-b px-4 shrink-0">
+<div class="flex w-full justify-between border-b">
+  <div class="flex items-center gap-0 px-4 shrink-0">
     {#each tabs as tab}
       {@const isActive = tab.exact ? page.url.pathname === tab.href : page.url.pathname.includes(tab.href)}
       {@const disabled = tab.disabled?.() ?? false}
@@ -31,3 +34,7 @@
       </a>
     {/each}
   </div>
+  <div class="w-fit h-fit items-center justify-center my-auto px-2">
+    {@render children?.()}
+  </div>
+</div>
