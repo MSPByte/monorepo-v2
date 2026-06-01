@@ -14,7 +14,8 @@ import {
   runExchangeOnlineDomainConfig,
   runMicrosoftTeams,
   runMailboxForwardingFull,
-  runInboxRules
+  runInboxRules,
+  INBOX_RULES_BATCH_SIZE
 } from './ps-runner.js';
 import { type MSGraphCapabilities } from '@mspbyte/shared/config/integrations/microsoft-365';
 
@@ -149,14 +150,6 @@ const PSExchangeConfigSchema = z.object({
   AutoForwardingMode: z.string().nullable().optional(),
   AuthPolicies: z
     .array(z.object({ Name: z.string(), AllowBasicAuthSmtp: z.boolean().nullable().optional() }))
-    .default([]),
-  ForwardingMailboxes: z
-    .array(
-      z.object({
-        UserPrincipalName: z.string(),
-        ForwardingSmtpAddress: z.string().nullable().optional()
-      })
-    )
     .default([])
 });
 
@@ -755,14 +748,26 @@ export const m365Adapter: ProviderAdapter = {
           return;
         }
 
-        const result = await runInboxRules(
-          clientId,
-          certPem,
-          defaultDomain || gdapTenantId,
-          activeUpns
-        );
-        const inboxRules = ((result as Record<string, unknown>)?.InboxRules ?? []) as unknown[];
-        if (inboxRules.length > 0) yield inboxRules;
+        const totalBatches = Math.ceil(activeUpns.length / INBOX_RULES_BATCH_SIZE);
+        logger.info({ linkId, users: activeUpns.length, batches: totalBatches }, 'Starting inbox rules batched fetch');
+
+        for (let i = 0; i < activeUpns.length; i += INBOX_RULES_BATCH_SIZE) {
+          const batch = activeUpns.slice(i, i + INBOX_RULES_BATCH_SIZE);
+          const batchNum = Math.floor(i / INBOX_RULES_BATCH_SIZE) + 1;
+          try {
+            const result = await runInboxRules(
+              clientId,
+              certPem,
+              defaultDomain || gdapTenantId,
+              batch
+            );
+            const rules = ((result as Record<string, unknown>)?.InboxRules ?? []) as unknown[];
+            if (rules.length > 0) yield rules;
+            logger.info({ linkId, batch: batchNum, totalBatches, rules: rules.length }, 'Inbox rules batch complete');
+          } catch (err) {
+            logger.warn({ linkId, batch: batchNum, totalBatches, err }, 'Inbox rules batch failed, continuing');
+          }
+        }
         break;
       }
 
@@ -832,21 +837,12 @@ export const m365Adapter: ProviderAdapter = {
           c.AuthPolicies.length > 0
             ? c.AuthPolicies.some((p) => p.AllowBasicAuthSmtp === true)
             : null;
-        const forwardingMailboxes = c.ForwardingMailboxes.filter(
-          (m) => !!m.ForwardingSmtpAddress
-        ).map((m) => {
-          const raw = m.ForwardingSmtpAddress!;
-          return {
-            upn: m.UserPrincipalName,
-            forwardingAddress: raw.toLowerCase().startsWith('smtp:') ? raw.slice(5) : raw
-          };
-        });
         return {
           externalId: 'org-config',
           rejectDirectSend: c.OrgConfig?.RejectDirectSend ?? false,
           autoForwardingMode: c.AutoForwardingMode ?? null,
           allowBasicAuthSmtp,
-          forwardingMailboxes: forwardingMailboxes.length > 0 ? forwardingMailboxes : null
+          forwardingMailboxes: null
         };
       }
       case ProviderFacet.M365DomainConfig: {

@@ -13,8 +13,15 @@
     rejectDirectSend: boolean | null;
     autoForwardingMode: string | null;
     allowBasicAuthSmtp: boolean | null;
-    forwardingMailboxes: Array<{ upn: string; forwardingAddress: string }> | null;
     lastSeenAt: string | null;
+    [key: string]: unknown;
+  };
+
+  type ForwardingRow = {
+    id: string;
+    userPrincipalName: string;
+    forwardingSmtpAddress: string | null;
+    forwardingAddress: string | null;
     [key: string]: unknown;
   };
 
@@ -36,7 +43,20 @@
     enabled: !!linkId,
   }));
 
+  const forwardingQuery = createQuery(() => ({
+    queryKey: ['vendor.tableData', 'm365_mailbox_forwarding', linkId],
+    queryFn: () =>
+      trpc.vendor.tableData.query({
+        table: 'm365_mailbox_forwarding',
+        linkId,
+        page: 1,
+        pageSize: 100,
+      }),
+    enabled: !!linkId,
+  }));
+
   const config = $derived((configQuery.data?.rows[0] ?? null) as ExchangeConfigRow | null);
+  const forwardingMailboxes = $derived((forwardingQuery.data?.rows ?? []) as ForwardingRow[]);
 
   const AUTO_FORWARD_LABELS: Record<string, { label: string; color: string }> = {
     Disabled: { label: 'Disabled', color: 'bg-success/20 text-success' },
@@ -105,23 +125,23 @@
 
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">Forwarding Mailboxes</span>
-          <span class="text-sm font-medium">{config.forwardingMailboxes?.length ?? 0}</span>
+          <span class="text-sm font-medium">{forwardingMailboxes.length}</span>
         </div>
       </div>
 
-      {#if config.forwardingMailboxes && config.forwardingMailboxes.length > 0}
+      {#if forwardingMailboxes.length > 0}
         <div class="border-t pt-3 flex flex-col gap-2">
           <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Forwarding Mailboxes
           </div>
           <div class="flex flex-col gap-1.5">
-            {#each config.forwardingMailboxes as mb}
+            {#each forwardingMailboxes as mb}
               <div
                 class="flex items-start justify-between gap-2 text-sm p-2 rounded-md bg-muted/50"
               >
-                <span class="text-xs font-mono truncate">{mb.upn}</span>
+                <span class="text-xs font-mono truncate">{mb.userPrincipalName}</span>
                 <span class="text-xs text-muted-foreground shrink-0 truncate max-w-45"
-                  >{mb.forwardingAddress}</span
+                  >{mb.forwardingSmtpAddress ?? mb.forwardingAddress ?? '—'}</span
                 >
               </div>
             {/each}

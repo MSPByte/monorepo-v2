@@ -1,5 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 60_000;
-const INBOX_RULES_TIMEOUT_MS = 300_000;
+const MAILBOX_FORWARDING_TIMEOUT_MS = 180_000;
+const INBOX_RULES_TIMEOUT_MS = 120_000;
+export const INBOX_RULES_BATCH_SIZE = 50;
 
 async function runPwsh(
   script: string,
@@ -120,14 +122,6 @@ try {
   try {
     $result.AuthPolicies = @(Get-AuthenticationPolicy | Select-Object Name, AllowBasicAuthSmtp)
   } catch { $result.AuthPolicies = @() }
-
-  try {
-    $result.ForwardingMailboxes = @(
-      Get-Mailbox -ResultSize Unlimited |
-      Where-Object { $_.ForwardingSmtpAddress -ne $null } |
-      Select-Object UserPrincipalName, ForwardingSmtpAddress
-    )
-  } catch { $result.ForwardingMailboxes = @() }
 
   $result | ConvertTo-Json -Depth 10
 } finally {
@@ -264,7 +258,7 @@ try {
 
   try {
     $result.ForwardingMailboxes = @(
-      Get-Mailbox -ResultSize Unlimited |
+      Get-EXOMailbox -ResultSize Unlimited -PropertySets Minimum -Properties ForwardingAddress,ForwardingSmtpAddress,DeliverToMailboxAndForward |
       Where-Object { $_.ForwardingAddress -ne $null -or $_.ForwardingSmtpAddress -ne $null } |
       Select-Object UserPrincipalName, ForwardingAddress, ForwardingSmtpAddress, DeliverToMailboxAndForward
     )
@@ -277,7 +271,7 @@ try {
 }
 `.trim();
 
-  return runPwsh(script, { CLIENT_ID: clientId, CERT_PEM: certPem, ORGANIZATION: organization });
+  return runPwsh(script, { CLIENT_ID: clientId, CERT_PEM: certPem, ORGANIZATION: organization }, MAILBOX_FORWARDING_TIMEOUT_MS);
 }
 
 export async function runInboxRules(
