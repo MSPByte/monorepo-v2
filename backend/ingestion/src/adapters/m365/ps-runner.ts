@@ -1,7 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAILBOX_FORWARDING_TIMEOUT_MS = 180_000;
 const INBOX_RULES_TIMEOUT_MS = 120_000;
-export const INBOX_RULES_BATCH_SIZE = 50;
+export const INBOX_RULES_BATCH_SIZE = 25;
 
 async function runPwsh(
   script: string,
@@ -31,15 +31,21 @@ async function runPwsh(
     let stdout = '';
     let stderr = '';
 
-    ps.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    ps.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    ps.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    ps.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
 
     ps.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ENOENT') {
-        reject(Object.assign(
-          new Error('pwsh not found — install PowerShell 7+ to use Exchange/Teams facets'),
-          { failParent: true }
-        ));
+        reject(
+          Object.assign(
+            new Error('pwsh not found — install PowerShell 7+ to use Exchange/Teams facets'),
+            { failParent: true }
+          )
+        );
       } else {
         reject(new Error(`PowerShell process error: ${err.message}`));
       }
@@ -47,17 +53,17 @@ async function runPwsh(
 
     ps.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
       if (signal) {
-        reject(Object.assign(
-          new Error(`PowerShell killed by signal ${signal} (timeout after ${timeoutMs}ms)`),
-          { retriable: true }
-        ));
+        reject(
+          Object.assign(
+            new Error(`PowerShell killed by signal ${signal} (timeout after ${timeoutMs}ms)`),
+            { retriable: true }
+          )
+        );
         return;
       }
 
       if (code !== 0) {
-        reject(new Error(
-          `PowerShell exited with code ${code}. stderr: ${stderr.slice(0, 500)}`
-        ));
+        reject(new Error(`PowerShell exited with code ${code}. stderr: ${stderr.slice(0, 500)}`));
         return;
       }
 
@@ -271,7 +277,11 @@ try {
 }
 `.trim();
 
-  return runPwsh(script, { CLIENT_ID: clientId, CERT_PEM: certPem, ORGANIZATION: organization }, MAILBOX_FORWARDING_TIMEOUT_MS);
+  return runPwsh(
+    script,
+    { CLIENT_ID: clientId, CERT_PEM: certPem, ORGANIZATION: organization },
+    MAILBOX_FORWARDING_TIMEOUT_MS
+  );
 }
 
 export async function runInboxRules(
@@ -343,7 +353,12 @@ try {
 
   return runPwsh(
     script,
-    { CLIENT_ID: clientId, CERT_PEM: certPem, ORGANIZATION: organization, UPNS: JSON.stringify(upns) },
+    {
+      CLIENT_ID: clientId,
+      CERT_PEM: certPem,
+      ORGANIZATION: organization,
+      UPNS: JSON.stringify(upns)
+    },
     INBOX_RULES_TIMEOUT_MS
   );
 }
