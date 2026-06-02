@@ -1,6 +1,12 @@
 import { eq, and } from 'drizzle-orm';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core';
-import { syncRunStages, syncContext, entityChangeLog, rawIngestLog } from '@mspbyte/drizzle';
+import {
+  syncRuns,
+  syncRunStages,
+  syncContext,
+  entityChangeLog,
+  rawIngestLog
+} from '@mspbyte/drizzle';
 
 type Db = PgAsyncDatabase<any, any>;
 
@@ -21,6 +27,7 @@ export async function startStage(
   type: string,
   bullmqJobId: string
 ): Promise<string> {
+  await db.update(syncRuns).set({ status: 'running' }).where(eq(syncRuns.id, syncRunId));
   const [row] = await db
     .insert(syncRunStages)
     .values({

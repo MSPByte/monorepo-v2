@@ -8,9 +8,9 @@ import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 
-export function createLinkWorker(redis: Redis) {
+export function createLinkWorker(redis: Redis, queueName: string = QUEUES.LINK) {
   return new Worker<LinkJobData>(
-    QUEUES.LINK,
+    queueName,
     async (job) => {
       const { data } = job;
 

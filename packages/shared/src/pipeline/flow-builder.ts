@@ -1,4 +1,4 @@
-import { QUEUES } from '../types/queues.js';
+import { QUEUES, ingestionRootJobId, orgQueueName } from '../types/queues.js';
 import { PROVIDER_IDS } from '../constants.js';
 import { ProviderFacet } from '../libs/provider.js';
 import type {
@@ -35,15 +35,25 @@ export type BuildLinkFlowParams = {
 
 export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
   const {
-    orgId, linkId, siteId, provider, externalId, linkMeta = {}, integrationConfig = {},
-    facets, ingestRunId, syncRunId, mode, facetCursors = {}
+    orgId,
+    linkId,
+    siteId,
+    provider,
+    externalId,
+    linkMeta = {},
+    integrationConfig = {},
+    facets,
+    ingestRunId,
+    syncRunId,
+    mode,
+    facetCursors = {}
   } = params;
 
   const resolvedMeta = { ...linkMeta, externalId };
 
   const fetchChildren: PipelineFlowJob[] = facets.map((facet) => ({
     name: `fetch:${provider}:${facet}:${ingestRunId}`,
-    queueName: QUEUES.FETCH,
+    queueName: orgQueueName(QUEUES.FETCH, orgId),
     data: {
       linkId,
       siteId,
@@ -55,7 +65,7 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
       mode,
       cursor: facetCursors[facet],
       linkMeta: resolvedMeta,
-      integrationConfig,
+      integrationConfig
     } satisfies FetchJobData as Record<string, unknown>
   }));
 
@@ -66,18 +76,24 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
     ingestRunId,
     syncRunId,
     mode,
-    facets,
+    facets
   };
 
-  const rootOpts = { jobId: `ingest_${linkId}_${ingestRunId}`, removeOnComplete: 5, removeOnFail: 10 };
+  const rootOpts = {
+    jobId: ingestionRootJobId(linkId, ingestRunId),
+    removeOnComplete: 5,
+    removeOnFail: 10
+  };
 
   const needsM365IdentityPostProcess =
     provider === PROVIDER_IDS.M365 &&
-    facets.some((facet) => [
-      ProviderFacet.M365Identities,
-      ProviderFacet.M365Groups,
-      ProviderFacet.M365CAPolicies,
-    ].includes(facet));
+    facets.some((facet) =>
+      [
+        ProviderFacet.M365Identities,
+        ProviderFacet.M365Groups,
+        ProviderFacet.M365CAPolicies
+      ].includes(facet)
+    );
 
   if (needsM365IdentityPostProcess) {
     const linkData: LinkJobData = {
@@ -88,7 +104,7 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
       ingestRunId,
       syncRunId,
       linkMeta: resolvedMeta,
-      integrationConfig,
+      integrationConfig
     };
     const enrichData: EnrichJobData = {
       linkId,
@@ -98,36 +114,36 @@ export function buildLinkFlow(params: BuildLinkFlowParams): PipelineFlowJob {
       ingestRunId,
       syncRunId,
       linkMeta: resolvedMeta,
-      integrationConfig,
+      integrationConfig
     };
     return {
       name: `alerts:${orgId}:${linkId}:${ingestRunId}`,
-      queueName: QUEUES.ALERTS,
+      queueName: orgQueueName(QUEUES.ALERTS, orgId),
       data: alertsData as Record<string, unknown>,
       opts: rootOpts,
       children: [
         {
           name: `enrich:${provider}:${linkId}:${ingestRunId}`,
-          queueName: QUEUES.ENRICH,
+          queueName: orgQueueName(QUEUES.ENRICH, orgId),
           data: enrichData as Record<string, unknown>,
           children: [
             {
               name: `link:${provider}:${linkId}:${ingestRunId}`,
-              queueName: QUEUES.LINK,
+              queueName: orgQueueName(QUEUES.LINK, orgId),
               data: linkData as Record<string, unknown>,
-              children: fetchChildren,
+              children: fetchChildren
             }
-          ],
+          ]
         }
-      ],
+      ]
     };
   }
 
   return {
     name: `alerts:${orgId}:${linkId}:${ingestRunId}`,
-    queueName: QUEUES.ALERTS,
+    queueName: orgQueueName(QUEUES.ALERTS, orgId),
     data: alertsData as Record<string, unknown>,
     opts: rootOpts,
-    children: fetchChildren,
+    children: fetchChildren
   };
 }

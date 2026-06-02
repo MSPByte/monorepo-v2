@@ -8,7 +8,7 @@ import { logger } from './logger.js';
 const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
   keepAlive: 10_000,
-  connectTimeout: 15_000,
+  connectTimeout: 15_000
 });
 
 // TODO: Self-Scheduling + Event Triggers
@@ -37,6 +37,7 @@ const schedulerWorker = new Worker(
   'pipeline-scheduler',
   async () => {
     logger.info('Scheduler cron fired — scanning for due ingestion work');
+    await recoverOrphanedRuns(redis);
     await scheduleIngestion(redis, 'scheduled');
   },
   { connection: redis, concurrency: 1 }

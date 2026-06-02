@@ -1,6 +1,12 @@
 import { Queue, Worker } from 'bullmq';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { QUEUES, FACET_TABLE_MAP, MAX_CONSECUTIVE_FAILURES, getFacetTableMap } from '@mspbyte/shared';
+import {
+  QUEUES,
+  FACET_TABLE_MAP,
+  MAX_CONSECUTIVE_FAILURES,
+  getFacetTableMap,
+  orgQueueName
+} from '@mspbyte/shared';
 import type { AlertsJobData, ComplianceJobData, ProviderFacet } from '@mspbyte/shared';
 import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
@@ -310,11 +316,20 @@ async function enqueueAssignedComplianceJobs(params: {
   }
 }
 
-export function createAlertsWorker(redis: Redis) {
-  const complianceQueue = new Queue<ComplianceJobData>(QUEUES.COMPLIANCE, { connection: redis });
+export function createAlertsWorker(redis: Redis, queueName: string = QUEUES.ALERTS) {
+  const complianceQueues = new Map<string, Queue<ComplianceJobData>>();
 
-  return new Worker<AlertsJobData>(
-    QUEUES.ALERTS,
+  function getComplianceQueue(orgId: string): Queue<ComplianceJobData> {
+    const name = orgQueueName(QUEUES.COMPLIANCE, orgId);
+    const existing = complianceQueues.get(name);
+    if (existing) return existing;
+    const queue = new Queue<ComplianceJobData>(name, { connection: redis });
+    complianceQueues.set(name, queue);
+    return queue;
+  }
+
+  const worker = new Worker<AlertsJobData>(
+    queueName,
     async (job) => {
       const { siteId, linkId, orgId, ingestRunId, syncRunId, mode, facets } = job.data;
 
@@ -413,7 +428,7 @@ export function createAlertsWorker(redis: Redis) {
 
         await enqueueAssignedComplianceJobs({
           db,
-          queue: complianceQueue,
+          queue: getComplianceQueue(orgId),
           orgId,
           ingestRunId,
           siteId,
@@ -473,4 +488,13 @@ export function createAlertsWorker(redis: Redis) {
     },
     { connection: redis, concurrency: 3 }
   );
+
+  const close = worker.close.bind(worker);
+  worker.close = async (...args: Parameters<typeof worker.close>) => {
+    const result = await close(...args);
+    await Promise.all([...complianceQueues.values()].map((queue) => queue.close()));
+    return result;
+  };
+
+  return worker;
 }

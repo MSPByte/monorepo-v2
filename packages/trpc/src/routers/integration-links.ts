@@ -3,7 +3,12 @@ import { integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
 import { eq, and, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { FlowProducer } from 'bullmq';
-import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
+import {
+  buildLinkFlow,
+  getProviderFacets,
+  ingestionRootJobId,
+  resolveFacetPlan
+} from '@mspbyte/shared';
 import { t, authProcedure } from '../trpc.js';
 import type { Redis } from 'ioredis';
 import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
@@ -261,6 +266,7 @@ async function triggerLinkSync(
   externalId: string | undefined,
   meta: Record<string, unknown> | null
 ): Promise<void> {
+  let syncRunId: string | undefined;
   try {
     const providerFacets = getProviderFacets(integrationId);
     if (providerFacets.length === 0) return;
@@ -282,12 +288,13 @@ async function triggerLinkSync(
 
     const ingestRunId = crypto.randomUUID();
 
+    const bullmqJobId = ingestionRootJobId(linkId, ingestRunId);
     const [syncRunRow] = await ctx.db
       .insert(syncRuns)
       .values({
         linkId,
         integrationId,
-        bullmqJobId: `ingest:${linkId}`,
+        bullmqJobId,
         type: 'manual',
         status: 'pending',
         mode: 'full',
@@ -296,6 +303,7 @@ async function triggerLinkSync(
       .returning();
 
     if (!syncRunRow) return;
+    syncRunId = syncRunRow.id;
 
     const flowJob = buildLinkFlow({
       orgId: ctx.orgId,
@@ -314,7 +322,16 @@ async function triggerLinkSync(
     const flow = new FlowProducer({ connection: ctx.redis });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await flow.add(flowJob as any);
-  } catch {
+    await ctx.db.update(syncRuns).set({ status: 'queued' }).where(eq(syncRuns.id, syncRunRow.id));
+  } catch (err) {
+    if (syncRunId) {
+      await ctx.db
+        .update(syncRuns)
+        .set({ status: 'enqueue_failed', finishedAt: new Date().toISOString() })
+        .where(eq(syncRuns.id, syncRunId))
+        .catch(() => null);
+    }
     // Fire-and-forget — the cron scheduler will catch it on next run
+    void err;
   }
 }

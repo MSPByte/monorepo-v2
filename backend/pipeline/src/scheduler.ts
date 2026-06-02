@@ -4,7 +4,12 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { createCatalogDb, createTenantDb } from '@mspbyte/drizzle-catalog';
 import { organization } from '@mspbyte/drizzle-catalog/catalog';
 import { integrationLinks, integrations, syncRuns } from '@mspbyte/drizzle';
-import { buildLinkFlow, getProviderFacets, resolveFacetPlan } from '@mspbyte/shared';
+import {
+  buildLinkFlow,
+  getProviderFacets,
+  ingestionRootJobId,
+  resolveFacetPlan
+} from '@mspbyte/shared';
 import type { PipelineFlowJob, ProviderFacet } from '@mspbyte/shared';
 import { logger } from './logger.js';
 import { hasActiveRun, getSyncContexts, isLinkHealthy, decideFacetMode } from './sync-context.js';
@@ -100,12 +105,13 @@ export async function scheduleIngestion(
       }
 
       // Create a sync_runs record before enqueuing so workers can reference it
+      const bullmqJobId = ingestionRootJobId(link.id, ingestRunId);
       const [syncRunRow] = await mspDb
         .insert(syncRuns)
         .values({
           linkId: link.id,
           integrationId: providerId,
-          bullmqJobId: `ingest_${link.id}`,
+          bullmqJobId,
           type: triggerType,
           status: 'pending',
           mode: 'full',
@@ -136,7 +142,23 @@ export async function scheduleIngestion(
         facetCursors
       });
 
-      await flow.add(flowJob as Parameters<typeof flow.add>[0]);
+      try {
+        await flow.add(flowJob as Parameters<typeof flow.add>[0]);
+        await mspDb
+          .update(syncRuns)
+          .set({ status: 'queued' })
+          .where(eq(syncRuns.id, syncRunRow.id));
+      } catch (err) {
+        await mspDb
+          .update(syncRuns)
+          .set({ status: 'enqueue_failed', finishedAt: new Date().toISOString() })
+          .where(eq(syncRuns.id, syncRunRow.id));
+        logger.error(
+          { orgId: org.id, linkId: link.id, syncRunId: syncRunRow.id, bullmqJobId, err },
+          'Failed to enqueue ingestion flow'
+        );
+        continue;
+      }
 
       logger.info(
         {
@@ -193,12 +215,13 @@ export async function scheduleLink(
   if (facets.length === 0)
     throw new Error(`No enabled facets selected for provider: ${providerId}`);
 
+  const bullmqJobId = ingestionRootJobId(linkId, ingestRunId);
   const [syncRunRow] = await mspDb
     .insert(syncRuns)
     .values({
       linkId,
       integrationId: providerId,
-      bullmqJobId: `ingest_${linkId}`,
+      bullmqJobId,
       type: mode === 'replay' ? 'replay' : 'manual',
       status: 'pending',
       mode: 'full',
@@ -222,7 +245,16 @@ export async function scheduleLink(
     mode
   });
 
-  await flow.add(flowJob as Parameters<typeof flow.add>[0]);
+  try {
+    await flow.add(flowJob as Parameters<typeof flow.add>[0]);
+    await mspDb.update(syncRuns).set({ status: 'queued' }).where(eq(syncRuns.id, syncRunRow.id));
+  } catch (err) {
+    await mspDb
+      .update(syncRuns)
+      .set({ status: 'enqueue_failed', finishedAt: new Date().toISOString() })
+      .where(eq(syncRuns.id, syncRunRow.id));
+    throw err;
+  }
 
   return { syncRunId: syncRunRow.id, ingestRunId };
 }

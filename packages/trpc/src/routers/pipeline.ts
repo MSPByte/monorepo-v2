@@ -9,7 +9,13 @@ import {
   integrationLinks,
   integrations
 } from '@mspbyte/drizzle';
-import { buildLinkFlow, getProviderFacets, resolveFacetPlan, ProviderFacet } from '@mspbyte/shared';
+import {
+  buildLinkFlow,
+  getProviderFacets,
+  ingestionRootJobId,
+  resolveFacetPlan,
+  ProviderFacet
+} from '@mspbyte/shared';
 import { t, authProcedure } from '../trpc.js';
 
 const facetSchema = z.nativeEnum(ProviderFacet);
@@ -66,12 +72,13 @@ export const pipelineRouter = t.router({
         });
       }
 
+      const bullmqJobId = ingestionRootJobId(input.linkId, ingestRunId);
       const [syncRunRow] = await ctx.db
         .insert(syncRuns)
         .values({
           linkId: input.linkId,
           integrationId: providerId,
-          bullmqJobId: `ingest:${input.linkId}`,
+          bullmqJobId,
           type: input.mode === 'replay' ? 'replay' : 'manual',
           status: 'pending',
           mode: 'full',
@@ -100,8 +107,20 @@ export const pipelineRouter = t.router({
       });
 
       const flow = new FlowProducer({ connection: ctx.redis });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await flow.add(flowJob as any);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await flow.add(flowJob as any);
+        await ctx.db
+          .update(syncRuns)
+          .set({ status: 'queued' })
+          .where(eq(syncRuns.id, syncRunRow.id));
+      } catch (err) {
+        await ctx.db
+          .update(syncRuns)
+          .set({ status: 'enqueue_failed', finishedAt: new Date().toISOString() })
+          .where(eq(syncRuns.id, syncRunRow.id));
+        throw err;
+      }
 
       return { syncRunId: syncRunRow.id, ingestRunId, facets, skipped };
     }),

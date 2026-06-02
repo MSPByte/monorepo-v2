@@ -9,7 +9,9 @@ export async function hasActiveRun(db: TenantServiceDb, linkId: string): Promise
   const rows = await db
     .select({ id: syncRuns.id })
     .from(syncRuns)
-    .where(and(eq(syncRuns.linkId, linkId), inArray(syncRuns.status, ['pending', 'running'])))
+    .where(
+      and(eq(syncRuns.linkId, linkId), inArray(syncRuns.status, ['pending', 'queued', 'running']))
+    )
     .limit(1);
 
   if (rows.length === 0) return false;
@@ -18,7 +20,9 @@ export async function hasActiveRun(db: TenantServiceDb, linkId: string): Promise
   const [run] = await db
     .select({ createdAt: syncRuns.createdAt })
     .from(syncRuns)
-    .where(and(eq(syncRuns.linkId, linkId), inArray(syncRuns.status, ['pending', 'running'])))
+    .where(
+      and(eq(syncRuns.linkId, linkId), inArray(syncRuns.status, ['pending', 'queued', 'running']))
+    )
     .limit(1);
 
   if (!run) return false;

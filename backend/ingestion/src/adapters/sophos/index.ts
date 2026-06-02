@@ -6,7 +6,6 @@ import { env } from '../../env.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
-// TODO: Ingestion failing
 const SophosEndpointSchema = z
   .object({
     id: z.string(),

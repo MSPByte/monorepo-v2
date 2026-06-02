@@ -102,9 +102,9 @@ function getFacetSchema(provider: string, facet: ProviderFacet) {
   }
 }
 
-export function createNormalizeWorker(redis: Redis) {
+export function createNormalizeWorker(redis: Redis, queueName: string = QUEUES.NORMALIZE) {
   const worker = new Worker<NormalizeJobData>(
-    QUEUES.NORMALIZE,
+    queueName,
     async (job) => {
       const { data } = job;
       const adapter = getAdapter(data.provider);

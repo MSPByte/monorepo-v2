@@ -10,9 +10,9 @@ import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 
-export function createComplianceWorker(redis: Redis) {
+export function createComplianceWorker(redis: Redis, queueName: string = QUEUES.COMPLIANCE) {
   return new Worker<ComplianceJobData>(
-    QUEUES.COMPLIANCE,
+    queueName,
     async (job) => {
       const { siteId, orgId, frameworkId, linkId } = job.data;
 

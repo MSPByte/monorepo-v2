@@ -19,6 +19,8 @@ describe('SophosHttpClient.fetchAllPages', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
     globalThis.fetch = originalFetch;
   });
 
@@ -108,5 +110,42 @@ describe('SophosHttpClient.fetchAllPages', () => {
     );
 
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('retries Sophos API calls when a page response is rate limited', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation((handler) => {
+      if (typeof handler === 'function') handler();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (url) => {
+      if (String(url) === TOKEN_URL) return mockTokenFetch() as Response;
+      const apiCalls = fetchMock.mock.calls.filter(([u]) => String(u) !== TOKEN_URL);
+      if (apiCalls.length === 1) {
+        return {
+          ok: false,
+          status: 429,
+          json: async () => ({})
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [{ id: 'after-rate-limit' }],
+          pages: { total: 1, current: 1 }
+        })
+      } as Response;
+    });
+
+    const client = new SophosHttpClient('client-rate-limit', 'secret');
+    const items = await client.fetchAllPages<{ id: string }>(
+      'https://api.example.com/items?pageSize=100&pageTotal=true'
+    );
+
+    const apiCalls = fetchMock.mock.calls.filter(([u]) => String(u) !== TOKEN_URL);
+    expect(items).toEqual([{ id: 'after-rate-limit' }]);
+    expect(apiCalls).toHaveLength(2);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
   });
 });

@@ -1,5 +1,5 @@
 import { Worker, Queue } from 'bullmq';
-import { QUEUES } from '@mspbyte/shared';
+import { QUEUES, orgQueueName } from '@mspbyte/shared';
 import type { FetchJobData, NormalizeJobData } from '@mspbyte/shared';
 import type { AdapterContext } from '@mspbyte/shared';
 import {
@@ -45,11 +45,20 @@ async function withTimeout<T>(
   }
 }
 
-export function createFetchWorker(redis: Redis) {
-  const normalizeQueue = new Queue<NormalizeJobData>(QUEUES.NORMALIZE, { connection: redis });
+export function createFetchWorker(redis: Redis, queueName: string = QUEUES.FETCH) {
+  const normalizeQueues = new Map<string, Queue<NormalizeJobData>>();
 
-  return new Worker<FetchJobData>(
-    QUEUES.FETCH,
+  function getNormalizeQueue(orgId: string): Queue<NormalizeJobData> {
+    const name = orgQueueName(QUEUES.NORMALIZE, orgId);
+    const existing = normalizeQueues.get(name);
+    if (existing) return existing;
+    const queue = new Queue<NormalizeJobData>(name, { connection: redis });
+    normalizeQueues.set(name, queue);
+    return queue;
+  }
+
+  const worker = new Worker<FetchJobData>(
+    queueName,
     async (job) => {
       const { data } = job;
       const adapter = getAdapter(data.provider);
@@ -137,6 +146,7 @@ export function createFetchWorker(redis: Redis) {
 
           const batches = chunk(page as unknown[], 100);
           for (const batch of batches) {
+            const normalizeQueue = getNormalizeQueue(data.orgId);
             const normalizeJob = await normalizeQueue.add(
               `normalize:${data.provider}:${data.facet}:${data.ingestRunId}:${batchIndex}`,
               {
@@ -221,4 +231,13 @@ export function createFetchWorker(redis: Redis) {
     },
     { connection: redis, concurrency: 5 }
   );
+
+  const close = worker.close.bind(worker);
+  worker.close = async (...args: Parameters<typeof worker.close>) => {
+    const result = await close(...args);
+    await Promise.all([...normalizeQueues.values()].map((queue) => queue.close()));
+    return result;
+  };
+
+  return worker;
 }

@@ -1,3 +1,5 @@
+import { fetchWithRetry } from '../../utils/fetch.js';
+
 const TOKEN_URL = 'https://id.sophos.com/api/v2/oauth2/token';
 
 interface TokenEntry {
@@ -17,11 +19,17 @@ type SophosPagedResponse<T> = {
   };
 };
 
+type FetchInput = Parameters<typeof fetch>[0];
+
 // Process-level token cache keyed by `${clientId}::sophos`
 const tokenCache = new Map<string, Promise<TokenEntry>>();
 
 function tokenCacheKey(clientId: string): string {
   return `${clientId}::sophos`;
+}
+
+function inputLabel(input: FetchInput): string {
+  return typeof input === 'string' ? input : input.toString();
 }
 
 export class SophosHttpClient {
@@ -45,7 +53,7 @@ export class SophosHttpClient {
   }
 
   private async fetchToken(): Promise<TokenEntry> {
-    const res = await fetch(TOKEN_URL, {
+    const res = await this.fetchRateLimitAware(TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -82,7 +90,7 @@ export class SophosHttpClient {
 
   async get<T>(url: string, tenantId?: string, options?: SophosRequestOptions): Promise<T> {
     const headers = await this.authHeaders(tenantId, options);
-    const res = await fetch(url, { headers });
+    const res = await this.fetchRateLimitAware(url, { headers });
     if (res.status === 401) {
       throw Object.assign(new Error('Sophos auth rejected'), { failParent: true });
     }
@@ -92,7 +100,7 @@ export class SophosHttpClient {
 
   async post<T>(url: string, body: unknown, tenantId?: string, options?: SophosRequestOptions): Promise<T> {
     const headers = await this.authHeaders(tenantId, options);
-    const res = await fetch(url, {
+    const res = await this.fetchRateLimitAware(url, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -122,5 +130,18 @@ export class SophosHttpClient {
     }
 
     return items;
+  }
+
+  private async fetchRateLimitAware(input: FetchInput, init?: RequestInit): Promise<Response> {
+    return fetchWithRetry(async () => {
+      const res = await fetch(input, init);
+      if (res.status === 429) {
+        throw Object.assign(new Error(`Sophos API rate limited: ${inputLabel(input)}`), {
+          rateLimited: true,
+          status: 429
+        });
+      }
+      return res;
+    });
   }
 }

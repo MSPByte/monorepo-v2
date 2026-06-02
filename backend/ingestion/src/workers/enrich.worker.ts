@@ -8,9 +8,9 @@ import { logger } from '../logger.js';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 
-export function createEnrichWorker(redis: Redis) {
+export function createEnrichWorker(redis: Redis, queueName: string = QUEUES.ENRICH) {
   return new Worker<EnrichJobData>(
-    QUEUES.ENRICH,
+    queueName,
     async (job) => {
       const { data } = job;
 
