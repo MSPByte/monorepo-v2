@@ -1,0 +1,21 @@
+{
+  "name": "@mspbyte/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed:m365-roles": "bun run src/seeds/m365-roles.ts",
+    "migrate:supabase-to-neon": "bun run src/migration/supabase-to-neon.ts"
+  },
+  "dependencies": {
+    "@mspbyte/drizzle": "*",
+    "@neondatabase/serverless": "^1.0.2",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "typescript": "^5.4.0"
+  }
+}

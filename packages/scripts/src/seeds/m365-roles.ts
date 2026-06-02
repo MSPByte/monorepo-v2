@@ -19,7 +19,7 @@ import 'dotenv/config';
 import crypto from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 import { sql } from 'drizzle-orm';
-import { m365Roles } from '../db/vendors/index.js';
+import { m365Roles } from '@mspbyte/drizzle';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -108,7 +108,6 @@ async function main() {
   const roles = await fetchRoleTemplates(token);
   console.log(`Fetched ${roles.length} role templates from Graph`);
 
-  // Raw catalog query via neon serverless — avoids circular dependency with drizzle-catalog
   const catalogSql = neon(catalogUrl);
   const orgs = (await catalogSql`
     SELECT id, service_connection_string FROM orgs WHERE status = 'active'
