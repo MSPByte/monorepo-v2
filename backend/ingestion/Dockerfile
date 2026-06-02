@@ -9,6 +9,15 @@ RUN apt-get update \
   && npm install -g bun@1.3.13 \
   && rm -rf /var/lib/apt/lists/*
 
+RUN pwsh -NoProfile -NonInteractive -Command '\
+  $ErrorActionPreference = "Stop"; \
+  Set-PSRepository -Name PSGallery -InstallationPolicy Trusted; \
+  Install-Module -Name ExchangeOnlineManagement -Scope AllUsers -Force -AllowClobber; \
+  Install-Module -Name MicrosoftTeams -Scope AllUsers -Force -AllowClobber; \
+  Import-Module ExchangeOnlineManagement; \
+  Import-Module MicrosoftTeams; \
+  Get-Command Connect-ExchangeOnline, Connect-MicrosoftTeams | Out-Null'
+
 WORKDIR /app
 
 COPY . .
