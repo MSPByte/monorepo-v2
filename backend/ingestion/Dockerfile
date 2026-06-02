@@ -17,14 +17,16 @@ RUN bun run turbo build --filter=ingestion
 FROM base AS runner
 WORKDIR /app
 
+ARG PWSH_VERSION=7.5.1
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       wget ca-certificates apt-transport-https \
-    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
-    && dpkg -i packages-microsoft-prod.deb \
-    && rm packages-microsoft-prod.deb \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends powershell \
+    && apt-get install -y --no-install-recommends ca-certificates curl libicu72 \
+    && curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-linux-x64.tar.gz" \
+       -o /tmp/pwsh.tar.gz \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar -xzf /tmp/pwsh.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh \
+    && rm /tmp/pwsh.tar.gz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
