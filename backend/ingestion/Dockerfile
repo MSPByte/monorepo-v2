@@ -3,7 +3,7 @@ FROM oven/bun:1 AS base
 FROM base AS pruner
 WORKDIR /app
 COPY . .
-RUN npx turbo prune ingestion --docker
+RUN bunx turbo prune ingestion --docker
 
 FROM base AS builder
 WORKDIR /app
