@@ -10,6 +10,15 @@ import type { TenantServiceDb } from '@mspbyte/drizzle-catalog';
 
 type IntegrationLinkRow = typeof integrationLinks.$inferSelect;
 
+const saveSiteLinkSchema = z.object({
+  siteId: z.string().uuid(),
+  externalId: z.string().optional().nullable(),
+  name: z.string().optional().nullable(),
+  disposition: z.enum(['third_party', 'not_managed']).optional().nullable(),
+  note: z.string().optional().nullable(),
+  meta: z.record(z.string(), z.unknown()).optional().nullable()
+});
+
 export const integrationLinksRouter = t.router({
   list: authProcedure
     .input(
@@ -100,6 +109,141 @@ export const integrationLinksRouter = t.router({
       if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
       return row;
     }),
+
+  saveSiteLinks: authProcedure
+    .input(
+      z.object({
+        integrationId: z.string(),
+        changes: z.array(saveSiteLinkSchema)
+      })
+    )
+    .mutation(
+      async ({ ctx, input }): Promise<{ created: number; updated: number; deleted: number }> => {
+        if (input.changes.length === 0) return { created: 0, updated: 0, deleted: 0 };
+
+        const externalIds = input.changes
+          .map((change) => change.externalId)
+          .filter((externalId): externalId is string => !!externalId);
+        if (new Set(externalIds).size !== externalIds.length) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Each external item can only be linked to one site'
+          });
+        }
+
+        const siteIds = [...new Set(input.changes.map((change) => change.siteId))];
+        const existingRows = await ctx.db
+          .select()
+          .from(integrationLinks)
+          .where(
+            and(
+              eq(integrationLinks.integrationId, input.integrationId),
+              inArray(integrationLinks.siteId, siteIds)
+            )
+          );
+        const existingBySiteId = new Map<string, IntegrationLinkRow>();
+        for (const row of existingRows) {
+          if (row.siteId && !existingBySiteId.has(row.siteId)) {
+            existingBySiteId.set(row.siteId, row);
+          }
+        }
+
+        const toDelete: string[] = [];
+        const toCreate: Array<typeof integrationLinks.$inferInsert> = [];
+        const toUpdate: Array<{
+          id: string;
+          values: Partial<typeof integrationLinks.$inferInsert>;
+          existingExternalId: string | null;
+        }> = [];
+        const now = new Date().toISOString();
+
+        for (const change of input.changes) {
+          const externalId = change.externalId || undefined;
+          const disposition = externalId ? null : (change.disposition ?? null);
+          const note = change.note || null;
+          const hasContent = !!externalId || !!disposition || !!note;
+          const existing = existingBySiteId.get(change.siteId);
+
+          if (!hasContent) {
+            if (existing) toDelete.push(existing.id);
+            continue;
+          }
+
+          const values = {
+            integrationId: input.integrationId,
+            siteId: change.siteId,
+            externalId: externalId ?? null,
+            name: change.name ?? null,
+            status: 'active' as const,
+            disposition,
+            note,
+            meta: change.meta ?? null,
+            updatedAt: now
+          };
+
+          if (existing) {
+            toUpdate.push({ id: existing.id, values, existingExternalId: existing.externalId });
+          } else {
+            toCreate.push(values);
+          }
+        }
+
+        if (toDelete.length > 0) {
+          await ctx.db.delete(integrationLinks).where(inArray(integrationLinks.id, toDelete));
+        }
+
+        const externalIdUpdates = toUpdate.filter(
+          (item) =>
+            item.values.externalId &&
+            item.existingExternalId &&
+            item.values.externalId !== item.existingExternalId
+        );
+        if (externalIdUpdates.length > 0) {
+          await Promise.all(
+            externalIdUpdates.map((item) =>
+              ctx.db
+                .update(integrationLinks)
+                .set({ externalId: null, updatedAt: now })
+                .where(eq(integrationLinks.id, item.id))
+            )
+          );
+        }
+
+        if (toUpdate.length > 0) {
+          await Promise.all(
+            toUpdate.map((item) =>
+              ctx.db
+                .update(integrationLinks)
+                .set(item.values)
+                .where(eq(integrationLinks.id, item.id))
+            )
+          );
+        }
+
+        if (toCreate.length > 0) {
+          const createdRows = await ctx.db.insert(integrationLinks).values(toCreate).returning();
+          if (ctx.redis) {
+            const redis = ctx.redis;
+            for (const row of createdRows) {
+              void triggerLinkSync(
+                { db: ctx.db, orgId: ctx.orgId, redis },
+                row.id,
+                row.integrationId,
+                row.siteId ?? undefined,
+                row.externalId ?? undefined,
+                row.meta as Record<string, unknown> | null
+              );
+            }
+          }
+        }
+
+        return {
+          created: toCreate.length,
+          updated: toUpdate.length,
+          deleted: toDelete.length
+        };
+      }
+    ),
 
   delete: authProcedure
     .input(z.object({ ids: z.array(z.uuid()) }))

@@ -71,15 +71,9 @@
       queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
   }));
 
-  const updateLinkMutation = createMutation(() => ({
-    mutationFn: (input: Parameters<typeof trpc.integrationLinks.update.mutate>[0]) =>
-      trpc.integrationLinks.update.mutate(input),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
-  }));
-
-  const deleteLinkMutation = createMutation(() => ({
-    mutationFn: (ids: string[]) => trpc.integrationLinks.delete.mutate({ ids }),
+  const saveSiteLinksMutation = createMutation(() => ({
+    mutationFn: (input: Parameters<typeof trpc.integrationLinks.saveSiteLinks.mutate>[0]) =>
+      trpc.integrationLinks.saveSiteLinks.mutate(input),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ['integrationLinks.list', integration] }),
   }));
@@ -247,38 +241,22 @@
         return mappingDiff || dispositionDiff || noteDiff;
       });
 
-      for (const s of changes) {
-        const externalId = pendingMappings[s.id] || undefined;
-        const external = externalOptions.find((o) => o.id === externalId);
-        const existingLink = dbLinks.find((l) => l.siteId === s.id);
+      await saveSiteLinksMutation.mutateAsync({
+        integrationId: integration,
+        changes: changes.map((s) => {
+          const externalId = pendingMappings[s.id] || undefined;
+          const external = externalOptions.find((o) => o.id === externalId);
 
-        if (existingLink) {
-          if (!externalId && !pendingDispositions[s.id] && !pendingNotes[s.id]) {
-            await deleteLinkMutation.mutateAsync([existingLink.id]);
-          } else {
-            await updateLinkMutation.mutateAsync({
-              id: existingLink.id,
-              externalId: externalId ?? null,
-              name: external?.name ?? s.name,
-              status: 'active',
-              disposition: externalId ? null : (pendingDispositions[s.id] ?? null),
-              note: pendingNotes[s.id] || null,
-              meta: external?.meta ?? null,
-            });
-          }
-        } else if (externalId || pendingDispositions[s.id] || pendingNotes[s.id]) {
-          await createLinkMutation.mutateAsync({
-            integrationId: integration,
+          return {
             siteId: s.id,
-            externalId,
+            externalId: externalId ?? null,
             name: external?.name ?? s.name,
-            status: 'active',
-            disposition: externalId ? undefined : (pendingDispositions[s.id] ?? undefined),
-            note: pendingNotes[s.id] ?? undefined,
-            meta: external?.meta,
-          });
-        }
-      }
+            disposition: externalId ? null : (pendingDispositions[s.id] ?? null),
+            note: pendingNotes[s.id] || null,
+            meta: external?.meta ?? null,
+          };
+        }),
+      });
 
       toast.success('Mappings saved!');
       initialized = false;

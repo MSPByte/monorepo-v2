@@ -49,24 +49,28 @@
   });
 
   const filteredOptions = $derived.by(() => {
+    const sort = (options: Option[]) => {
+      return options.sort((a, b) => a.label.localeCompare(b.label));
+    };
+
     if (onsearch) {
       // Server-side filtering — prepend selected item if not in results
       const current = options.find((o) => o.value === selected);
       if (current && !options.some((o) => o.value === selected)) {
-        return [current, ...options];
+        return [current, ...sort(options)];
       }
-      return options;
+      return sort(options);
     }
     const current = options.find((o) => o.value === selected);
     return current
       ? [
           current,
-          ...options.filter(
+          ...sort(options).filter(
             (opt) =>
               opt.value !== selected && opt.label.toLowerCase().includes(search.toLowerCase())
           ),
         ]
-      : options.filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()));
+      : sort(options).filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()));
   });
 
   const selectOption = (value: string) => {
