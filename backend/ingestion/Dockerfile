@@ -1,14 +1,18 @@
 FROM oven/bun:1 AS base
 
+FROM base AS pruner
+WORKDIR /app
+COPY . .
+RUN npx turbo prune ingestion --docker
+
 FROM base AS builder
 WORKDIR /app
 
-COPY package.json bun.lock turbo.json ./
-COPY packages/ ./packages/
-COPY backend/ingestion/ ./backend/ingestion/
-
+COPY --from=pruner /app/out/json/ .
 RUN bun install --frozen-lockfile
-RUN bun run build --filter=ingestion
+
+COPY --from=pruner /app/out/full/ .
+RUN bun run turbo build --filter=ingestion
 
 FROM base AS runner
 WORKDIR /app

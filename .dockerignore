@@ -1,0 +1,10 @@
+node_modules
+.git
+dist
+.turbo
+.svelte-kit
+.vercel
+.env
+.env.*
+!.env.example
+apps/agent/src-tauri/target
