@@ -6,13 +6,17 @@ RUN apt-get update \
   && dpkg -i packages-microsoft-prod.deb \
   && apt-get update \
   && apt-get install -y powershell \
+  && npm install -g bun@1.3.13 \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
-
 COPY . .
 
-CMD ["npm", "start"]
+RUN bun install --frozen-lockfile \
+  && bun run --filter @mspbyte/drizzle build \
+  && bun run --filter @mspbyte/drizzle-catalog build \
+  && bun run --filter @mspbyte/shared build \
+  && bun run --filter ingestion build
+
+CMD ["bun", "run", "--filter", "ingestion", "start"]
