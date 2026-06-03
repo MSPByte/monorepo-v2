@@ -29,10 +29,17 @@
   }));
 
   const currentLinkId = $derived(
-    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined,
+    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined
   );
 
-  const columns: DataTableColumn<FirewallRow>[] = [
+  const columns: DataTableColumn<FirewallRow>[] = $derived([
+    ...(!currentLinkId
+      ? [
+          textColumn<FirewallRow>('siteName', 'Site', undefined, {
+            width: '180px',
+          }),
+        ]
+      : []),
     boolBadgeColumn<FirewallRow>(
       'connected',
       'Status',
@@ -41,7 +48,7 @@
         falseLabel: 'Offline',
         falseVariant: 'destructive',
       },
-      { width: '100px' },
+      { width: '100px' }
     ),
     textColumn<FirewallRow>('name', 'Name'),
     nullableTextColumn<FirewallRow>('hostname', 'Hostname', {
@@ -71,12 +78,12 @@
         falseVariant: 'destructive',
         evaluate: (value) => !value,
       },
-      { width: '110px' },
+      { width: '110px' }
     ),
     relativeDateColumn<FirewallRow>('lastChangeAt', 'Last Change', {
       width: '140px',
     }),
-  ];
+  ] as DataTableColumn<FirewallRow>[]);
 
   let drawerFirewall = $state<FirewallRow | null>(null);
 
@@ -102,10 +109,10 @@
   </div>
 {:else}
   <VendorDataTable
-    table="sophos_firewalls"
+    table="sophos_firewalls_with_site"
     linkId={currentLinkId ?? undefined}
     integrationId="sophos-partner"
-    scopeColumn="site"
+    scopeColumn={false}
     {columns}
     onrowclick={(row) => (drawerFirewall = drawerFirewall?.['id'] === row['id'] ? null : row)}
   />
@@ -127,7 +134,7 @@
           <span
             class={cn(
               'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-              fw['connected'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground',
+              fw['connected'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'
             )}
           >
             {fw['connected'] ? 'Online' : 'Offline'}
@@ -146,18 +153,7 @@
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Details
         </div>
-        {#each [
-          { label: 'Hostname', value: fw['hostname'] },
-          { label: 'Model', value: fw['model'] },
-          { label: 'Serial', value: fw['serialNumber'] },
-          { label: 'External IP', value: fw['externalIp'] },
-          { label: 'Firmware', value: fw['firmwareVersion'] },
-          { label: 'Upgrade To', value: fw['upgradeToVersion'] },
-          { label: 'Managing', value: fw['managing'] },
-          { label: 'Reporting', value: fw['reporting'] },
-          { label: 'Suspended', value: fw['suspended'] ? 'Yes' : null },
-          { label: 'Last Change', value: relativeTime(fw['lastChangeAt'] as string | null) },
-        ] as item}
+        {#each [{ label: 'Hostname', value: fw['hostname'] }, { label: 'Model', value: fw['model'] }, { label: 'Serial', value: fw['serialNumber'] }, { label: 'External IP', value: fw['externalIp'] }, { label: 'Firmware', value: fw['firmwareVersion'] }, { label: 'Upgrade To', value: fw['upgradeToVersion'] }, { label: 'Managing', value: fw['managing'] }, { label: 'Reporting', value: fw['reporting'] }, { label: 'Suspended', value: fw['suspended'] ? 'Yes' : null }, { label: 'Last Change', value: relativeTime(fw['lastChangeAt'] as string | null) }] as item}
           {#if item.value}
             <div class="flex justify-between text-xs gap-2">
               <span class="text-muted-foreground shrink-0">{item.label}</span>

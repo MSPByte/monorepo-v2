@@ -20,7 +20,7 @@
   const falseClass = $derived(
     falseVariant === 'destructive'
       ? 'bg-destructive/15 text-destructive border-destructive/30'
-      : 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+      : 'bg-warning/15 text-warning border-warning/30'
   );
 </script>
 
@@ -29,7 +29,7 @@
 {:else}
   <Badge
     variant="outline"
-    class={boolValue ? 'bg-green-500/15 text-green-500 border-green-500/30' : falseClass}
+    class={boolValue ? 'bg-success/15 text-success border-success/30' : falseClass}
   >
     {boolValue ? trueLabel : falseLabel}
   </Badge>

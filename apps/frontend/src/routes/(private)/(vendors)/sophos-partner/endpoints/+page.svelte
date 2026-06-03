@@ -13,6 +13,9 @@
     textColumn,
   } from '$lib/components/data-table/column-defs';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import Badge from '$lib/components/ui/badge/badge.svelte';
+  import { formatStringProper } from '$lib/utils/format';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -29,12 +32,19 @@
   }));
 
   const currentLinkId = $derived(
-    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined,
+    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined
   );
 
   const NOW = Date.now();
 
-  const columns: DataTableColumn<EndpointRow>[] = [
+  const columns: DataTableColumn<EndpointRow>[] = $derived([
+    ...(!currentLinkId
+      ? [
+          textColumn<EndpointRow>('siteName', 'Site', undefined, {
+            width: '180px',
+          }),
+        ]
+      : []),
     textColumn<EndpointRow>('hostname', 'Hostname'),
     nullableTextColumn<EndpointRow>('platform', 'Platform', {
       width: '120px',
@@ -62,7 +72,7 @@
         falseLabel: 'Offline',
         falseVariant: 'destructive',
       },
-      { width: '100px' },
+      { width: '100px' }
     ),
     boolBadgeColumn<EndpointRow>(
       'hasMdr',
@@ -71,7 +81,7 @@
         trueLabel: 'MDR',
         falseLabel: 'None',
       },
-      { width: '90px' },
+      { width: '90px' }
     ),
     boolBadgeColumn<EndpointRow>(
       'tamperProtectionEnabled',
@@ -81,7 +91,7 @@
         falseLabel: 'Disabled',
         falseVariant: 'destructive',
       },
-      { width: '110px' },
+      { width: '110px' }
     ),
     boolBadgeColumn<EndpointRow>(
       'needsUpgrade',
@@ -92,19 +102,21 @@
         falseVariant: 'destructive',
         evaluate: (value) => !value,
       },
-      { width: '110px' },
+      { width: '110px' }
     ),
+    {
+      key: 'health',
+      title: 'Health',
+      sortable: true,
+      searchable: true,
+      cell: healthColumn,
+    },
     relativeDateColumn<EndpointRow>('lastHeartbeatAt', 'Last Heartbeat', {
       width: '150px',
     }),
-  ];
+  ] as DataTableColumn<EndpointRow>[]);
 
   let drawerEndpoint = $state<EndpointRow | null>(null);
-  let drawerTab = $state<'Details' | 'Notes'>('Details');
-
-  $effect(() => {
-    if (drawerEndpoint) drawerTab = 'Details';
-  });
 
   function relativeTime(ts?: number | string | null) {
     if (!ts) return 'Never';
@@ -116,22 +128,31 @@
   }
 </script>
 
+{#snippet healthColumn({ value }: { row: EndpointRow; value: string })}
+  {#if value === 'good'}
+    <Badge variant="outline" class="bg-success/15 text-success border-success/30">Good</Badge>
+  {:else}
+    <Badge variant="outline" class="bg-warning/15 text-warning border-warning/30"
+      >{formatStringProper(value)}</Badge
+    >
+  {/if}
+{/snippet}
+
 {#if scopeStore.currentSite && siteLinkQuery.isLoading}
-  <div class="flex items-center justify-center size-full text-sm text-muted-foreground">
-    Loading…
-  </div>
+  <Loader />
 {:else if scopeStore.currentSite && !currentLinkId}
   <div class="flex flex-col items-center justify-center size-full gap-2 text-muted-foreground">
     <div class="text-sm font-medium">No Sophos Partner integration for this site.</div>
   </div>
 {:else}
   <VendorDataTable
-    table="sophos_endpoints"
+    table="sophos_endpoints_with_site"
     linkId={currentLinkId ?? undefined}
     integrationId="sophos-partner"
-    scopeColumn="site"
+    scopeColumn={false}
     {columns}
     onrowclick={(row) => (drawerEndpoint = row)}
+    defaultSort={{ field: 'siteName', dir: 'asc' }}
   />
 {/if}
 
@@ -151,7 +172,7 @@
           <span
             class={cn(
               'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-              ep['online'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground',
+              ep['online'] ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'
             )}
           >
             {ep['online'] ? 'Online' : 'Offline'}
@@ -182,22 +203,7 @@
 
       <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-3 text-xs">
-          {#each [
-            { label: 'OS', value: ep['osName'] },
-            { label: 'Platform', value: ep['platform'] },
-            { label: 'Type', value: ep['type'] },
-            { label: 'Lockdown', value: ep['lockdown'] },
-            {
-              label: 'Tamper Protection',
-              value: ep['tamperProtectionEnabled'] ? 'Enabled' : 'Disabled',
-            },
-            { label: 'Needs Upgrade', value: ep['needsUpgrade'] ? 'Yes' : 'No' },
-            { label: 'MDR Managed', value: ep['hasMdr'] ? 'Yes' : 'No' },
-            {
-              label: 'Last Heartbeat',
-              value: relativeTime(ep['lastHeartbeatAt'] as string | null),
-            },
-          ] as item}
+          {#each [{ label: 'OS', value: ep['osName'] }, { label: 'Platform', value: ep['platform'] }, { label: 'Type', value: ep['type'] }, { label: 'Lockdown', value: ep['lockdown'] }, { label: 'Tamper Protection', value: ep['tamperProtectionEnabled'] ? 'Enabled' : 'Disabled' }, { label: 'Needs Upgrade', value: ep['needsUpgrade'] ? 'Yes' : 'No' }, { label: 'MDR Managed', value: ep['hasMdr'] ? 'Yes' : 'No' }, { label: 'Last Heartbeat', value: relativeTime(ep['lastHeartbeatAt'] as string | null) }] as item}
             <div>
               <div class="text-muted-foreground mb-0.5">{item.label}</div>
               <div
@@ -207,7 +213,7 @@
                     ? 'text-destructive'
                     : item.label === 'Needs Upgrade' && ep['needsUpgrade']
                       ? 'text-warning'
-                      : '',
+                      : ''
                 )}
               >
                 {item.value ? String(item.value) : '—'}

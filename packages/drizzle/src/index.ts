@@ -7,4 +7,3 @@ export * from './db/ingestor/index.js';
 export * from './db/vendors/index.js';
 export * from './db/vendors/registry.js';
 export * from './db/schemas.js';
-export { createVendorStateView } from './db/vendors/_helper.js';

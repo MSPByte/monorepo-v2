@@ -2,9 +2,12 @@
   import { getContext } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import { scopeStore } from '$lib/stores/scope.store.svelte';
-  import { cn } from '$lib/utils';
   import { goto } from '$app/navigation';
   import type { createTrpcClient } from '$lib/trpc';
+  import GlobalSitesOverview, {
+    type GlobalOverviewExtraColumn,
+    type GlobalOverviewRow,
+  } from '../_GlobalSitesOverview.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -58,9 +61,7 @@
       total: eps.length,
       offline: eps.filter((e) => !e['online']).length,
       stale60d: eps.filter(
-        (e) =>
-          !e['last_heartbeat_at'] ||
-          NOW - Number(e['last_heartbeat_at']) > 60 * 86_400_000,
+        (e) => !e['last_heartbeat_at'] || NOW - Number(e['last_heartbeat_at']) > 60 * 86_400_000
       ).length,
     };
   });
@@ -73,19 +74,26 @@
 
   const links = $derived(linksQuery.data ?? []);
 
-  function relativeTime(ts: Date | string | null | undefined) {
-    if (!ts) return '—';
-    const diff = Date.now() - new Date(ts).getTime();
-    const mins = Math.floor(diff / 60_000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  }
+  const overviewRows: GlobalOverviewRow[] = $derived(
+    links.map((link) => ({
+      linkId: link.id,
+      siteId: link.siteId,
+      siteName:
+        (link.siteId ? siteNameById.get(link.siteId) : null) ??
+        link.name ??
+        link.externalId ??
+        link.id,
+      linkName: link.name,
+      externalId: link.externalId,
+      updatedAt: link.updatedAt,
+      status: 'Active',
+      alertCount: 0,
+      highestSeverity: null,
+    }))
+  );
 
-  function selectSite(link: (typeof links)[number]) {
-    if (link.siteId) scopeStore.currentSite = link.siteId;
+  function selectSite(row: GlobalOverviewRow) {
+    if (row.siteId) scopeStore.currentSite = row.siteId;
     goto('/dattormm');
   }
 </script>
@@ -153,51 +161,13 @@
   {/if}
 {:else}
   <!-- ── Global sites overview ──────────────────────────────────────────── -->
-  <div class="flex flex-col size-full overflow-hidden">
-    <div class="grid grid-cols-2 gap-3 p-4 border-b shrink-0">
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Total Sites
-        </div>
-        <div class="text-3xl font-bold tabular-nums">
-          {linksQuery.isLoading ? '—' : links.length}
-        </div>
-      </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto p-4">
-      {#if linksQuery.isLoading}
-        <div class="flex items-center justify-center h-32 text-sm text-muted-foreground">
-          Loading…
-        </div>
-      {:else if links.length === 0}
-        <div class="flex flex-col items-center gap-2 text-muted-foreground pt-12">
-          <div class="text-sm">No DattoRMM sites connected.</div>
-          <a href="/setup/integrations" class="text-xs text-primary hover:underline">
-            Configure integration →
-          </a>
-        </div>
-      {:else}
-        <div class="flex flex-col gap-1">
-          {#each links as link}
-            <button
-              onclick={() => selectSite(link)}
-              class="flex items-center gap-3 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors text-left w-full"
-            >
-              <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-success"></span>
-              <span class="font-medium text-sm flex-1">
-                {(link.siteId ? siteNameById.get(link.siteId) : null) ?? link.name ?? link.externalId ?? link.id}
-              </span>
-              <span class="text-xs text-muted-foreground">{relativeTime(link.updatedAt)}</span>
-              <span
-                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-success/15 text-success"
-              >
-                Active
-              </span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  </div>
+  <GlobalSitesOverview
+    rows={overviewRows}
+    isLoading={linksQuery.isLoading}
+    isPending={linksQuery.isPending}
+    vendorName="DattoRMM"
+    totalLabel="Total Sites"
+    emptyEntityLabel="sites"
+    onrowclick={selectSite}
+  />
 {/if}

@@ -5,27 +5,19 @@
   import { scopeStore } from '$lib/stores/scope.store.svelte';
   import { goto } from '$app/navigation';
   import { cn } from '$lib/utils';
-  import TenantRow from './_TenantRow.svelte';
   import InsightsPanel from './_InsightsPanel.svelte';
-  import { AlertSeverity } from '@mspbyte/shared';
-  import Loader from '$lib/components/transition/loader.svelte';
-  import FadeIn from '$lib/components/transition/fade-in.svelte';
+  import GlobalSitesOverview, {
+    type GlobalOverviewExtraColumn,
+    type GlobalOverviewRow,
+  } from '../_GlobalSitesOverview.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const queryClient = useQueryClient();
 
   // ── Global overview ──────────────────────────────────────────────────────
-  const linksQuery = createQuery(() => ({
-    queryKey: ['integrationLinks.list', 'microsoft-365', 'active'],
-    queryFn: () =>
-      trpc.integrationLinks.list.query({ integrationId: 'microsoft-365', status: 'active' }),
-    enabled: !scopeStore.currentLink,
-  }));
-
-  const alertSummaryQuery = createQuery(() => ({
-    queryKey: ['alerts.summaryByLink', 'microsoft-365', 'active'],
-    queryFn: () =>
-      trpc.alerts.summaryByLink.query({ integrationId: 'microsoft-365', status: 'active' }),
+  const overviewQuery = createQuery(() => ({
+    queryKey: ['vendor.m365TenantOverview'],
+    queryFn: () => trpc.vendor.m365TenantOverview.query(),
     enabled: !scopeStore.currentLink,
   }));
 
@@ -40,9 +32,7 @@
     queryClient.invalidateQueries({
       queryKey: ['alerts.insightGroups', 'microsoft-365', scopeStore.currentLink, 'active'],
     });
-    queryClient.invalidateQueries({
-      queryKey: ['alerts.summaryByLink', 'microsoft-365', 'active'],
-    });
+    queryClient.invalidateQueries({ queryKey: ['vendor.m365TenantOverview'] });
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
@@ -60,61 +50,20 @@
 
   const metricsLoading = $derived(tenantStatsQuery.isPending);
 
-  // ── Global overview helpers ───────────────────────────────────────────────
-  const links = $derived(linksQuery.data ?? []);
+  const overviewRows = $derived(overviewQuery.data ?? []);
 
-  const alertSummaryMap = $derived.by(() => {
-    const map = new Map<
-      string,
-      {
-        alertCount: number;
-        highestSeverity: number | null;
-        criticalCount: number;
-        highCount: number;
-      }
-    >();
-    for (const row of alertSummaryQuery.data ?? []) {
-      if (row.linkId) map.set(row.linkId, row);
-    }
-    return map;
-  });
+  const globalOverviewColumns: GlobalOverviewExtraColumn[] = [
+    {
+      key: 'complianceFailures',
+      label: 'Compliance Failures',
+      widthClass: 'w-40',
+      emptyWhenZero: true,
+      badgeClass: () => 'bg-destructive/15 text-destructive',
+    },
+  ];
 
-  let searchQuery = $state('');
-
-  const filteredLinks = $derived(
-    searchQuery.trim()
-      ? links.filter((l) =>
-          (l.name ?? l.externalId ?? '').toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : links
-  );
-
-  const criticalCount = $derived(
-    filteredLinks.filter((l) => {
-      const m = alertSummaryMap.get(l.id);
-      return (m?.highestSeverity ?? -1) >= AlertSeverity.High;
-    }).length
-  );
-
-  const warningCount = $derived(
-    filteredLinks.filter((l) => {
-      const m = alertSummaryMap.get(l.id);
-      return (
-        (m?.highestSeverity ?? -1) >= AlertSeverity.Low &&
-        (m?.highestSeverity ?? -1) < AlertSeverity.High
-      );
-    }).length
-  );
-
-  const healthyCount = $derived(
-    filteredLinks.filter((l) => {
-      const m = alertSummaryMap.get(l.id);
-      return (m?.alertCount ?? 0) === 0;
-    }).length
-  );
-
-  function selectTenant(link: { id: string }) {
-    scopeStore.currentLink = link.id;
+  function selectTenant(row: GlobalOverviewRow) {
+    scopeStore.currentLink = row.linkId;
     goto('/microsoft-365');
   }
 </script>
@@ -202,101 +151,18 @@
   </div>
 {:else}
   <!-- ── Global tenants overview ───────────────────────────────────────── -->
-  <div class="flex flex-col size-full overflow-hidden">
-    <!-- Summary strip -->
-    <div
-      class={cn(
-        'grid grid-cols-4 gap-3 p-4 border-b shrink-0',
-        linksQuery.isPending && 'animate-pulse'
-      )}
-    >
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Total Tenants
-        </div>
-        <div class="text-3xl font-bold tabular-nums">
-          {linksQuery.isPending ? '—' : filteredLinks.length}
-        </div>
-      </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          High/Critical
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-destructive">
-          {linksQuery.isPending ? '—' : criticalCount}
-        </div>
-        <div class="text-xs text-muted-foreground">highest alert severity</div>
-      </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Low/Medium
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-warning">
-          {linksQuery.isPending ? '—' : warningCount}
-        </div>
-        <div class="text-xs text-muted-foreground">highest alert severity</div>
-      </div>
-      <div class="rounded-lg border bg-card p-4 flex flex-col gap-1">
-        <div class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Healthy
-        </div>
-        <div class="text-3xl font-bold tabular-nums text-success">
-          {linksQuery.isPending ? '—' : healthyCount}
-        </div>
-        <div class="text-xs text-muted-foreground">no open alerts</div>
-      </div>
-    </div>
-
-    <!-- Search + Tenant table -->
-    <div class="flex-1 overflow-auto p-4 flex flex-col gap-3">
-      <div class="flex items-center gap-2">
-        <input
-          type="text"
-          placeholder="Search tenants…"
-          bind:value={searchQuery}
-          class="h-8 w-64 rounded-md border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-      </div>
-      {#if linksQuery.isPending}
-        <Loader />
-      {:else if filteredLinks.length === 0}
-        <FadeIn class="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
-          {#if links.length === 0}
-            <div class="text-sm">No Microsoft 365 tenants connected.</div>
-            <a href="/setup/integrations" class="text-xs text-primary hover:underline">
-              Configure integration →
-            </a>
-          {:else}
-            <div class="text-sm">No tenants match your search.</div>
-          {/if}
-        </FadeIn>
-      {:else}
-        <FadeIn class="flex-1">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                <th class="px-4 py-2 text-left w-8"></th>
-                <th class="px-4 py-2 text-left">Tenant</th>
-                <th class="px-4 py-2 text-center w-24">Alerts</th>
-                <th class="px-4 py-2 text-center w-40">Compliance Failures</th>
-                <th class="px-4 py-2 text-center w-28">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each filteredLinks as link (link.id)}
-                {@const summary = alertSummaryMap.get(link.id)}
-                <TenantRow
-                  {link}
-                  onclick={selectTenant}
-                  alertCount={summary?.alertCount ?? 0}
-                  highestSeverity={summary?.highestSeverity ?? null}
-                  loading={alertSummaryQuery.isPending}
-                />
-              {/each}
-            </tbody>
-          </table>
-        </FadeIn>
-      {/if}
-    </div>
-  </div>
+  <GlobalSitesOverview
+    rows={overviewRows}
+    isLoading={overviewQuery.isPending}
+    isPending={overviewQuery.isPending}
+    vendorName="Microsoft 365"
+    totalLabel="Total Tenants"
+    nameColumnLabel="Tenant"
+    searchPlaceholder="Search tenants..."
+    emptyEntityLabel="tenants"
+    extraColumns={globalOverviewColumns}
+    showDispositionColumn={false}
+    showNotesColumn={false}
+    onrowclick={selectTenant}
+  />
 {/if}

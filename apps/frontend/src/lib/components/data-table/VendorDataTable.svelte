@@ -2,7 +2,7 @@
   import { getContext } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import { useQueryClient } from '@tanstack/svelte-query';
-  import type { DataTableColumn, PaginationInput, TableFilter } from './types';
+  import type { DataTableColumn, PaginationInput, TableFilter, TableView } from './types';
   import DataTable from './data-table.svelte';
   import type { createTrpcClient } from '$lib/trpc';
 
@@ -15,6 +15,8 @@
     scopeColumn?: 'link' | 'site' | false;
     columns: DataTableColumn<TData>[];
     defaultPageSize?: number;
+    defaultSort?: { field: string; dir: 'asc' | 'desc' };
+    views?: TableView<TData>[];
     enableRowSelection?: boolean;
     onrowclick?: (row: TData) => void;
   }
@@ -26,6 +28,8 @@
     scopeColumn = 'link',
     columns,
     defaultPageSize = 100,
+    defaultSort,
+    views = [],
     enableRowSelection = false,
     onrowclick,
   }: Props = $props();
@@ -33,6 +37,7 @@
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
   const queryClient = useQueryClient();
   const normalizedLinkId = $derived(linkId || undefined);
+  const tableScopeKey = $derived(`${table}:${normalizedLinkId ?? 'all'}:${scopeColumn || 'none'}`);
 
   const linksQuery = createQuery(() => ({
     queryKey: ['integrationLinks.list', integrationId, 'all'],
@@ -155,11 +160,15 @@
 {/snippet}
 
 <div class="flex flex-col size-full p-4">
-  <DataTable
-    {fetchData}
-    columns={resolvedColumns}
-    {defaultPageSize}
-    {enableRowSelection}
-    {onrowclick}
-  />
+  {#key tableScopeKey}
+    <DataTable
+      {fetchData}
+      columns={resolvedColumns}
+      {defaultPageSize}
+      {defaultSort}
+      {views}
+      {enableRowSelection}
+      {onrowclick}
+    />
+  {/key}
 </div>

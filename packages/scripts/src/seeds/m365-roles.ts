@@ -110,7 +110,7 @@ async function main() {
 
   const catalogSql = neon(catalogUrl);
   const orgs = (await catalogSql`
-    SELECT id, service_connection_string FROM orgs WHERE status = 'active'
+    SELECT id, service_connection_string FROM organization WHERE status = 'active'
   `) as Array<{ id: string; service_connection_string: string }>;
 
   console.log(`Seeding ${orgs.length} org(s)...`);

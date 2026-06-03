@@ -28,10 +28,17 @@
   }));
 
   const currentLinkId = $derived(
-    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined,
+    scopeStore.currentSite ? (siteLinkQuery.data?.[0]?.id ?? null) : undefined
   );
 
-  const columns: DataTableColumn<LicenseRow>[] = [
+  const columns: DataTableColumn<LicenseRow>[] = $derived([
+    ...(!currentLinkId
+      ? [
+          textColumn<LicenseRow>('siteName', 'Site', undefined, {
+            width: '180px',
+          }),
+        ]
+      : []),
     textColumn<LicenseRow>('name', 'Name'),
     textColumn<LicenseRow>('code', 'Code', undefined, { width: '190px' }),
     nullableTextColumn<LicenseRow>('type', 'Type', {
@@ -46,7 +53,7 @@
         trueLabel: 'Perpetual',
         falseLabel: 'Termed',
       },
-      { width: '110px' },
+      { width: '110px' }
     ),
     boolBadgeColumn<LicenseRow>(
       'unlimited',
@@ -55,7 +62,7 @@
         trueLabel: 'Unlimited',
         falseLabel: 'Limited',
       },
-      { width: '110px' },
+      { width: '110px' }
     ),
     numberColumn<LicenseRow>('quantity', 'Qty', undefined, { width: '80px' }),
     numberColumn<LicenseRow>('usageCount', 'Used', undefined, {
@@ -63,7 +70,7 @@
     }),
     dateColumn<LicenseRow>('startedAt', 'Starts', { width: '120px' }),
     dateColumn<LicenseRow>('endsAt', 'Ends', { width: '120px' }),
-  ];
+  ] as DataTableColumn<LicenseRow>[]);
 </script>
 
 {#if scopeStore.currentSite && siteLinkQuery.isLoading}
@@ -76,10 +83,10 @@
   </div>
 {:else}
   <VendorDataTable
-    table="sophos_licenses"
+    table="sophos_licenses_with_site"
     linkId={currentLinkId ?? undefined}
     integrationId="sophos-partner"
-    scopeColumn="site"
+    scopeColumn={false}
     {columns}
   />
 {/if}

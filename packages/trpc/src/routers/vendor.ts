@@ -24,6 +24,13 @@ import {
   sophosEndpoints,
   sophosFirewalls,
   sophosLicenses,
+  sophosSiteOverview,
+  m365TenantOverview,
+  sophosEndpointsWithSite,
+  sophosFirewallsWithSite,
+  sophosLicensesWithSite,
+  coveSiteOverview,
+  coveEndpointsWithSite,
   dattoEndpoints,
   coveEndpoints
 } from '@mspbyte/drizzle';
@@ -46,8 +53,12 @@ const VENDOR_TABLE_MAP = {
   sophos_endpoints: sophosEndpoints,
   sophos_firewalls: sophosFirewalls,
   sophos_licenses: sophosLicenses,
+  sophos_endpoints_with_site: sophosEndpointsWithSite,
+  sophos_firewalls_with_site: sophosFirewallsWithSite,
+  sophos_licenses_with_site: sophosLicensesWithSite,
   datto_endpoints: dattoEndpoints,
-  cove_endpoints: coveEndpoints
+  cove_endpoints: coveEndpoints,
+  cove_endpoints_with_site: coveEndpointsWithSite
 } as const;
 
 type VendorTableKey = keyof typeof VENDOR_TABLE_MAP;
@@ -93,6 +104,27 @@ const filterSchema = z.object({
 });
 
 export const vendorRouter = t.router({
+  sophosSiteOverview: authProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(sophosSiteOverview)
+      .orderBy(asc(sophosSiteOverview.dispositioned), asc(sophosSiteOverview.siteName));
+  }),
+
+  coveSiteOverview: authProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(coveSiteOverview)
+      .orderBy(asc(coveSiteOverview.dispositioned), asc(coveSiteOverview.siteName));
+  }),
+
+  m365TenantOverview: authProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(m365TenantOverview)
+      .orderBy(asc(m365TenantOverview.dispositioned), asc(m365TenantOverview.siteName));
+  }),
+
   tableData: authProcedure
     .input(
       z.object({
