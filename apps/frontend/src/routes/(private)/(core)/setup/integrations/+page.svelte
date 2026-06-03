@@ -38,13 +38,15 @@
     }),
   ];
 
-  function clientFetchData(input: PaginationInput): Promise<{ rows: IntegrationRow[]; total: number }> {
+  function clientFetchData(
+    input: PaginationInput
+  ): Promise<{ rows: IntegrationRow[]; total: number }> {
     let result = [...rows];
 
     if (input.globalSearch) {
       const q = input.globalSearch.toLowerCase();
-      result = result.filter((r) =>
-        r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
+      result = result.filter(
+        (r) => r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)
       );
     }
 
@@ -64,12 +66,10 @@
 </script>
 
 <div class="flex size-full p-4">
-  {#key integrationsQuery.dataUpdatedAt}
-    <DataTable
-      fetchData={clientFetchData}
-      {columns}
-      defaultPageSize={25}
-      onrowclick={(row) => goto(`/setup/integrations/${(row as IntegrationRow).id}`)}
-    />
-  {/key}
+  <DataTable
+    fetchData={clientFetchData}
+    {columns}
+    defaultPageSize={25}
+    onrowclick={(row) => goto(`/setup/integrations/${(row as IntegrationRow).id}`)}
+  />
 </div>

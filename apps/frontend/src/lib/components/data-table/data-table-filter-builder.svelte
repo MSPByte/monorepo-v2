@@ -14,6 +14,7 @@
     DateFilterInput,
   } from './filter-inputs';
   import SingleSelect from '$lib/components/single-select.svelte';
+  import Separator from '$lib/components/ui/separator/separator.svelte';
 
   interface Props {
     columns: DataTableColumn<any>[];
@@ -109,13 +110,13 @@
       </Button>
     {/snippet}
   </Dialog.Trigger>
-  <Dialog.Content class="sm:max-w-[425px]">
+  <Dialog.Content class="sm:max-w-106.25">
     <Dialog.Header>
       <Dialog.Title>Add Filter</Dialog.Title>
       <Dialog.Description>Create a new filter to narrow down your results.</Dialog.Description>
     </Dialog.Header>
-
-    <div class="space-y-4 py-4">
+    <Separator />
+    <div class="space-y-4 p-4">
       <!-- Field Selection -->
       <div class="space-y-2">
         <Label for="field">Field</Label>
