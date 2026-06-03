@@ -152,6 +152,8 @@ export const alerts = pgTable(
   ]
 );
 
+export * from './views/sites.js';
+
 export type Role = typeof roles.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Site = typeof sites.$inferSelect;

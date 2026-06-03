@@ -22,7 +22,7 @@ export const appRouter = t.router({
   integrationLinks: integrationLinksRouter,
   vendor: vendorRouter,
   agents: agentsRouter,
-  pipeline: pipelineRouter,
+  pipeline: pipelineRouter
 });
 
 export type AppRouter = typeof appRouter;
