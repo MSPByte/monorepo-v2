@@ -51,15 +51,15 @@
 
   const portalOptions = $derived([
     { value: 'entra', label: 'Entra' },
-    { value: 'azure', label: 'Azure', disabled: !customerDomain },
-    { value: 'exchange', label: 'Exchange', disabled: !customerDomain },
     { value: 'm365-admin', label: 'M365 Admin' },
+    { value: 'exchange', label: 'Exchange', disabled: !customerDomain },
+    { value: 'teams', label: 'Teams', disabled: !customerDomain },
+    { value: 'powerbi', label: 'PowerBI' },
+    { value: 'sharepoint', label: 'SharePoint' },
+    { value: 'azure', label: 'Azure', disabled: !customerDomain },
     { value: 'defender', label: 'Defender' },
     { value: 'intune', label: 'Intune' },
     { value: 'purview', label: 'Purview' },
-    { value: 'powerbi', label: 'PowerBI' },
-    { value: 'sharepoint', label: 'SharePoint' },
-    { value: 'teams', label: 'Teams', disabled: !customerDomain },
   ]);
 
   const portalPlaceholder = $derived.by(() => {
@@ -130,6 +130,7 @@
         disabled={!scopeStore.currentLink || !isGdap}
         bind:selected={portalSelection}
         onchange={handlePortalChange}
+        disableSort={true}
       />
     </div>
   </UrlTabs>

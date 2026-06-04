@@ -21,6 +21,7 @@
     onchange = (_selected: string) => {},
     onsearch,
     loading = false,
+    disableSort = false,
   }: {
     options: Option[];
     selected?: string;
@@ -31,6 +32,7 @@
     onchange?: (selected: string) => void;
     onsearch?: (query: string) => void;
     loading?: boolean;
+    disableSort?: boolean;
   } = $props();
 
   let open = $state(false);
@@ -50,6 +52,7 @@
 
   const filteredOptions = $derived.by(() => {
     const sort = (options: Option[]) => {
+      if (disableSort) return options;
       return options.sort((a, b) => a.label.localeCompare(b.label));
     };
 
