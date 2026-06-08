@@ -31,7 +31,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
     });
 
     if (!session) {
-      return redirect(302, '/auth/login');
+      throw { message: 'Failed to get session', state: 'invalid' };
     }
 
     let authOrgId = session.session.activeOrganizationId;
@@ -48,7 +48,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
           })
           .catch(() => null);
       } else {
-        return redirect(302, '/auth/organization');
+        throw { message: 'Choose organization', state: 'select_org' };
       }
     }
 
@@ -99,6 +99,8 @@ const handleAuth: Handle = async ({ event, resolve }) => {
     if (state === 'invalid') {
       await auth.api.signOut({ headers: event.request.headers }).catch(() => null);
       return redirect(302, '/auth/login?error=account');
+    } else if (state === 'select_org') {
+      return redirect(302, '/auth/organization');
     }
 
     return redirect(302, '/auth/login');
