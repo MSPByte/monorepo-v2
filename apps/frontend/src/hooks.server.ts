@@ -31,7 +31,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
     });
 
     if (!session) {
-      throw { message: 'Failed to get session', state: 'invalid' };
+      throw { message: 'Failed to get session', state: 'no_session' };
     }
 
     let authOrgId = session.session.activeOrganizationId;
