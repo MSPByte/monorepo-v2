@@ -42,9 +42,8 @@
 
   const filteredOptions = $derived.by(() => {
     const current = options.filter((o) => selected.includes(o.value));
-    const filtered = options.filter(
-      (opt) =>
-        !selected.includes(opt.value) && opt.label.toLowerCase().includes(search.toLowerCase())
+    const filtered = options.filter((opt) =>
+      opt.label.toLowerCase().includes(search.toLowerCase())
     );
 
     // Sort selected items to the top (only when not actively searching)
