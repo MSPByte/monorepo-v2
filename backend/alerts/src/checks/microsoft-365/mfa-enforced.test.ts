@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mfaEnforcedCheck } from './mfa-enforced.js';
-import type { CheckInput } from './interface.js';
+import type { CheckInput } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 function makeDb(identities: unknown[]) {
   return {
@@ -36,7 +37,7 @@ describe('mfaEnforcedCheck', () => {
     expect(results[0].checkId).toBe('mfa_enforced');
     expect(results[0].entityRef).toBe('alice@example.com');
     expect(results[0].entityType).toBe('identity');
-    expect(results[0].severity).toBe(2);
+    expect(results[0].severity).toBe(alertSeverity('microsoft-365.identities.noMfa'));
     expect(results[1].entityRef).toBe('bob@example.com');
   });
 

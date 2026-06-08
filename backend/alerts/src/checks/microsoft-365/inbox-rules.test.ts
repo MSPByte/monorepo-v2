@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { inboxRulesCheck } from './inbox-rules.js';
-import type { CheckInput } from './interface.js';
+import type { CheckInput } from '../interface.js';
 
 function makeDb(rules: unknown[]) {
   const where = vi.fn().mockResolvedValue(rules);

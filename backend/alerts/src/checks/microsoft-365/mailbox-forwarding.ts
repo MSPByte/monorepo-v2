@@ -1,6 +1,7 @@
 import { eq, and, isNotNull } from 'drizzle-orm';
 import { m365MailboxForwarding } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 export const mailboxExternalSmtpCheck: CheckEvaluator = {
   checkId: 'mailbox_external_smtp',
@@ -23,7 +24,7 @@ export const mailboxExternalSmtpCheck: CheckEvaluator = {
       entityType: 'mailbox',
       entityRef: row.userPrincipalName,
       entityId: row.id,
-      severity: 2,
+      severity: alertSeverity('microsoft-365.mailboxForwarding.externalSmtp'),
       detail: {
         userPrincipalName: row.userPrincipalName,
         forwardingSmtpAddress: row.forwardingSmtpAddress,
@@ -54,7 +55,7 @@ export const mailboxInternalForwardCheck: CheckEvaluator = {
       entityType: 'mailbox',
       entityRef: row.userPrincipalName,
       entityId: row.id,
-      severity: 1,
+      severity: alertSeverity('microsoft-365.mailboxForwarding.internalForward'),
       detail: {
         userPrincipalName: row.userPrincipalName,
         forwardingAddress: row.forwardingAddress,

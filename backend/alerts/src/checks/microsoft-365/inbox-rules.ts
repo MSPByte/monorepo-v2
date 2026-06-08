@@ -1,7 +1,8 @@
 import { eq, and } from 'drizzle-orm';
 import { m365InboxRules } from '@mspbyte/drizzle';
 import { externalInboxRuleRecipients } from '@mspbyte/shared';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 export const inboxRulesCheck: CheckEvaluator = {
   checkId: 'suspicious_inbox_rules',
@@ -34,7 +35,7 @@ export const inboxRulesCheck: CheckEvaluator = {
           entityType: 'inbox_rule',
           entityRef: `${rule.mailboxUpn}::${rule.ruleName}`,
           entityId: rule.id,
-          severity: 3,
+          severity: alertSeverity('microsoft-365.inboxRules.deleteMessage'),
           detail: { mailboxUpn: rule.mailboxUpn, ruleName: rule.ruleName, reasons }
         });
       }
@@ -52,7 +53,7 @@ export const inboxRulesCheck: CheckEvaluator = {
           entityType: 'inbox_rule',
           entityId: rule.id,
           entityRef: `${rule.mailboxUpn}::${rule.ruleName}`,
-          severity: 2,
+          severity: alertSeverity('microsoft-365.inboxRules.externalForward'),
           detail: {
             mailboxUpn: rule.mailboxUpn,
             ruleName: rule.ruleName,
@@ -72,7 +73,7 @@ export const inboxRulesCheck: CheckEvaluator = {
           entityType: 'inbox_rule',
           entityId: rule.id,
           entityRef: `${rule.mailboxUpn}::${rule.ruleName}`,
-          severity: 2,
+          severity: alertSeverity('microsoft-365.inboxRules.redirectsMessage'),
           detail: {
             mailboxUpn: rule.mailboxUpn,
             ruleName: rule.ruleName,

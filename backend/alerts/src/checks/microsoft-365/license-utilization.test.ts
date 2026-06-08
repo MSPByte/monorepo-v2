@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { licenseExpiringSoonCheck, licenseUnusedSeatsCheck } from './license-utilization.js';
-import type { CheckInput } from './interface.js';
+import type { CheckInput } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 function makeDb(licenses: unknown[]) {
   const where = vi.fn().mockResolvedValue(licenses);
@@ -44,7 +45,7 @@ describe('licenseUnusedSeatsCheck', () => {
     expect(results[0].definitionId).toBe('microsoft-365.licenses.unusedSeats');
     expect(results[0].entityType).toBe('license');
     expect(results[0].entityRef).toBe('M365_BUSINESS_PREMIUM');
-    expect(results[0].severity).toBe(2);
+    expect(results[0].severity).toBe(alertSeverity('microsoft-365.licenses.unusedSeats'));
     expect(results[0].detail.unusedUnits).toBe(60);
     expect(results[0].detail.utilizationPct).toBe(40);
   });
@@ -85,7 +86,7 @@ describe('licenseExpiringSoonCheck', () => {
     expect(results[0].checkId).toBe('license_expiring_soon');
     expect(results[0].definitionId).toBe('microsoft-365.licenses.expiringSoon');
     expect(results[0].entityType).toBe('license');
-    expect(results[0].severity).toBe(1);
+    expect(results[0].severity).toBe(alertSeverity('microsoft-365.licenses.expiringSoon'));
     expect(results[0].detail.warningUnits).toBe(3);
   });
 

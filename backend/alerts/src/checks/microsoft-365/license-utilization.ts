@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { m365Licenses } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 function licenseDetail(license: typeof m365Licenses.$inferSelect) {
   const totalUnits = license.totalUnits ?? 0;
@@ -53,7 +54,7 @@ export const licenseUnusedSeatsCheck: CheckEvaluator = {
         entityType: 'license',
         entityRef: licenseEntityRef(license),
         entityId: license.id,
-        severity: 2,
+        severity: alertSeverity('microsoft-365.licenses.unusedSeats'),
         detail
       }));
   }
@@ -83,7 +84,7 @@ export const licenseExpiringSoonCheck: CheckEvaluator = {
         entityType: 'license',
         entityRef: licenseEntityRef(license),
         entityId: license.id,
-        severity: 1,
+        severity: alertSeverity('microsoft-365.licenses.expiringSoon'),
         detail
       }));
   }

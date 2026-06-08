@@ -1,6 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { m365Identities } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 // Full MFA state requires the Graph authenticationMethods endpoint.
 // This check uses the mfa_enforced flag stored during normalization,
@@ -29,7 +30,7 @@ export const mfaEnforcedCheck: CheckEvaluator = {
       entityType: 'identity',
       entityRef: identity.email,
       entityId: identity.id,
-      severity: 2,
+      severity: alertSeverity('microsoft-365.identities.noMfa'),
       detail: {
         userId: identity.externalId,
         email: identity.email,

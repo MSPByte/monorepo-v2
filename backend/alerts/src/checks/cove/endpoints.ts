@@ -1,6 +1,7 @@
 import { and, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { coveEndpoints } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 const STALE_SUCCESS_HOURS = 48;
 
@@ -44,7 +45,7 @@ export const coveEndpointErrorsCheck: CheckEvaluator = {
       entityType: 'endpoint',
       entityRef: endpointRef(endpoint),
       entityId: endpoint.id,
-      severity: 2,
+      severity: alertSeverity('cove.endpoint.errors'),
       detail: endpointDetail(endpoint)
     }));
   }
@@ -77,7 +78,7 @@ export const coveEndpointLastSuccessStaleCheck: CheckEvaluator = {
       entityType: 'endpoint',
       entityRef: endpointRef(endpoint),
       entityId: endpoint.id,
-      severity: 1,
+      severity: alertSeverity('cove.endpoint.lastSuccessStale'),
       detail: {
         ...endpointDetail(endpoint),
         staleHours: STALE_SUCCESS_HOURS

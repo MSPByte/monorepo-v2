@@ -1,6 +1,7 @@
 import { eq, and, lt } from 'drizzle-orm';
 import { m365Identities } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 const STALE_DAYS = 30;
 
@@ -29,7 +30,7 @@ export const staleIdentityCheck: CheckEvaluator = {
       entityType: 'identity',
       entityRef: identity.email,
       entityId: identity.id,
-      severity: 1,
+      severity: alertSeverity('microsoft-365.identities.stale'),
       detail: {
         userId: identity.externalId,
         email: identity.email,

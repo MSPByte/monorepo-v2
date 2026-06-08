@@ -1,6 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { sophosEndpoints } from '@mspbyte/drizzle';
-import type { CheckEvaluator, CheckInput, Detection } from './interface.js';
+import type { CheckEvaluator, CheckInput, Detection } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 export const sophosTamperProtectionCheck: CheckEvaluator = {
   checkId: 'sophos_tamper_protection',
@@ -24,7 +25,7 @@ export const sophosTamperProtectionCheck: CheckEvaluator = {
       entityType: 'endpoint',
       entityRef: row.hostname,
       entityId: row.id,
-      severity: 2,
+      severity: alertSeverity('sophos.endpoint.tamper_protection'),
       detail: {
         hostname: row.hostname,
         type: row.type,

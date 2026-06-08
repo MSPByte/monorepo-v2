@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   coveEndpointErrorsCheck,
   coveEndpointLastSuccessStaleCheck
-} from './cove-endpoints.js';
-import type { CheckInput } from './interface.js';
+} from './endpoints.js';
+import type { CheckInput } from '../interface.js';
+import { alertSeverity } from '../severity.js';
 
 function makeDb(endpoints: unknown[]) {
   return {
@@ -48,7 +49,7 @@ describe('coveEndpointErrorsCheck', () => {
     expect(results[0].definitionId).toBe('cove.endpoint.errors');
     expect(results[0].entityType).toBe('endpoint');
     expect(results[0].entityRef).toBe('SERVER-01');
-    expect(results[0].severity).toBe(2);
+    expect(results[0].severity).toBe(alertSeverity('cove.endpoint.errors'));
     expect(results[0].detail.errors).toBe(2);
   });
 
@@ -73,7 +74,7 @@ describe('coveEndpointLastSuccessStaleCheck', () => {
     expect(results[0].checkId).toBe('cove_endpoint_last_success_stale');
     expect(results[0].definitionId).toBe('cove.endpoint.lastSuccessStale');
     expect(results[0].entityType).toBe('endpoint');
-    expect(results[0].severity).toBe(1);
+    expect(results[0].severity).toBe(alertSeverity('cove.endpoint.lastSuccessStale'));
     expect(results[0].detail.staleHours).toBe(48);
   });
 

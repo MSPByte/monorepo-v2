@@ -1,14 +1,24 @@
 import type { CheckEvaluator } from './interface.js';
-import { mfaEnforcedCheck } from './mfa-enforced.js';
-import { staleIdentityCheck } from './stale-identity.js';
-import { mailboxExternalSmtpCheck, mailboxInternalForwardCheck } from './mailbox-forwarding.js';
-import { inboxRulesCheck } from './inbox-rules.js';
-import { sophosTamperProtectionCheck } from './sophos-tamper-protection.js';
-import { licenseExpiringSoonCheck, licenseUnusedSeatsCheck } from './license-utilization.js';
 import {
   coveEndpointErrorsCheck,
   coveEndpointLastSuccessStaleCheck
-} from './cove-endpoints.js';
+} from './cove/endpoints.js';
+import {
+  licenseExpiringSoonCheck,
+  licenseUnusedSeatsCheck
+} from './microsoft-365/license-utilization.js';
+import { inboxRulesCheck } from './microsoft-365/inbox-rules.js';
+import {
+  mailboxExternalSmtpCheck,
+  mailboxInternalForwardCheck
+} from './microsoft-365/mailbox-forwarding.js';
+import { mfaEnforcedCheck } from './microsoft-365/mfa-enforced.js';
+import { staleIdentityCheck } from './microsoft-365/stale-identity.js';
+import { sophosStaleEndpointCheck } from './sophos/stale-endpoint.js';
+import { sophosStaleFirewallCheck } from './sophos/stale-firewall.js';
+import { sophosTamperProtectionCheck } from './sophos/tamper-protection.js';
+import { sophosEndpointNeedsUpdateCheck } from './sophos/update-endpoint.js';
+import { sophosFirewallNeedsUpdateCheck } from './sophos/update-firewall.js';
 
 const checks = new Map<string, CheckEvaluator>([
   [coveEndpointErrorsCheck.checkId, coveEndpointErrorsCheck],
@@ -21,6 +31,10 @@ const checks = new Map<string, CheckEvaluator>([
   [mailboxInternalForwardCheck.checkId, mailboxInternalForwardCheck],
   [inboxRulesCheck.checkId, inboxRulesCheck],
   [sophosTamperProtectionCheck.checkId, sophosTamperProtectionCheck],
+  [sophosStaleEndpointCheck.checkId, sophosStaleEndpointCheck],
+  [sophosStaleFirewallCheck.checkId, sophosStaleFirewallCheck],
+  [sophosEndpointNeedsUpdateCheck.checkId, sophosEndpointNeedsUpdateCheck],
+  [sophosFirewallNeedsUpdateCheck.checkId, sophosFirewallNeedsUpdateCheck],
 ]);
 
 export const checkRegistry = {

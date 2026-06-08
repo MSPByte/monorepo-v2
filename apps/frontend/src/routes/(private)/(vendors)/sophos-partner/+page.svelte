@@ -118,10 +118,34 @@
       label: 'Tamper',
       definitionPrefixes: ['sophos.endpoint.tamper_protection'],
     },
+    {
+      id: 'stale-endpoints',
+      label: 'Stale Endpoints',
+      definitionPrefixes: ['sophos.endpoint.stale'],
+    },
+    {
+      id: 'stale-firewalls',
+      label: 'Stale Firewalls',
+      definitionPrefixes: ['sophos.firewall.stale'],
+    },
+    {
+      id: 'endpoint-updates',
+      label: 'Endpoint Updates',
+      definitionPrefixes: ['sophos.endpoint.needsUpdate'],
+    },
+    {
+      id: 'firewall-updates',
+      label: 'Firewall Updates',
+      definitionPrefixes: ['sophos.firewall.needsUpdate'],
+    },
   ];
 
   function moduleLabelForDefinition(definitionId: string) {
     if (definitionId === 'sophos.endpoint.tamper_protection') return 'Tamper';
+    if (definitionId === 'sophos.endpoint.stale') return 'Stale Endpoint';
+    if (definitionId === 'sophos.firewall.stale') return 'Stale Firewall';
+    if (definitionId === 'sophos.endpoint.needsUpdate') return 'Endpoint Update';
+    if (definitionId === 'sophos.firewall.needsUpdate') return 'Firewall Update';
     return 'Other';
   }
 </script>
