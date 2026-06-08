@@ -6,6 +6,7 @@
   import type { ProviderFacet } from '@mspbyte/shared';
   import type { createTrpcClient } from '$lib/trpc';
   import { Button } from '$lib/components/ui/button';
+  import SingleSelect from '$lib/components/single-select.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
 
@@ -15,17 +16,22 @@
   let includeDependencies = $state(true);
   let force = $state(true);
   let queueing = $state(false);
-  let result = $state<{ syncRunId: string; ingestRunId: string; facets: ProviderFacet[] } | null>(null);
+  let result = $state<{ syncRunId: string; ingestRunId: string; facets: ProviderFacet[] } | null>(
+    null
+  );
   let error = $state<string | null>(null);
 
-  const providers = $derived(Object.values(INTEGRATIONS).filter((i) => i.supportedFacets.length > 0));
+  const providers = $derived(
+    Object.values(INTEGRATIONS).filter((i) => i.supportedFacets.length > 0)
+  );
   const provider = $derived(INTEGRATIONS[providerId as keyof typeof INTEGRATIONS]);
   const facets = $derived(provider?.supportedFacets.map((f) => f.facet) ?? []);
   const chosenFacets = $derived(facets.filter((facet) => selectedFacets[facet]));
 
   const linksQuery = createQuery(() => ({
     queryKey: ['integrationLinks.list', providerId],
-    queryFn: () => trpc.integrationLinks.list.query({ integrationId: providerId, status: 'active' }),
+    queryFn: () =>
+      trpc.integrationLinks.list.query({ integrationId: providerId, status: 'active' }),
   }));
 
   const statusQuery = createQuery(() => ({
@@ -92,26 +98,29 @@
       <div class="grid gap-4">
         <label class="grid gap-1 text-sm font-medium">
           Integration
-          <select class="h-9 rounded-md border bg-background px-3 text-sm" bind:value={providerId}>
-            {#each providers as item}
-              <option value={item.id}>{item.name}</option>
-            {/each}
-          </select>
+          <SingleSelect
+            options={providers.map((p) => ({ label: p.name, value: p.id }))}
+            bind:selected={providerId}
+          />
         </label>
 
         <label class="grid gap-1 text-sm font-medium">
           Link
-          <select class="h-9 rounded-md border bg-background px-3 text-sm" bind:value={linkId}>
-            {#each linksQuery.data ?? [] as link}
-              <option value={link.id}>{link.name}</option>
-            {/each}
-          </select>
+          <SingleSelect
+            options={(linksQuery.data ?? []).map((l) => ({ label: l.name!, value: l.id }))}
+            bind:selected={linkId}
+          />
         </label>
 
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onclick={selectAll}>All</Button>
           <Button variant="outline" size="sm" onclick={clearFacets}>Clear</Button>
-          <Button variant="outline" size="sm" onclick={() => statusQuery.refetch()} disabled={!linkId}>
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => statusQuery.refetch()}
+            disabled={!linkId}
+          >
             <RefreshCw class="size-4" />
           </Button>
         </div>
@@ -126,19 +135,27 @@
           Force selected facets
         </label>
 
-        <Button onclick={queueRun} disabled={!linkId || chosenFacets.length === 0 || queueing} class="gap-2">
+        <Button
+          onclick={queueRun}
+          disabled={!linkId || chosenFacets.length === 0 || queueing}
+          class="gap-2"
+        >
           <Play class="size-4" />
           {queueing ? 'Queueing' : 'Queue Run'}
         </Button>
 
         {#if result}
-          <div class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+          <div
+            class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"
+          >
             Queued {result.facets.length} facets for run {result.syncRunId.slice(0, 8)}.
           </div>
         {/if}
 
         {#if error}
-          <div class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <div
+            class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+          >
             {error}
           </div>
         {/if}
@@ -155,7 +172,11 @@
         {#each facets as facet}
           <button
             type="button"
-            class="flex min-h-10 items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted {selectedFacets[facet] ? 'border-primary bg-primary/10' : ''}"
+            class="flex min-h-10 items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted {selectedFacets[
+              facet
+            ]
+              ? 'border-primary bg-primary/10'
+              : ''}"
             onclick={() => toggleFacet(facet)}
           >
             <span class="break-all">{facet}</span>
@@ -190,7 +211,9 @@
             </tr>
           {:else}
             <tr>
-              <td class="px-4 py-6 text-muted-foreground" colspan="4">No sync context for this link.</td>
+              <td class="px-4 py-6 text-muted-foreground" colspan="4"
+                >No sync context for this link.</td
+              >
             </tr>
           {/each}
         </tbody>
