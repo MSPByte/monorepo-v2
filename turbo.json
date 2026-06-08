@@ -9,7 +9,14 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".svelte-kit/**", ".vercel/**", "dist/**"],
-      "env": ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "ENCRYPTION_KEY"]
+      "env": [
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "ENCRYPTION_KEY",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "CATALOG_DATABASE_URL"
+      ]
     },
     "dev": {
       "cache": false,
