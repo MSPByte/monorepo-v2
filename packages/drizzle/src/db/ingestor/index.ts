@@ -97,30 +97,7 @@ export const rawIngestLog = ingestorSchema.table(
   () => [crudPolicy({ role: authenticatedRole, read: true, modify: false })]
 );
 
-export const entityChangeLog = ingestorSchema.table(
-  'entity_change_log',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    linkId: uuid('link_id').references(() => integrationLinks.id, { onDelete: 'cascade' }),
-    syncRunId: uuid('sync_run_id')
-      .notNull()
-      .references(() => syncRuns.id, { onDelete: 'cascade' }),
-    integrationId: text('integration_id').notNull(),
-    externalId: text('external_id').notNull(),
-    type: text('type').notNull(),
-    changeType: text('change_type').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .notNull()
-      .defaultNow()
-  },
-  () => [
-    check('valid_change_type', sql`change_type in ('created', 'updated', 'deleted')`),
-    crudPolicy({ role: authenticatedRole, read: true, modify: false })
-  ]
-);
-
 export type SyncRun = typeof syncRuns.$inferSelect;
 export type SyncRunStage = typeof syncRunStages.$inferSelect;
 export type SyncContext = typeof syncContext.$inferSelect;
 export type RawIngestLog = typeof rawIngestLog.$inferSelect;
-export type EntityChangeLog = typeof entityChangeLog.$inferSelect;

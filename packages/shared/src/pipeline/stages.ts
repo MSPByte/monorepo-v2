@@ -4,7 +4,6 @@ import {
   syncRuns,
   syncRunStages,
   syncContext,
-  entityChangeLog,
   rawIngestLog
 } from '@mspbyte/drizzle';
 
@@ -143,28 +142,6 @@ export async function recordFetchFailure(
         updatedAt: now
       }
     });
-}
-
-export type XmaxRow = { id: string; xmax: string };
-
-export async function logEntityChanges(
-  db: Db,
-  linkId: string,
-  syncRunId: string,
-  integrationId: string,
-  type: string,
-  rows: XmaxRow[]
-): Promise<void> {
-  if (rows.length === 0) return;
-  const changes = rows.map((r) => ({
-    linkId,
-    syncRunId,
-    integrationId,
-    externalId: r.id,
-    type,
-    changeType: r.xmax === '0' ? 'created' : ('updated' as 'created' | 'updated')
-  }));
-  await db.insert(entityChangeLog).values(changes);
 }
 
 export async function logRawRecords(

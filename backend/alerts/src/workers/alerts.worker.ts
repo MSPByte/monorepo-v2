@@ -15,7 +15,6 @@ import {
   complianceAssignments,
   complianceFrameworks,
   complianceFrameworkChecks,
-  entityChangeLog,
   integrationLinks,
   syncContext,
   syncRuns,
@@ -122,17 +121,6 @@ async function purgeStaleEntities(
     totalPurged += deletedIds.length;
 
     await db.delete(alerts).where(inArray(alerts.entityId, deletedIds));
-
-    await db.insert(entityChangeLog).values(
-      deletedIds.map((id) => ({
-        linkId,
-        syncRunId,
-        integrationId: syncRun.integrationId,
-        externalId: id,
-        type: facet,
-        changeType: 'deleted' as const
-      }))
-    );
 
     logger.info(
       { linkId, facet, table: registryKey, purged: deletedIds.length },

@@ -3,8 +3,7 @@ import { QUEUES, FACET_TABLE_MAP, ProviderFacet } from '@mspbyte/shared';
 import type { NormalizeJobData } from '@mspbyte/shared';
 import { vendorTableRegistry } from '@mspbyte/drizzle';
 import type { VendorTableName } from '@mspbyte/drizzle';
-import { startStage, completeStage, failStage, logEntityChanges } from '@mspbyte/shared';
-import type { XmaxRow } from '@mspbyte/shared';
+import { startStage, completeStage, failStage } from '@mspbyte/shared';
 import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { getAdapter } from '../adapters/registry.js';
 import { getM365FacetSchema } from '../adapters/m365/index.js';
@@ -271,7 +270,7 @@ export function createNormalizeWorker(redis: Redis, queueName: string = QUEUES.N
           .onConflictDoUpdate({ target: conflictTarget, set: setClause })
           .returning({ id: sql<string>`id::text`, xmax: sql<string>`xmax::text` });
 
-        const xmaxRows = returned as XmaxRow[];
+        const xmaxRows = returned as { id: string; xmax: string }[];
         if (xmaxRows.length !== insertRows.length) {
           logger.warn(
             {
@@ -290,15 +289,6 @@ export function createNormalizeWorker(redis: Redis, queueName: string = QUEUES.N
 
         const createdCt = xmaxRows.filter((r) => r.xmax === '0').length;
         const updatedCt = xmaxRows.length - createdCt;
-
-        await logEntityChanges(
-          db,
-          data.linkId,
-          data.syncRunId,
-          data.provider,
-          data.facet,
-          xmaxRows
-        );
 
         await completeStage(db, stageId, {
           recordsIn: data.rawRecords.length,
