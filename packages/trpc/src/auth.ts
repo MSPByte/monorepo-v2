@@ -1,8 +1,16 @@
+import { webcrypto } from 'node:crypto';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization as organizationPlugin } from 'better-auth/plugins';
 import { createCatalogDb } from '@mspbyte/drizzle-catalog';
 import * as authSchema from '@mspbyte/drizzle-catalog/catalog';
+
+if (!globalThis.crypto?.subtle) {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    configurable: true
+  });
+}
 
 const catalogDatabaseUrl =
   process.env.CATALOG_DATABASE_URL ??
