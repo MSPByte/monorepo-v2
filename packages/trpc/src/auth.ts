@@ -24,7 +24,12 @@ export const auth = betterAuth({
   advanced: {
     database: {
       generateId: 'uuid'
-    }
+    },
+    crossSubDomainCookies: {
+      enabled: true,
+      domain: 'mspbyte.pro'
+    },
+    useSecureCookies: true
   },
   account: {
     accountLinking: {
