@@ -8,7 +8,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".svelte-kit/**", ".vercel/**", "dist/**"]
+      "outputs": [".svelte-kit/**", ".vercel/**", "dist/**"],
+      "env": ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "ENCRYPTION_KEY"]
     },
     "dev": {
       "cache": false,
