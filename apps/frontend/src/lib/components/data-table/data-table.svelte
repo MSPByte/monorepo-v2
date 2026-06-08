@@ -422,7 +422,7 @@
         <Table.Header>
           <Table.Row>
             {#if enableRowSelection}
-              <Table.Head class="sticky top-0 z-10 w-10 bg-background">
+              <Table.Head class="sticky top-0 z-10 max-w-4! w-4! bg-background">
                 <Checkbox
                   checked={allRowsSelected}
                   indeterminate={someRowsSelected}
@@ -481,7 +481,7 @@
                 onclick={(e) => handleRowClick(row, e)}
               >
                 {#if enableRowSelection}
-                  <Table.Cell>
+                  <Table.Cell class="max-w-4!">
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={(checked) => handleToggleRow(row, !!checked)}

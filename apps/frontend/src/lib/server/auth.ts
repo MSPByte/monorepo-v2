@@ -14,9 +14,16 @@ const trustedOrigins = (env.BETTER_AUTH_TRUSTED_ORIGINS ?? PUBLIC_API_URL)
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const betterAuthUrl = env.BETTER_AUTH_URL ?? 'http://localhost:5173';
+const betterAuthHostname = new URL(betterAuthUrl).hostname;
+const crossSubDomainCookieDomain =
+  betterAuthHostname === 'mspbyte.pro' || betterAuthHostname.endsWith('.mspbyte.pro')
+    ? 'mspbyte.pro'
+    : undefined;
+
 export const auth = betterAuth({
   secret: BETTER_AUTH_SECRET,
-  baseURL: env.BETTER_AUTH_URL ?? 'http://localhost:5173',
+  baseURL: betterAuthUrl,
   trustedOrigins,
   database: drizzleAdapter(createCatalogDb(CATALOG_DATABASE_URL), {
     provider: 'pg',
@@ -27,10 +34,10 @@ export const auth = betterAuth({
       generateId: 'uuid',
     },
     crossSubDomainCookies: {
-      enabled: true,
-      domain: 'mspbyte.pro',
+      enabled: Boolean(crossSubDomainCookieDomain),
+      domain: crossSubDomainCookieDomain,
     },
-    useSecureCookies: true,
+    useSecureCookies: betterAuthUrl.startsWith('https://'),
   },
   account: {
     accountLinking: {
