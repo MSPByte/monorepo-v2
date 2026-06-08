@@ -15,7 +15,8 @@
         "ENCRYPTION_KEY",
         "BETTER_AUTH_SECRET",
         "BETTER_AUTH_URL",
-        "CATALOG_DATABASE_URL"
+        "CATALOG_DATABASE_URL",
+        "PUBLIC_API_URL"
       ]
     },
     "dev": {
