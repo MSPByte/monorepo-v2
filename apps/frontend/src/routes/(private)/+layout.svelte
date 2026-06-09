@@ -35,6 +35,7 @@
   $effect(() => {
     authStore.currentUser = data.user;
     authStore.currentRole = data.role;
+    authStore.currentOrg = data.orgId;
   });
 
   $effect(() => {
@@ -63,7 +64,7 @@
         {#each routeMap.entries() as [group, routes]}
           {#if group === 'top'}
             {#each routes as route}
-              {#if authStore.isAllowed(route.permission)}
+              {#if authStore.isAllowed(route.permission) && (route.devOnly ? authStore.isDev() : true)}
                 {@render navLink({ href: route.href, label: route.label })}
               {/if}
             {/each}
@@ -85,7 +86,7 @@
                   class="absolute top-full left-0 mt-1 min-w-36 rounded-2xl p-2 border bg-background shadow-md flex flex-col gap-1"
                 >
                   {#each routes as route}
-                    {#if authStore.isAllowed(route.permission)}
+                    {#if authStore.isAllowed(route.permission) && (route.devOnly ? authStore.isDev() : true)}
                       {@const active = page.url.pathname.startsWith(route.href)}
                       <a
                         href={route.href}

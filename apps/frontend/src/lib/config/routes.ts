@@ -5,6 +5,7 @@ type Route = {
   href: string;
   permission: Permission;
   group?: string;
+  devOnly?: boolean;
 };
 
 const ROUTES: Route[] = [
@@ -12,6 +13,12 @@ const ROUTES: Route[] = [
     label: 'Sites',
     href: '/sites',
     permission: 'Sites.Read',
+  },
+  {
+    label: 'Wiki',
+    href: '/wiki',
+    devOnly: true,
+    permission: 'Assets.Read',
   },
   {
     label: 'Users',
@@ -30,6 +37,13 @@ const ROUTES: Route[] = [
     href: '/setup/integrations',
     permission: 'Integrations.Read',
     group: 'Setup',
+  },
+  {
+    label: 'Pipeline',
+    href: '/setup/pipeline',
+    permission: 'Assets.Read',
+    group: 'Setup',
+    devOnly: true,
   },
 ];
 

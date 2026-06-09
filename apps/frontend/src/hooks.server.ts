@@ -112,10 +112,6 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 };
 
 const handleDev: Handle = async ({ event, resolve }) => {
-  if (event.locals.org.id !== PUBLIC_DEV_ORG && event.url.pathname.includes('/wiki')) {
-    return redirect(302, '/home');
-  }
-
   return svelteKitHandler({ event, resolve, auth, building });
 };
 
