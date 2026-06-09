@@ -11,6 +11,8 @@ import {
   ENCRYPTION_KEY,
 } from '$env/static/private';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import { PUBLIC_DEV_ORG } from '$env/static/public';
 
 const isPublicRoute = (route: string): boolean => {
   return route.startsWith('/auth') || route.startsWith('/api/auth') || route === '/';
@@ -109,4 +111,12 @@ const handleAuth: Handle = async ({ event, resolve }) => {
   return svelteKitHandler({ event, resolve, auth, building });
 };
 
-export const handle = handleAuth;
+const handleDev: Handle = async ({ event, resolve }) => {
+  if (event.locals.org.id !== PUBLIC_DEV_ORG && event.url.pathname.includes('/wiki')) {
+    return redirect(302, '/home');
+  }
+
+  return svelteKitHandler({ event, resolve, auth, building });
+};
+
+export const handle = sequence(handleAuth, handleDev);
