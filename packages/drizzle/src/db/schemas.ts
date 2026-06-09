@@ -6,3 +6,4 @@ export const definitionsSchema = pgSchema('definitions');
 export const auditSchema = pgSchema('audit');
 export const ingestorSchema = pgSchema('ingestor');
 export const vendorsSchema = pgSchema('vendors');
+export const wikiSchema = pgSchema('wiki');

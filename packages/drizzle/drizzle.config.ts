@@ -9,5 +9,5 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.MSP_DATABASE_URL!
   },
-  schemaFilter: ['public', 'agent', 'audit', 'compliance', 'ingestor', 'vendors']
+  schemaFilter: ['public', 'agent', 'audit', 'compliance', 'ingestor', 'vendors', 'wiki']
 });

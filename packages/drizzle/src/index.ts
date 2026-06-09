@@ -6,4 +6,5 @@ export * from './db/compliance/index.js';
 export * from './db/ingestor/index.js';
 export * from './db/vendors/index.js';
 export * from './db/vendors/registry.js';
+export * from './db/wiki/index.js';
 export * from './db/schemas.js';
