@@ -1,16 +1,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { getContext } from 'svelte';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
   import Badge from '$lib/components/ui/badge/badge.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
   import Input from '$lib/components/ui/input/input.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
   import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+  import * as Dialog from '$lib/components/ui/dialog/index.js';
 
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
-  import Check from '@lucide/svelte/icons/check';
   import Clock from '@lucide/svelte/icons/clock';
   import FileText from '@lucide/svelte/icons/file-text';
   import Folder from '@lucide/svelte/icons/folder';
@@ -20,53 +23,107 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Search from '@lucide/svelte/icons/search';
   import Trash2 from '@lucide/svelte/icons/trash-2';
-  import X from '@lucide/svelte/icons/x';
 
-  import { wikiState } from '../../_wiki-state.svelte.js';
-  import {
-    getArticleCount,
-    getArticlesForContext,
-    getContextChildren,
-    getContextPath,
-    getLinkedArticleCount,
-  } from '../../_mock-data.js';
+  import { getAllDescendantIds, getContextChildren, getContextPath } from '../../_wiki-utils.js';
   import SingleSelect from '$lib/components/single-select.svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import FadeIn from '$lib/components/transition/fade-in.svelte';
+
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
 
   const contextId = $derived(page.params.id ?? '');
 
-  const context = $derived(wikiState.contexts.find((c) => c.id === contextId));
-  const breadcrumb = $derived(contextId ? getContextPath(contextId, wikiState.contexts) : []);
-  const childContexts = $derived(
-    contextId ? getContextChildren(contextId, wikiState.contexts) : []
-  );
-  const contextArticles = $derived(
-    contextId ? getArticlesForContext(contextId, wikiState.articleList) : []
-  );
-  const primaryArticles = $derived(contextArticles.filter((a) => a.context_role === 'primary'));
-  const linkedArticles = $derived(contextArticles.filter((a) => a.context_role === 'linked'));
+  const contextsQuery = createQuery(() => ({
+    queryKey: ['wiki.contexts.list'],
+    queryFn: () => trpc.wiki.contexts.list.query(),
+  }));
+
+  const articlesQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.list', { contextId }],
+    queryFn: () => trpc.wiki.articles.list.query({ contextId }),
+    enabled: !!contextId,
+  }));
+
+  const allContexts = $derived(contextsQuery.data ?? []);
+  const context = $derived(allContexts.find((c) => c.id === contextId));
+  const breadcrumb = $derived(contextId ? getContextPath(contextId, allContexts) : []);
+  const childContexts = $derived(contextId ? getContextChildren(contextId, allContexts) : []);
+  const contextArticles = $derived(articlesQuery.data ?? []);
+  const linkedArticles = $derived(contextArticles.filter((a) => a.contextRole === 'linked'));
 
   const siblingContexts = $derived.by(() => {
     if (!context) return [];
-    return getContextChildren(context.parent_id, wikiState.contexts);
+    return getContextChildren(context.parentId, allContexts);
   });
 
-  let addingChildContext = $state(false);
+  // For child context article counts, we need the full unfiltered articles list
+  const allArticlesQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.list'],
+    queryFn: () => trpc.wiki.articles.list.query(),
+  }));
+  const allArticles = $derived(allArticlesQuery.data ?? []);
+
+  function getArticleCount(ctxId: string): number {
+    const contextIds = new Set(getAllDescendantIds(ctxId, allContexts));
+    return allArticles.filter((a) => contextIds.has(a.primaryContextId)).length;
+  }
+
+  function getLinkedArticleCount(ctxId: string): number {
+    return allArticles.filter((a) => a.linkedContexts.some((c) => c.id === ctxId)).length;
+  }
+
+  const articleCount = $derived(contextId ? getArticleCount(contextId) : 0);
+  let articleSearch = $state('');
+  const searchedArticles = $derived.by(() => {
+    const query = articleSearch.trim().toLowerCase();
+    if (!query) return contextArticles;
+
+    return contextArticles.filter((article) => {
+      const haystack = [
+        article.title,
+        article.kbId,
+        article.createdBy?.name ?? '',
+        article.primaryContextName,
+        ...article.tags.map((tag) => tag.name),
+        ...article.linkedContexts.map((linkedContext) => linkedContext.name),
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  });
+
+  const createContextMut = createMutation(() => ({
+    mutationFn: (input: { name: string; description?: string; parentId: string | null }) =>
+      trpc.wiki.contexts.create.mutate(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+    },
+  }));
+
+  const removeContextMut = createMutation(() => ({
+    mutationFn: (id: string) => trpc.wiki.contexts.remove.mutate({ id }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles'] });
+    },
+  }));
+
+  let childContextDialogOpen = $state(false);
   let newContextName = $state('');
   let newContextDescription = $state('');
 
   function addChildContext() {
-    const label = newContextName.trim();
-    if (!label) return;
-    wikiState.addContext({
-      id: `ctx-${label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')}-${Date.now()}`,
-      label,
+    const name = newContextName.trim();
+    if (!name) return;
+    createContextMut.mutate({
+      name,
       description: newContextDescription.trim() || undefined,
-      parent_id: contextId,
+      parentId: contextId,
     });
-    addingChildContext = false;
+    childContextDialogOpen = false;
     newContextName = '';
     newContextDescription = '';
   }
@@ -82,17 +139,19 @@
   }
 
   function parentHref() {
-    if (!context?.parent_id) return '/wiki';
-    return `/wiki/category/${context.parent_id}`;
+    if (!context?.parentId) return '/wiki';
+    return `/wiki/category/${context.parentId}`;
   }
 </script>
 
-{#if !context}
-  <div class="flex size-full items-center justify-center text-muted-foreground">
+{#if contextsQuery.isLoading}
+  <Loader />
+{:else if !context}
+  <FadeIn class="flex size-full items-center justify-center text-muted-foreground">
     Context not found
-  </div>
+  </FadeIn>
 {:else}
-  <div class="flex size-full flex-col overflow-y-auto">
+  <FadeIn class="flex size-full flex-col overflow-hidden">
     <div class="flex shrink-0 flex-col gap-4 px-6 pb-4 pt-5">
       <div class="flex items-center gap-2 text-xs text-muted-foreground">
         <Button variant="ghost" size="icon-sm" href={parentHref()} title="Back">
@@ -102,10 +161,10 @@
         {#each breadcrumb as crumb, i (crumb.id)}
           <ChevronRight class="size-3" />
           {#if i === breadcrumb.length - 1}
-            <span class="font-medium text-foreground">{crumb.label}</span>
+            <span class="font-medium text-foreground">{crumb.name}</span>
           {:else}
             <a href="/wiki/category/{crumb.id}" class="transition-colors hover:text-foreground">
-              {crumb.label}
+              {crumb.name}
             </a>
           {/if}
         {/each}
@@ -117,24 +176,18 @@
             <FolderOpen class="size-5" />
           </div>
           <div class="min-w-0">
-            <h1 class="text-xl font-semibold">{context.label}</h1>
+            <h1 class="text-xl font-semibold">{context.name}</h1>
             {#if context.description}
               <p class="mt-0.5 text-sm text-muted-foreground">{context.description}</p>
             {/if}
             <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span
-                >{primaryArticles.length} home article{primaryArticles.length === 1
-                  ? ''
-                  : 's'}</span
-              >
+              <span>{articleCount} article{articleCount === 1 ? '' : 's'}</span>
               <span
                 >{linkedArticles.length} linked appearance{linkedArticles.length === 1
                   ? ''
                   : 's'}</span
               >
-              <span
-                >{childContexts.length} child context{childContexts.length === 1 ? '' : 's'}</span
-              >
+              <span>{childContexts.length} context{childContexts.length === 1 ? '' : 's'}</span>
             </div>
           </div>
         </div>
@@ -143,7 +196,7 @@
           {#if siblingContexts.length > 1}
             <div class="w-44">
               <SingleSelect
-                options={siblingContexts.map((sc) => ({ label: sc.label, value: sc.id }))}
+                options={siblingContexts.map((sc) => ({ label: sc.name, value: sc.id }))}
                 selected={context.id}
                 onchange={(v) => goto(`/wiki/category/${v}`)}
               />
@@ -153,7 +206,7 @@
             variant="outline"
             size="sm"
             class="gap-1.5"
-            onclick={() => (addingChildContext = true)}
+            onclick={() => (childContextDialogOpen = true)}
           >
             <Folder class="size-3.5" />
             New Context
@@ -169,10 +222,10 @@
             </AlertDialog.Trigger>
             <AlertDialog.Content>
               <AlertDialog.Header>
-                <AlertDialog.Title>Delete {context.label}?</AlertDialog.Title>
+                <AlertDialog.Title>Delete {context.name}?</AlertDialog.Title>
                 <AlertDialog.Description>
-                  This removes this context and any child contexts from the mock. Articles are moved
-                  to a remaining parent or root context, and linked appearances are removed.
+                  This removes this context and any child contexts. Articles are moved to the parent
+                  context.
                 </AlertDialog.Description>
               </AlertDialog.Header>
               <AlertDialog.Footer>
@@ -181,7 +234,7 @@
                   class="bg-destructive text-destructive-foreground hover:bg-destructive/80"
                   onclick={() => {
                     const target = parentHref();
-                    wikiState.removeCategory(context.id);
+                    removeContextMut.mutate(context.id);
                     goto(target);
                   }}
                 >
@@ -200,95 +253,123 @@
 
     <Separator />
 
-    <div class="grid gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <section class="min-w-0 space-y-6">
-        <div>
-          <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Drill Down
+    <Dialog.Root bind:open={childContextDialogOpen}>
+      <Dialog.Content>
+        <Dialog.Header>
+          <Dialog.Title>New Context</Dialog.Title>
+          <Dialog.Description>Create a subcontext under {context.name}.</Dialog.Description>
+        </Dialog.Header>
+
+        <div class="flex flex-col gap-3 px-4 py-2">
+          <Input
+            bind:value={newContextName}
+            placeholder="Context name"
+            onkeydown={(e) => {
+              if (e.key === 'Enter') addChildContext();
+            }}
+          />
+          <Input
+            bind:value={newContextDescription}
+            placeholder="Short description"
+            onkeydown={(e) => {
+              if (e.key === 'Enter') addChildContext();
+            }}
+          />
+        </div>
+
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            onclick={() => {
+              childContextDialogOpen = false;
+              newContextName = '';
+              newContextDescription = '';
+            }}
+          >
+            Cancel
+          </Button>
+          <Button disabled={!newContextName.trim()} onclick={addChildContext}>Create</Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
+    <div class="grid min-h-0 flex-1 grid-cols-[20rem_minmax(0,1fr)] overflow-hidden">
+      <aside class="flex min-h-0 flex-col border-r bg-card/30">
+        <div class="flex h-12 shrink-0 items-center justify-between border-b px-4">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Subcontexts
           </h2>
-          {#if addingChildContext}
-            <div class="mb-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
-              <div class="grid gap-2 sm:grid-cols-[16rem_minmax(0,1fr)_auto]">
-                <Input bind:value={newContextName} placeholder="Context name" class="h-8" />
-                <Input
-                  bind:value={newContextDescription}
-                  placeholder="Short description"
-                  class="h-8"
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter') addChildContext();
-                  }}
-                />
-                <div class="flex items-center gap-1">
-                  <Button size="icon-sm" title="Create context" onclick={addChildContext}>
-                    <Check class="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    title="Cancel"
-                    onclick={() => {
-                      addingChildContext = false;
-                      newContextName = '';
-                      newContextDescription = '';
-                    }}
-                  >
-                    <X class="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          {/if}
+          <span class="text-xs tabular-nums text-muted-foreground">{childContexts.length}</span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
           {#if childContexts.length > 0}
-            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="space-y-1.5">
               {#each childContexts as child (child.id)}
-                {@const childCount = getContextChildren(child.id, wikiState.contexts).length}
-                {@const homeCount = getArticleCount(child.id, wikiState.articleList)}
-                {@const linkedCount = getLinkedArticleCount(child.id, wikiState.articleList)}
+                {@const childCount = getContextChildren(child.id, allContexts).length}
+                {@const childArticleCount = getArticleCount(child.id)}
+                {@const linkedCount = getLinkedArticleCount(child.id)}
                 <a
                   href="/wiki/category/{child.id}"
-                  class="group flex min-h-28 flex-col gap-3 rounded-lg border bg-card/60 p-4 transition-colors hover:border-primary/30 hover:bg-primary/10"
+                  class="group flex items-center gap-3 rounded-md border bg-background px-3 py-2.5 transition-colors hover:border-primary/30 hover:bg-primary/10"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="rounded-md bg-muted p-1.5 text-muted-foreground group-hover:text-primary"
-                      >
-                        <Folder class="size-4" />
-                      </span>
-                      <div>
-                        <h3 class="text-sm font-medium">{child.label}</h3>
-                        <p class="text-xs text-muted-foreground">
-                          {childCount} child context{childCount === 1 ? '' : 's'}
-                        </p>
-                      </div>
+                  <span
+                    class="rounded-md bg-muted p-1.5 text-muted-foreground group-hover:text-primary"
+                  >
+                    <Folder class="size-4" />
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex min-w-0 items-center justify-between gap-2">
+                      <h3 class="truncate text-sm font-medium">{child.name}</h3>
+                      <ArrowRight
+                        class="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100"
+                      />
                     </div>
-                    <ArrowRight
-                      class="size-4 text-muted-foreground opacity-0 group-hover:opacity-100"
-                    />
-                  </div>
-                  <div class="mt-auto flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{homeCount} home</span>
-                    {#if linkedCount > 0}
-                      <span>{linkedCount} linked</span>
-                    {/if}
+                    <p class="truncate text-xs text-muted-foreground">
+                      {childArticleCount} article{childArticleCount === 1 ? '' : 's'} · {childCount}
+                      context{childCount === 1 ? '' : 's'}
+                      {#if linkedCount > 0}
+                        · {linkedCount} linked
+                      {/if}
+                    </p>
                   </div>
                 </a>
               {/each}
             </div>
           {:else}
-            <div class="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-              No child contexts. Articles in this context appear below.
+            <div class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No subcontexts.
             </div>
           {/if}
         </div>
+      </aside>
 
-        <div>
-          <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Articles In This Context
+      <section class="flex min-h-0 min-w-0 flex-col">
+        <div class="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+          <h2 class="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Articles
           </h2>
-          {#if contextArticles.length > 0}
+          <div class="relative min-w-0 flex-1">
+            <Search
+              class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              bind:value={articleSearch}
+              placeholder="Search articles…"
+              class="h-8 pl-8 text-sm"
+            />
+          </div>
+          <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {searchedArticles.length} / {contextArticles.length}
+          </span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+          {#if articlesQuery.isLoading}
+            <Loader />
+          {:else if searchedArticles.length > 0}
             <div class="space-y-2">
-              {#each contextArticles as article (article.id)}
+              {#each searchedArticles as article (article.id)}
                 <a
                   href="/wiki/{article.id}"
                   class="group flex items-center gap-3 rounded-lg border bg-card/60 px-4 py-3 transition-colors hover:border-primary/30 hover:bg-primary/10"
@@ -299,7 +380,7 @@
                       <span class="truncate text-sm font-medium group-hover:text-primary">
                         {article.title}
                       </span>
-                      {#if article.context_role === 'linked'}
+                      {#if article.contextRole === 'linked'}
                         <Badge variant="outline" class="gap-1 px-1.5 py-0 text-xs">
                           <Link class="size-3" />
                           linked
@@ -307,33 +388,34 @@
                       {/if}
                     </div>
                     <p class="truncate text-xs text-muted-foreground">
-                      {article.id} · {article.author}
+                      {article.kbId} · {article.createdBy?.name ?? ''}
                     </p>
                   </div>
                   <div class="flex shrink-0 items-center gap-2">
-                    {#each article.tag_ids.slice(0, 2) as tid (tid)}
-                      {@const tag = wikiState.tags[tid]}
-                      {#if tag}
-                        <span
-                          class="rounded-full px-1.5 py-0 text-xs"
-                          style="background-color: {tag.color}18; color: {tag.color}"
-                        >
-                          {tag.label}
-                        </span>
-                      {/if}
+                    {#each article.tags.slice(0, 2) as tag (tag.id)}
+                      <span
+                        class="rounded-full px-1.5 py-0 text-xs"
+                        style="background-color: {tag.color}18; color: {tag.color}"
+                      >
+                        {tag.name}
+                      </span>
                     {/each}
-                    {#if article.locked_by}
-                      <span title="Locked by {article.locked_by}">
+                    {#if article.lock}
+                      <span title="Locked by {article.lock.lockedBy.name}">
                         <Lock class="size-3.5 text-warning" />
                       </span>
                     {/if}
                     <span class="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock class="size-3" />
-                      {relativeTime(article.updated_at)}
+                      {relativeTime(article.updatedAt)}
                     </span>
                   </div>
                 </a>
               {/each}
+            </div>
+          {:else if articleSearch.trim()}
+            <div class="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              No articles match this search.
             </div>
           {:else}
             <div class="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
@@ -342,32 +424,6 @@
           {/if}
         </div>
       </section>
-
-      <aside class="min-w-0 space-y-4">
-        <div class="rounded-lg border bg-card/50 p-4">
-          <h2 class="text-sm font-semibold">Context Rules</h2>
-          <div class="mt-3 space-y-3 text-sm">
-            <div>
-              <p class="font-medium">Primary Context</p>
-              <p class="text-xs text-muted-foreground">
-                The article's home. It controls the default breadcrumb and where the doc is managed.
-              </p>
-            </div>
-            <div>
-              <p class="font-medium">Linked Appearance</p>
-              <p class="text-xs text-muted-foreground">
-                The same article appears here because a technician may reasonably look here too.
-              </p>
-            </div>
-            <div>
-              <p class="font-medium">Tags</p>
-              <p class="text-xs text-muted-foreground">
-                Tags describe work type and traits, not where a doc lives.
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
     </div>
-  </div>
+  </FadeIn>
 {/if}

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
+  import { createQuery } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
   import Button from '$lib/components/ui/button/button.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
 
@@ -13,6 +16,21 @@
   import { wikiState } from './_wiki-state.svelte.js';
 
   const { children } = $props();
+
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+
+  const contextsQuery = createQuery(() => ({
+    queryKey: ['wiki.contexts.list'],
+    queryFn: () => trpc.wiki.contexts.list.query()
+  }));
+
+  const articlesQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.list'],
+    queryFn: () => trpc.wiki.articles.list.query()
+  }));
+
+  const contextCount = $derived(contextsQuery.data?.length ?? 0);
+  const articleCount = $derived(articlesQuery.data?.length ?? 0);
 
   $effect(() => {
     function onKeydown(e: KeyboardEvent) {
@@ -67,8 +85,8 @@
   <div
     class="flex shrink-0 flex-wrap items-center gap-5 border-t bg-muted/20 px-6 py-2.5 text-xs text-muted-foreground"
   >
-    <span>{wikiState.articleList.length} articles</span>
-    <span>{wikiState.contexts.length} contexts</span>
+    <span>{articleCount} articles</span>
+    <span>{contextCount} contexts</span>
     <span class="flex items-center gap-1.5">
       <kbd class="rounded bg-muted px-1.5 py-0 font-mono">Ctrl+K</kbd>
       command search

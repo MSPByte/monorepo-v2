@@ -1,5 +1,8 @@
 <script lang="ts">
   import { cn } from '$lib/utils';
+  import { getContext } from 'svelte';
+  import { createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
   import * as Collapsible from '$lib/components/ui/collapsible/index.js';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
   import CategoryTreeItem from './_category-tree-item.svelte';
@@ -13,19 +16,26 @@
   import Check from '@lucide/svelte/icons/check';
   import X from '@lucide/svelte/icons/x';
 
-  import {
-    getCategoryChildren,
-    getArticleCount,
-    type WikiCategory,
-    type WikiArticle,
-  } from './_mock-data.js';
-  import { wikiState } from './_wiki-state.svelte.js';
+  import { getAllDescendantIds, getContextChildren } from './_wiki-utils.js';
+
+  interface ContextItem {
+    id: string;
+    parentId: string | null;
+    name: string;
+    [key: string]: unknown;
+  }
+
+  interface ArticleItem {
+    id: string;
+    primaryContextId: string;
+    [key: string]: unknown;
+  }
 
   interface Props {
-    category: WikiCategory;
+    category: ContextItem;
     depth?: number;
-    categories: WikiCategory[];
-    articles: WikiArticle[];
+    categories: ContextItem[];
+    articles: ArticleItem[];
     openIds: Set<string>;
     activeCategoryId: string;
     ontoggle: (id: string) => void;
@@ -38,29 +48,58 @@
     articles,
     openIds,
     activeCategoryId,
-    ontoggle,
+    ontoggle
   }: Props = $props();
 
-  const children = $derived(getCategoryChildren(category.id, categories));
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
+
+  const children = $derived(getContextChildren(category.id, categories));
   const hasChildren = $derived(children.length > 0);
   const isOpen = $derived(openIds.has(category.id));
   const isActive = $derived(activeCategoryId === category.id);
-  const articleCount = $derived(getArticleCount(category.id, articles));
+  const articleCount = $derived.by(() => {
+    const contextIds = new Set(getAllDescendantIds(category.id, categories));
+    return articles.filter((a) => contextIds.has(a.primaryContextId)).length;
+  });
 
-  // Inline rename state
   let renaming = $state(false);
   let renameValue = $state('');
   let addingChild = $state(false);
   let newChildName = $state('');
 
+  const updateContextMut = createMutation(() => ({
+    mutationFn: (input: { id: string; name: string }) =>
+      trpc.wiki.contexts.update.mutate(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+    }
+  }));
+
+  const createContextMut = createMutation(() => ({
+    mutationFn: (input: { name: string; parentId: string | null }) =>
+      trpc.wiki.contexts.create.mutate(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+    }
+  }));
+
+  const removeContextMut = createMutation(() => ({
+    mutationFn: (id: string) => trpc.wiki.contexts.remove.mutate({ id }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles'] });
+    }
+  }));
+
   function startRename() {
-    renameValue = category.label;
+    renameValue = category.name;
     renaming = true;
   }
 
   function commitRename() {
     if (renameValue.trim()) {
-      wikiState.updateCategory(category.id, { label: renameValue.trim() });
+      updateContextMut.mutate({ id: category.id, name: renameValue.trim() });
     }
     renaming = false;
   }
@@ -70,13 +109,12 @@
   }
 
   function commitAddChild() {
-    const label = newChildName.trim();
-    if (!label) {
+    const name = newChildName.trim();
+    if (!name) {
       addingChild = false;
       return;
     }
-    const id = `cat-${Date.now()}`;
-    wikiState.addCategory({ id, label, parent_id: category.id });
+    createContextMut.mutate({ name, parentId: category.id });
     if (!openIds.has(category.id)) ontoggle(category.id);
     newChildName = '';
     addingChild = false;
@@ -84,11 +122,9 @@
 </script>
 
 <div>
-  <!-- Category row -->
   <div
     class={cn('group/cat flex items-center gap-0.5 rounded-md', isActive && 'bg-sidebar-accent')}
   >
-    <!-- Expand toggle -->
     {#if hasChildren || addingChild}
       <Collapsible.Root>
         <Collapsible.Trigger
@@ -107,7 +143,6 @@
       <div class="w-5 shrink-0"></div>
     {/if}
 
-    <!-- Label / rename input -->
     {#if renaming}
       <div class="flex items-center gap-1 flex-1 py-1 pr-1 min-w-0">
         <input
@@ -119,12 +154,12 @@
           }}
           autofocus
         />
-        <button onclick={commitRename} class="text-primary hover:opacity-80"
-          ><Check class="size-3" /></button
-        >
-        <button onclick={cancelRename} class="text-muted-foreground hover:opacity-80"
-          ><X class="size-3" /></button
-        >
+        <button onclick={commitRename} class="text-primary hover:opacity-80">
+          <Check class="size-3" />
+        </button>
+        <button onclick={cancelRename} class="text-muted-foreground hover:opacity-80">
+          <X class="size-3" />
+        </button>
       </div>
     {:else}
       <a
@@ -140,13 +175,12 @@
         {:else}
           <Folder class="size-3.5 shrink-0" />
         {/if}
-        <span class="flex-1 truncate">{category.label}</span>
+        <span class="flex-1 truncate">{category.name}</span>
         {#if articleCount > 0}
           <span class="text-xs tabular-nums opacity-60">{articleCount}</span>
         {/if}
       </a>
 
-      <!-- Hover actions -->
       <div
         class="flex items-center gap-0.5 opacity-0 group-hover/cat:opacity-100 transition-opacity pr-1 shrink-0"
       >
@@ -179,7 +213,7 @@
             <DropdownMenu.Separator />
             <DropdownMenu.Item
               class="gap-2 cursor-pointer text-destructive focus:text-destructive"
-              onclick={() => wikiState.removeCategory(category.id)}
+              onclick={() => removeContextMut.mutate(category.id)}
             >
               <Trash2 class="size-3.5" /> Delete
             </DropdownMenu.Item>
@@ -189,7 +223,6 @@
     {/if}
   </div>
 
-  <!-- Children -->
   <Collapsible.Root open={isOpen}>
     <Collapsible.Content>
       <div class="ml-3 border-l border-border/30 pl-1">
@@ -205,13 +238,12 @@
           />
         {/each}
 
-        <!-- Inline add child input -->
         {#if addingChild}
           <div class="flex items-center gap-1 py-1 pl-2 pr-1">
             <Folder class="size-3 text-muted-foreground shrink-0" />
             <input
               bind:value={newChildName}
-              placeholder="Category name…"
+              placeholder="Context name…"
               class="flex-1 min-w-0 text-xs bg-background border border-border rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-primary/50"
               onkeydown={(e) => {
                 if (e.key === 'Enter') commitAddChild();
@@ -222,16 +254,18 @@
               }}
               autofocus
             />
-            <button onclick={commitAddChild} class="text-primary hover:opacity-80"
-              ><Check class="size-3" /></button
-            >
+            <button onclick={commitAddChild} class="text-primary hover:opacity-80">
+              <Check class="size-3" />
+            </button>
             <button
               onclick={() => {
                 addingChild = false;
                 newChildName = '';
               }}
-              class="text-muted-foreground hover:opacity-80"><X class="size-3" /></button
+              class="text-muted-foreground hover:opacity-80"
             >
+              <X class="size-3" />
+            </button>
           </div>
         {/if}
       </div>

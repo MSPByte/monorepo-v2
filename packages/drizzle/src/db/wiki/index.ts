@@ -38,10 +38,17 @@ export const contexts = wikiSchema.table(
       .defaultNow()
   },
   (t) => [
+    rls,
     unique('unique_pid_slug').on(t.parentId, t.slug),
     foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade')
   ]
 );
+
+export const articleStatusEnum = wikiSchema.enum('e_article_status', [
+  'draft',
+  'published',
+  'archived'
+]);
 
 export const articles = wikiSchema.table(
   'articles',
@@ -54,7 +61,7 @@ export const articles = wikiSchema.table(
 
     title: text('title').notNull(),
     slug: text('slug').notNull(),
-    status: text('status').notNull(),
+    status: articleStatusEnum('status').notNull().default('published'),
 
     contentJson: jsonb('content_json').notNull(),
     contentText: text('content_text').notNull(),
@@ -68,7 +75,7 @@ export const articles = wikiSchema.table(
       .notNull()
       .defaultNow()
   },
-  (t) => [index('articles_search_vector_idx').using('gin', t.searchVector), rls]
+  (t) => [rls, index('articles_search_vector_idx').using('gin', t.searchVector)]
 );
 
 export const articleContexts = wikiSchema.table(
@@ -89,15 +96,21 @@ export const articleContexts = wikiSchema.table(
   (t) => [primaryKey({ columns: [t.articleId, t.contextId] })]
 );
 
-export const tags = wikiSchema.table('tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull(),
-  color: text('color').notNull(),
-  description: text('description').notNull(),
+export const tags = wikiSchema.table(
+  'tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    color: text('color').notNull(),
+    description: text('description').notNull(),
 
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow()
-});
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [rls]
+);
 
 export const articleTags = wikiSchema.table(
   'article_tags',
@@ -112,7 +125,7 @@ export const articleTags = wikiSchema.table(
       .notNull()
       .defaultNow()
   },
-  (t) => [primaryKey({ columns: [t.articleId, t.tagId] })]
+  (t) => [rls, primaryKey({ columns: [t.articleId, t.tagId] })]
 );
 
 export const articleOverrides = wikiSchema.table(
@@ -171,6 +184,42 @@ export const articleVersions = wikiSchema.table(
   (t) => [
     unique('unique_article_version').on(t.articleId, t.versionNumber),
     index('article_versions_article_created_idx').on(t.articleId, t.createdAt),
+    rls
+  ]
+);
+
+export const articleDrafts = wikiSchema.table(
+  'article_drafts',
+  {
+    articleId: uuid('article_id')
+      .primaryKey()
+      .references(() => articles.id, { onDelete: 'cascade' }),
+    baseVersionId: uuid('base_version_id').references(() => articleVersions.id, {
+      onDelete: 'set null'
+    }),
+
+    title: text('title').notNull(),
+    primaryContextId: uuid('primary_context_id')
+      .references(() => contexts.id)
+      .notNull(),
+    linkedContextIds: jsonb('linked_context_ids').notNull().default([]),
+    tagIds: jsonb('tag_ids').notNull().default([]),
+    contentJson: jsonb('content_json').notNull(),
+    contentText: text('content_text').notNull(),
+    changeNote: text('change_note'),
+
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    index('article_drafts_updated_idx').on(t.updatedAt),
+    index('article_drafts_updated_by_idx').on(t.updatedBy),
     rls
   ]
 );
@@ -255,6 +304,7 @@ export type WikiTag = typeof tags.$inferSelect;
 export type WikiArticleTag = typeof articleTags.$inferSelect;
 export type WikiArticleOverride = typeof articleOverrides.$inferSelect;
 export type WikiArticleVersion = typeof articleVersions.$inferSelect;
+export type WikiArticleDraft = typeof articleDrafts.$inferSelect;
 export type WikiArticleReference = typeof articleReferences.$inferSelect;
 export type WikiArticleLink = typeof articleLinks.$inferSelect;
 export type WikiEditLock = typeof editLocks.$inferSelect;

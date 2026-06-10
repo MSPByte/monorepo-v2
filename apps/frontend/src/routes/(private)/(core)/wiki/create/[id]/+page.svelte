@@ -2,115 +2,226 @@
   import './_editor.css';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { getContextPath, type WikiArticle } from '../../_mock-data.js';
-  import { wikiState } from '../../_wiki-state.svelte.js';
+  import { getContext } from 'svelte';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
+  import { getContextPath } from '../../_wiki-utils.js';
   import RichEditor from '../../_rich-editor.svelte';
+  import ArticleOutline from '../../_article-outline.svelte';
 
   import Button from '$lib/components/ui/button/button.svelte';
   import Input from '$lib/components/ui/input/input.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
   import Badge from '$lib/components/ui/badge/badge.svelte';
-  import MultiSelect from '$lib/components/multi-select.svelte';
+  import Textarea from '$lib/components/ui/textarea/textarea.svelte';
+  import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import Lock from '@lucide/svelte/icons/lock';
   import Save from '@lucide/svelte/icons/save';
   import Send from '@lucide/svelte/icons/send';
   import SingleSelect from '$lib/components/single-select.svelte';
+  import Loader from '$lib/components/transition/loader.svelte';
+  import { generateHTML } from '../../_render-content.js';
 
-  // Route param
-  const articleId = $derived(page.params.id);
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const queryClient = useQueryClient();
+
+  const articleId = $derived(page.params.id ?? 'new');
   const isNew = $derived(articleId === 'new');
 
-  function loadArticle(id: string): WikiArticle {
-    if (id === 'new') {
-      return {
-        id: 'new',
-        title: '',
-        primary_context_id: page.url.searchParams.get('context') ?? '',
-        linked_context_ids: [],
-        tag_ids: [],
-        body: '<p></p>',
-        locked_by: null,
-        locked_at: null,
-        updated_at: new Date().toISOString(),
-        author: 'Current User',
-      };
-    }
-    return (
-      wikiState.articles[id] ?? {
-        id,
-        title: '',
-        primary_context_id: '',
-        linked_context_ids: [],
-        tag_ids: [],
-        body: '<p></p>',
-        locked_by: null,
-        locked_at: null,
-        updated_at: new Date().toISOString(),
-        author: 'Current User',
-      }
-    );
-  }
+  const articleQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.get', articleId],
+    queryFn: () => trpc.wiki.articles.get.query({ id: articleId }),
+    enabled: !isNew,
+  }));
 
-  // State — use page.params.id directly to avoid $derived-in-$state warning
-  let article = $state(loadArticle(page.params.id ?? 'new'));
-  let title = $state(article.title);
-  let contextId = $state(article.primary_context_id);
-  let linkedContextIds = $state<string[]>([...article.linked_context_ids]);
-  let tagIds = $state<string[]>([...article.tag_ids]);
-  let bodyHtml = $state(article.body);
+  const contextsQuery = createQuery(() => ({
+    queryKey: ['wiki.contexts.list'],
+    queryFn: () => trpc.wiki.contexts.list.query(),
+  }));
+
+  const allContexts = $derived(contextsQuery.data ?? []);
+
+  // Initialize form state from query data
+  let initialized = $state(false);
+  let title = $state('');
+  let contextId = $state(page.url.searchParams.get('context') ?? '');
+  let bodyHtml = $state('<p></p>');
+  let bodyJson = $state<Record<string, unknown> | undefined>(undefined);
+  let bodyText = $state('');
   let isDirty = $state(false);
   let isSaving = $state(false);
-
-  const isLocked = $derived(!!article.locked_by);
-
-  const contextOptions = $derived(
-    wikiState.contexts.map((c) => ({ label: contextOptionLabel(c.id), value: c.id }))
-  );
-  const linkedContextOptions = $derived(
-    contextOptions.filter((option) => option.value !== contextId)
-  );
-  const tagOptions = $derived(
-    wikiState.tagList.map((tag) => ({ label: tag.label, value: tag.id }))
-  );
-
-  async function persistArticle() {
-    if (!title.trim() || !contextId) return;
-    isSaving = true;
-    await new Promise<void>((r) => setTimeout(r, 600));
-    const saved = wikiState.upsertArticle({
-      id: isNew ? undefined : article.id,
-      title: title.trim(),
-      primary_context_id: contextId,
-      linked_context_ids: linkedContextIds.filter((id) => id !== contextId),
-      tag_ids: tagIds,
-      body: bodyHtml,
-      locked_by: isNew ? null : article.locked_by,
-      locked_at: isNew ? null : article.locked_at,
-      updated_at: new Date().toISOString(),
-      author: isNew ? 'Current User' : article.author,
-    });
-    isSaving = false;
-    isDirty = false;
-    goto(`/wiki/${saved.id}`);
-  }
-
-  function contextOptionLabel(contextId: string): string {
-    return getContextPath(contextId, wikiState.contexts)
-      .map((context) => context.label)
-      .join(' / ');
-  }
+  let viewMode = $state<'draft' | 'published'>('draft');
+  let draftContentEl = $state<HTMLElement | null>(null);
+  let publishedContentEl = $state<HTMLElement | null>(null);
+  let publishDialogOpen = $state(false);
+  let publishReason = $state('');
 
   $effect(() => {
-    if (linkedContextIds.includes(contextId)) {
-      linkedContextIds = linkedContextIds.filter((id) => id !== contextId);
+    if (!isNew && articleQuery.data && !initialized) {
+      const a = articleQuery.data;
+      const draft = a.draft;
+      title = draft?.title ?? a.title;
+      contextId = draft?.primaryContextId ?? a.primaryContextId;
+      bodyJson = (draft?.contentJson ?? a.contentJson) as Record<string, unknown>;
+      bodyText = draft?.contentText ?? a.contentText;
+      initialized = true;
+    }
+    if (isNew && !initialized) {
+      initialized = true;
     }
   });
+
+  const lockedByOther = $derived.by(() => {
+    if (isNew || !articleQuery.data?.lock) return false;
+    return true;
+  });
+
+  const lockName = $derived(articleQuery.data?.lock?.lockedBy.name ?? null);
+
+  const contextOptions = $derived(
+    allContexts.map((c) => ({
+      label: getContextPath(c.id, allContexts)
+        .map((ctx) => ctx.name)
+        .join(' / '),
+      value: c.id,
+    }))
+  );
+  const currentLinkedContextIds = $derived(articleQuery.data?.linkedContexts.map((c) => c.id) ?? []);
+  const currentTagIds = $derived(articleQuery.data?.tags.map((tag) => tag.id) ?? []);
+
+  const draftPayload = $derived({
+    title: title.trim(),
+    primaryContextId: contextId,
+    linkedContextIds: isNew ? [] : currentLinkedContextIds.filter((id) => id !== contextId),
+    tagIds: isNew ? [] : currentTagIds,
+    contentJson: bodyJson ?? { type: 'doc', content: [] },
+    contentText: bodyText,
+  });
+  const hasOpenDraft = $derived(Boolean(articleQuery.data?.draft));
+  const publishedHtml = $derived.by(() => {
+    if (!articleQuery.data) return '<p></p>';
+    return generateHTML(articleQuery.data.contentJson as any);
+  });
+  const draftInitialHtml = $derived(
+    generateHTML((bodyJson ?? { type: 'doc', content: [] }) as any)
+  );
+  const outlineJson = $derived(
+    viewMode === 'published' && articleQuery.data
+      ? articleQuery.data.contentJson
+      : (bodyJson ?? { type: 'doc', content: [] })
+  );
+  const outlineContainer = $derived(
+    viewMode === 'published' && articleQuery.data ? publishedContentEl : draftContentEl
+  );
+  const requiresPublishReason = $derived(!isNew && (articleQuery.data?.versions.length ?? 0) > 0);
+  const trimmedPublishReason = $derived(publishReason.trim());
+
+  const createArticleMut = createMutation(() => ({
+    mutationFn: (input: {
+      title: string;
+      primaryContextId: string;
+      linkedContextIds: string[];
+      tagIds: string[];
+      contentJson: unknown;
+      contentText: string;
+    }) => trpc.wiki.articles.create.mutate(input),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+      goto(`/wiki/${data.id}`);
+    },
+  }));
+
+  const saveDraftMut = createMutation(() => ({
+    mutationFn: (input: {
+      articleId?: string;
+      title: string;
+      primaryContextId: string;
+      linkedContextIds: string[];
+      tagIds: string[];
+      contentJson: unknown;
+      contentText: string;
+    }) => trpc.wiki.drafts.save.mutate(input),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles.get', data.id] });
+      if (isNew) goto(`/wiki/create/${data.id}`);
+    },
+  }));
+
+  const publishDraftMut = createMutation(() => ({
+    mutationFn: (input: {
+      articleId: string;
+      title: string;
+      primaryContextId: string;
+      linkedContextIds: string[];
+      tagIds: string[];
+      contentJson: unknown;
+      contentText: string;
+      changeNote?: string;
+    }) => trpc.wiki.drafts.publish.mutate(input),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.contexts.list'] });
+      void queryClient.invalidateQueries({ queryKey: ['wiki.articles.get', data.id] });
+      goto(`/wiki/${data.id}`);
+    },
+  }));
+
+  async function saveDraft() {
+    if (!title.trim() || !contextId) return;
+    isSaving = true;
+
+    saveDraftMut.mutate({
+      articleId: isNew ? undefined : articleId,
+      ...draftPayload,
+    });
+
+    isSaving = false;
+    isDirty = false;
+  }
+
+  async function publishArticle(changeNote?: string) {
+    if (!title.trim() || !contextId) return;
+    isSaving = true;
+
+    if (isNew) {
+      createArticleMut.mutate({
+        ...draftPayload,
+      });
+    } else {
+      publishDraftMut.mutate({
+        articleId,
+        ...draftPayload,
+        ...(changeNote ? { changeNote } : {}),
+      });
+    }
+
+    isSaving = false;
+    isDirty = false;
+  }
+
+  function requestPublish() {
+    if (requiresPublishReason) {
+      publishReason = '';
+      publishDialogOpen = true;
+      return;
+    }
+
+    publishArticle();
+  }
+
+  function confirmPublish() {
+    if (!trimmedPublishReason) return;
+    publishDialogOpen = false;
+    publishArticle(trimmedPublishReason);
+  }
 </script>
 
 <div class="flex flex-col size-full overflow-hidden">
-  <!-- Header bar -->
   <div
     class="flex items-center justify-between px-4 py-2 border-b bg-card/70 backdrop-blur shrink-0 gap-2"
   >
@@ -126,7 +237,7 @@
         <ArrowLeft class="size-4" />
       </Button>
       <span class="text-sm text-muted-foreground truncate">
-        {isNew ? 'New Article' : article.id}
+        {isNew ? 'New Article' : (articleQuery.data?.kbId ?? articleId)}
       </span>
       {#if isDirty}
         <Badge
@@ -135,16 +246,35 @@
           Unsaved
         </Badge>
       {/if}
+      {#if hasOpenDraft}
+        <Badge class="bg-primary/10 text-primary border-primary/30 text-xs px-1.5 py-0">
+          Draft
+        </Badge>
+      {/if}
     </div>
 
     <div class="flex items-center gap-1.5 shrink-0">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="gap-1.5"
-        disabled={isSaving}
-        onclick={persistArticle}
-      >
+      {#if !isNew}
+        <div class="flex items-center rounded-md border p-0.5">
+          <Button
+            variant={viewMode === 'draft' ? 'secondary' : 'ghost'}
+            size="sm"
+            class="h-7"
+            onclick={() => (viewMode = 'draft')}
+          >
+            Draft
+          </Button>
+          <Button
+            variant={viewMode === 'published' ? 'secondary' : 'ghost'}
+            size="sm"
+            class="h-7"
+            onclick={() => (viewMode = 'published')}
+          >
+            Published
+          </Button>
+        </div>
+      {/if}
+      <Button variant="ghost" size="sm" class="gap-1.5" disabled={isSaving} onclick={saveDraft}>
         <Save class="size-3.5" />
         {isSaving ? 'Saving…' : 'Save Draft'}
       </Button>
@@ -154,7 +284,7 @@
           size="sm"
           class="gap-1.5"
           disabled={!title.trim() || !contextId}
-          onclick={persistArticle}
+          onclick={requestPublish}
         >
           <Send class="size-3.5" />
           Publish
@@ -165,7 +295,7 @@
           size="sm"
           class="gap-1.5"
           disabled={!title.trim() || !contextId}
-          onclick={persistArticle}
+          onclick={() => publishArticle()}
         >
           <Send class="size-3.5" />
           Create
@@ -174,15 +304,53 @@
     </div>
   </div>
 
-  <!-- Lock banner -->
-  {#if isLocked}
+  <AlertDialog.Root bind:open={publishDialogOpen}>
+    <AlertDialog.Content>
+      <AlertDialog.Header>
+        <AlertDialog.Title>Publish article changes?</AlertDialog.Title>
+        <AlertDialog.Description>
+          Add a short reason for this publish. This will be saved in the article history.
+        </AlertDialog.Description>
+      </AlertDialog.Header>
+
+      <div class="py-2">
+        <Textarea
+          bind:value={publishReason}
+          placeholder="What changed?"
+          class="min-h-24 resize-none"
+          aria-label="Publish reason"
+          onkeydown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+              confirmPublish();
+            }
+          }}
+        />
+        {#if publishReason.length > 0 && !trimmedPublishReason}
+          <p class="mt-2 text-xs text-destructive">Reason cannot be blank.</p>
+        {/if}
+      </div>
+
+      <AlertDialog.Footer>
+        <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+        <Button
+          variant="default"
+          disabled={!trimmedPublishReason || isSaving}
+          onclick={confirmPublish}
+        >
+          Publish
+        </Button>
+      </AlertDialog.Footer>
+    </AlertDialog.Content>
+  </AlertDialog.Root>
+
+  {#if lockedByOther}
     <div
       class="flex items-center gap-2 px-4 py-2 bg-warning/10 border-b border-warning/20 text-warning text-sm shrink-0"
     >
       <Lock class="size-4 shrink-0" />
       <span class="flex-1 min-w-0">
         This article is currently being edited by
-        <strong>{article.locked_by}</strong>. Your changes may conflict.
+        <strong>{lockName}</strong>. Your changes may conflict.
       </span>
       <Button
         variant="outline"
@@ -194,70 +362,57 @@
     </div>
   {/if}
 
-  <!-- Scrollable body -->
-  <div class="flex flex-col flex-1 overflow-y-auto">
-    <!-- Metadata region -->
-    <div class="flex flex-col gap-4 px-8 pt-6 pb-4 w-full mx-auto">
-      <!-- Title -->
-      <Input
-        bind:value={title}
-        placeholder="Untitled Article"
-        class="text-2xl font-bold h-auto p-2 border-0 border-b border-border/60 rounded-none bg-transparent shadow-none focus-visible:ring-0 focus-visible:border-primary/50 placeholder:text-muted-foreground/35 transition-colors"
-        oninput={() => (isDirty = true)}
-      />
+  <div class="flex flex-1 overflow-hidden">
+    <ArticleOutline json={outlineJson} container={outlineContainer} />
 
-      <!-- Context + Tags row -->
-      <div class="flex items-start gap-4 w-full flex-wrap">
-        <!-- Context -->
-        <div class="flex items-center gap-2 w-130">
-          <span class="text-xs text-muted-foreground uppercase shrink-0"> Primary </span>
-          <div class="w-full">
-            <SingleSelect bind:selected={contextId} options={contextOptions} />
-          </div>
-        </div>
+    <div class="flex flex-col flex-1 overflow-y-auto">
+      <div class="flex flex-col gap-4 px-8 pt-6 pb-4 w-full mx-auto">
+        <Input
+          bind:value={title}
+          placeholder="Untitled Article"
+          class="text-2xl font-bold h-auto p-2 border-0 border-b border-border/60 rounded-none bg-transparent shadow-none focus-visible:ring-0 focus-visible:border-primary/50 placeholder:text-muted-foreground/35 transition-colors"
+          oninput={() => (isDirty = true)}
+        />
 
-        <Separator orientation="vertical" class="h-4 hidden sm:block" />
-
-        <div class="flex items-center gap-2 w-96">
-          <span class="text-xs text-muted-foreground uppercase shrink-0"> Linked </span>
-          <div class="w-full">
-            <MultiSelect
-              bind:selected={linkedContextIds}
-              options={linkedContextOptions}
-              placeholder="Linked contexts"
-              maxDisplay={1}
-              searchPlaceholder="Search contexts..."
-              onchange={() => (isDirty = true)}
-            />
-          </div>
-        </div>
-
-        <Separator orientation="vertical" class="h-4 hidden sm:block" />
-
-        <!-- Tags -->
-        <div class="flex items-center gap-2 w-72">
-          <span class="text-xs text-muted-foreground uppercase tracking-wide shrink-0 font-medium">
-            Tags
-          </span>
-          <div class="w-full">
-            <MultiSelect
-              bind:selected={tagIds}
-              options={tagOptions}
-              placeholder="Choose tags"
-              maxDisplay={2}
-              searchPlaceholder="Search tags..."
-              onchange={() => (isDirty = true)}
-            />
+        <div class="flex items-start gap-4 w-full">
+          <div class="flex items-center gap-2 w-full max-w-xl">
+            <span class="text-xs text-muted-foreground uppercase shrink-0"> Primary </span>
+            <div class="w-full">
+              <SingleSelect
+                bind:selected={contextId}
+                options={contextOptions}
+                onchange={() => (isDirty = true)}
+              />
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <Separator class="w-full" />
+      <Separator class="w-full" />
 
-    <!-- Editor region -->
-    <div class="flex flex-1 w-full mx-auto min-h-96">
-      <RichEditor bind:html={bodyHtml} onchange={() => (isDirty = true)} />
+      <div class="flex flex-1 w-full mx-auto min-h-96">
+        {#if articleQuery.isLoading}
+          <Loader />
+        {:else if viewMode === 'published' && articleQuery.data}
+          <div class="w-full max-w-4xl mx-auto px-8 py-6">
+            <div class="tiptap" bind:this={publishedContentEl}>
+              {@html publishedHtml}
+            </div>
+          </div>
+        {:else}
+          <div class="size-full" bind:this={draftContentEl}>
+            {#key `${articleId}:${initialized}`}
+              <RichEditor
+                initialHtml={draftInitialHtml}
+                bind:html={bodyHtml}
+                bind:json={bodyJson}
+                bind:text={bodyText}
+                onchange={() => (isDirty = true)}
+              />
+            {/key}
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

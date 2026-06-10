@@ -15,11 +15,17 @@
   import KbRefPopover from './_kb-ref-popover.svelte';
 
   let {
+    initialHtml = '<p></p>',
     html = $bindable('<p></p>'),
+    json = $bindable<Record<string, unknown> | undefined>(undefined),
+    text = $bindable(''),
     class: className = '',
     onchange = () => {},
   } = $props<{
+    initialHtml?: string;
     html?: string;
+    json?: Record<string, unknown>;
+    text?: string;
     class?: string;
     onchange?: () => void;
   }>();
@@ -41,11 +47,13 @@
 
 <KbRefPopover>
   <Tipex
-    body={html}
+    body={initialHtml}
     {extensions}
     class={className}
     onupdate={({ editor }) => {
       html = editor.getHTML();
+      json = editor.getJSON() as Record<string, unknown>;
+      text = editor.getText();
       onchange();
     }}
   >

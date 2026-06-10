@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { wikiState } from './_wiki-state.svelte.js';
-  import { getContextPath } from './_mock-data.js';
+  import { getContext } from 'svelte';
+  import { createQuery } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
+  import { getContextPath } from './_wiki-utils.js';
 
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
@@ -11,19 +13,40 @@
 
   const { children }: Props = $props();
 
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+
+  const articlesQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.list'],
+    queryFn: () => trpc.wiki.articles.list.query()
+  }));
+
+  const contextsQuery = createQuery(() => ({
+    queryKey: ['wiki.contexts.list'],
+    queryFn: () => trpc.wiki.contexts.list.query()
+  }));
+
+  const allArticles = $derived(articlesQuery.data ?? []);
+  const allContexts = $derived(contextsQuery.data ?? []);
+
   let wrapperEl = $state<HTMLDivElement | undefined>();
   let activeKbId = $state<string | null>(null);
   let popoverX = $state(0);
   let popoverY = $state(0);
 
-  const activeArticle = $derived(activeKbId ? (wikiState.articles[activeKbId] ?? null) : null);
-  const contextPath = $derived(
-    activeArticle ? getContextPath(activeArticle.primary_context_id, wikiState.contexts) : []
+  const activeArticle = $derived.by(() => {
+    if (!activeKbId) return null;
+    const match = activeKbId.match(/^KB(\d+)$/i);
+    if (!match) return null;
+    const num = parseInt(match[1], 10);
+    return allArticles.find((a) => a.kbNumber === num) ?? null;
+  });
+
+  const activeContextPath = $derived(
+    activeArticle ? getContextPath(activeArticle.primaryContextId, allContexts) : []
   );
 
   function positionNear(el: HTMLElement) {
     const rect = el.getBoundingClientRect();
-    // Clamp horizontally so the 256px-wide popover stays on screen
     popoverX = Math.min(rect.left, window.innerWidth - 272);
     popoverY = rect.bottom + 6;
   }
@@ -42,9 +65,9 @@
 
     function onClick(e: MouseEvent) {
       const target = (e.target as Element).closest('[data-kb-id]') as HTMLElement | null;
-      if (target?.dataset.kbId) {
+      if (target?.dataset.kbId && activeArticle) {
         e.preventDefault();
-        window.open(`/wiki/${target.dataset.kbId}`, '_blank', 'noopener,noreferrer');
+        window.open(`/wiki/${activeArticle.id}`, '_blank', 'noopener,noreferrer');
       }
     }
 
@@ -55,7 +78,6 @@
       }
     }
 
-    // Close on any scroll in the document (capture catches overflow scroll too)
     function onScroll() {
       activeKbId = null;
     }
@@ -88,44 +110,38 @@
       if (!related?.closest('[data-kb-id]')) activeKbId = null;
     }}
   >
-    <!-- ID + Title -->
     <div class="flex items-start gap-2">
       <span
         class="text-xs font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0 mt-0.5"
       >
-        {activeArticle.id}
+        {activeArticle.kbId}
       </span>
       <p class="text-sm font-semibold leading-tight">{activeArticle.title}</p>
     </div>
 
-    <!-- Context breadcrumb -->
-    {#if contextPath.length > 0}
+    {#if activeContextPath.length > 0}
       <div class="flex items-center gap-1 flex-wrap">
-        {#each contextPath as cat, i (cat.id)}
+        {#each activeContextPath as cat, i (cat.id)}
           {#if i > 0}
             <ChevronRight class="size-2.5 text-muted-foreground/50 shrink-0" />
           {/if}
-          <span class="text-xs text-muted-foreground">{cat.label}</span>
+          <span class="text-xs text-muted-foreground">{cat.name}</span>
         {/each}
       </div>
     {/if}
 
-    <!-- Tags -->
-    {#if activeArticle.tag_ids.length > 0}
+    {#if activeArticle.tags.length > 0}
       <div class="flex gap-1 flex-wrap">
-        {#each activeArticle.tag_ids.slice(0, 3) as tid (tid)}
-          {@const tag = wikiState.tags[tid]}
+        {#each activeArticle.tags.slice(0, 3) as tag (tag.id)}
           <span
             class="text-xs px-1.5 py-0 rounded-full border"
-            style={tag
-              ? `background-color: ${tag.color}18; color: ${tag.color}; border-color: ${tag.color}30`
-              : ''}
+            style="background-color: {tag.color}18; color: {tag.color}; border-color: {tag.color}30"
           >
-            {tag?.label ?? tid}
+            {tag.name}
           </span>
         {/each}
-        {#if activeArticle.tag_ids.length > 3}
-          <span class="text-xs text-muted-foreground">+{activeArticle.tag_ids.length - 3}</span>
+        {#if activeArticle.tags.length > 3}
+          <span class="text-xs text-muted-foreground">+{activeArticle.tags.length - 3}</span>
         {/if}
       </div>
     {/if}

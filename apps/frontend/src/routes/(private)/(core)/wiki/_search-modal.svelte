@@ -1,7 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { getContext } from 'svelte';
+  import { createQuery } from '@tanstack/svelte-query';
+  import type { createTrpcClient } from '$lib/trpc';
   import * as Command from '$lib/components/ui/command/index.js';
   import { cn } from '$lib/utils';
+  import { getContextPath } from './_wiki-utils.js';
 
   import AlignLeft from '@lucide/svelte/icons/align-left';
   import FileText from '@lucide/svelte/icons/file-text';
@@ -12,13 +16,29 @@
   import Tag from '@lucide/svelte/icons/tag';
 
   import { wikiState } from './_wiki-state.svelte.js';
-  import { getContextPath, type WikiArticle } from './_mock-data.js';
+
+  const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+
+  const articlesQuery = createQuery(() => ({
+    queryKey: ['wiki.articles.list'],
+    queryFn: () => trpc.wiki.articles.list.query()
+  }));
+
+  const contextsQuery = createQuery(() => ({
+    queryKey: ['wiki.contexts.list'],
+    queryFn: () => trpc.wiki.contexts.list.query()
+  }));
+
+  const allArticles = $derived(articlesQuery.data ?? []);
+  const allContexts = $derived(contextsQuery.data ?? []);
+
+  type ArticleItem = (typeof allArticles)[number];
 
   type SearchScope = 'title' | 'tag' | 'body' | 'override' | 'context';
 
   type ArticleSearchResult = {
     type: 'article';
-    article: WikiArticle;
+    article: ArticleItem;
     score: number;
     fields: SearchScope[];
     snippet: string;
@@ -27,7 +47,7 @@
   type ContextSearchResult = {
     type: 'context';
     id: string;
-    label: string;
+    name: string;
     path: string;
     score: number;
   };
@@ -36,8 +56,7 @@
     { id: 'title', label: 'Title' },
     { id: 'tag', label: 'Tags' },
     { id: 'body', label: 'Body' },
-    { id: 'override', label: 'Overrides' },
-    { id: 'context', label: 'Contexts' },
+    { id: 'context', label: 'Contexts' }
   ];
 
   const PREFIX_TO_SCOPE: Record<string, SearchScope> = {
@@ -46,14 +65,12 @@
     tags: 'tag',
     body: 'body',
     content: 'body',
-    override: 'override',
-    overrides: 'override',
     context: 'context',
-    ctx: 'context',
+    ctx: 'context'
   };
 
   let query = $state('');
-  let selectedScopes = $state<SearchScope[]>(['title', 'tag', 'body', 'override', 'context']);
+  let selectedScopes = $state<SearchScope[]>(['title', 'tag', 'body', 'context']);
 
   const parsed = $derived.by(() => {
     const raw = query.trim();
@@ -62,54 +79,17 @@
     return {
       raw,
       text: (prefixScope ? prefixMatch?.[2] : raw)?.trim().toLowerCase() ?? '',
-      forcedScope: prefixScope,
+      forcedScope: prefixScope
     };
   });
 
   const activeScopes = $derived(parsed.forcedScope ? [parsed.forcedScope] : selectedScopes);
   const q = $derived(parsed.text);
 
-  function stripHtml(html: string): string {
-    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-
   function contextPath(contextId: string): string {
-    return getContextPath(contextId, wikiState.contexts)
-      .map((c) => c.label)
+    return getContextPath(contextId, allContexts)
+      .map((c) => c.name)
       .join(' / ');
-  }
-
-  function articleContextText(article: WikiArticle): string {
-    return [
-      contextPath(article.primary_context_id),
-      ...article.linked_context_ids.map((contextId) => contextPath(contextId)),
-    ].join(' ');
-  }
-
-  function articleTagText(article: WikiArticle): string {
-    return article.tag_ids
-      .map((tagId) => wikiState.tags[tagId]?.label ?? '')
-      .filter(Boolean)
-      .join(' ');
-  }
-
-  function articleOverrideText(articleId: string): string {
-    return wikiState.overrides
-      .filter((override) => override.article_id === articleId)
-      .map((override) =>
-        [override.site_name, override.title, override.type, stripHtml(override.content)].join(' ')
-      )
-      .join(' ');
-  }
-
-  function getSnippet(text: string, search: string): string {
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    if (!cleaned) return '';
-    const idx = cleaned.toLowerCase().indexOf(search);
-    if (idx === -1) return cleaned.slice(0, 110) + (cleaned.length > 110 ? '...' : '');
-    const start = Math.max(0, idx - 36);
-    const end = Math.min(cleaned.length, idx + 84);
-    return (start > 0 ? '...' : '') + cleaned.slice(start, end) + (end < cleaned.length ? '...' : '');
   }
 
   function includesQuery(text: string, search: string): boolean {
@@ -119,10 +99,23 @@
     return tokens.every((token) => normalized.includes(token));
   }
 
+  function getSnippet(text: string, search: string): string {
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    if (!cleaned) return '';
+    const idx = cleaned.toLowerCase().indexOf(search);
+    if (idx === -1) return cleaned.slice(0, 110) + (cleaned.length > 110 ? '...' : '');
+    const start = Math.max(0, idx - 36);
+    const end = Math.min(cleaned.length, idx + 84);
+    return (
+      (start > 0 ? '...' : '') + cleaned.slice(start, end) + (end < cleaned.length ? '...' : '')
+    );
+  }
+
   function toggleScope(scope: SearchScope) {
     if (parsed.forcedScope) return;
     if (selectedScopes.includes(scope)) {
-      selectedScopes = selectedScopes.length === 1 ? selectedScopes : selectedScopes.filter((s) => s !== scope);
+      selectedScopes =
+        selectedScopes.length === 1 ? selectedScopes : selectedScopes.filter((s) => s !== scope);
     } else {
       selectedScopes = [...selectedScopes, scope];
     }
@@ -131,22 +124,24 @@
   const articleResults = $derived.by<ArticleSearchResult[]>(() => {
     if (!q) return [];
 
-    return wikiState.articleList
+    return allArticles
       .map((article) => {
         const fields: SearchScope[] = [];
         let score = 0;
         let snippet = '';
 
-        const titleText = `${article.id} ${article.title}`;
-        const tagText = articleTagText(article);
-        const bodyText = stripHtml(article.body);
-        const overrideText = articleOverrideText(article.id);
-        const contextText = articleContextText(article);
+        const titleText = `${article.kbId} ${article.title}`;
+        const tagText = article.tags.map((t) => t.name).join(' ');
+        const bodyText = article.contentText;
+        const ctxText = [
+          contextPath(article.primaryContextId),
+          ...article.linkedContexts.map((c) => c.name)
+        ].join(' ');
 
         if (activeScopes.includes('title') && includesQuery(titleText, q)) {
           fields.push('title');
           score += article.title.toLowerCase() === q ? 120 : 80;
-          snippet ||= `${article.id} / ${contextPath(article.primary_context_id)}`;
+          snippet ||= `${article.kbId} / ${contextPath(article.primaryContextId)}`;
         }
 
         if (activeScopes.includes('tag') && includesQuery(tagText, q)) {
@@ -155,16 +150,10 @@
           snippet ||= `Tags: ${tagText}`;
         }
 
-        if (activeScopes.includes('context') && includesQuery(contextText, q)) {
+        if (activeScopes.includes('context') && includesQuery(ctxText, q)) {
           fields.push('context');
           score += 45;
-          snippet ||= contextPath(article.primary_context_id);
-        }
-
-        if (activeScopes.includes('override') && includesQuery(overrideText, q)) {
-          fields.push('override');
-          score += 35;
-          snippet ||= getSnippet(overrideText, q);
+          snippet ||= contextPath(article.primaryContextId);
         }
 
         if (activeScopes.includes('body') && includesQuery(bodyText, q)) {
@@ -177,24 +166,24 @@
         return { type: 'article' as const, article, score, fields, snippet };
       })
       .filter((result): result is ArticleSearchResult => !!result)
-      .sort((a, b) => b.score - a.score || b.article.updated_at.localeCompare(a.article.updated_at))
+      .sort((a, b) => b.score - a.score || b.article.updatedAt.localeCompare(a.article.updatedAt))
       .slice(0, 12);
   });
 
   const contextResults = $derived.by<ContextSearchResult[]>(() => {
     if (!q || !activeScopes.includes('context')) return [];
 
-    return wikiState.contexts
+    return allContexts
       .map((context) => {
         const path = contextPath(context.id);
-        const text = [context.label, path, context.description ?? ''].join(' ');
+        const text = [context.name, path, context.description ?? ''].join(' ');
         if (!includesQuery(text, q)) return null;
         return {
           type: 'context' as const,
           id: context.id,
-          label: context.label,
+          name: context.name,
           path,
-          score: context.label.toLowerCase() === q ? 90 : 40,
+          score: context.name.toLowerCase() === q ? 90 : 40
         };
       })
       .filter((result): result is ContextSearchResult => !!result)
@@ -202,16 +191,21 @@
       .slice(0, 8);
   });
 
-  const directKbMatch = $derived(
-    q.match(/^kb\d+$/i) ? wikiState.articles[q.toUpperCase()] : undefined
+  const directKbMatch = $derived.by(() => {
+    const match = q.match(/^kb(\d+)$/i);
+    if (!match) return undefined;
+    const num = parseInt(match[1], 10);
+    return allArticles.find((a) => a.kbNumber === num);
+  });
+
+  const hasResults = $derived(
+    articleResults.length > 0 || contextResults.length > 0 || !!directKbMatch
   );
 
-  const hasResults = $derived(articleResults.length > 0 || contextResults.length > 0 || !!directKbMatch);
-
-  function navigate(articleId: string) {
+  function navigate(id: string) {
     wikiState.closeSearch();
     query = '';
-    goto(`/wiki/${articleId}`);
+    goto(`/wiki/${id}`);
   }
 
   function navigateContext(contextId: string) {
@@ -237,13 +231,13 @@
   bind:open={wikiState.searchOpen}
   shouldFilter={false}
   title="Search Knowledge Base"
-  description="Search articles, contexts, tags, body content, and overrides"
+  description="Search articles, contexts, tags, and body content"
   class="sm:max-w-2xl"
 >
   {#snippet children()}
     <Command.Input
       bind:value={query}
-      placeholder="Search all wiki content... try tag:troubleshooting, title:gateway, override:acme"
+      placeholder="Search all wiki content... try tag:troubleshooting, title:gateway"
     />
 
     <div class="flex flex-wrap items-center gap-1 border-b px-3 py-2">
@@ -263,9 +257,7 @@
         </button>
       {/each}
       {#if parsed.forcedScope}
-        <span class="ml-auto text-xs text-muted-foreground">
-          Prefix filter active
-        </span>
+        <span class="ml-auto text-xs text-muted-foreground"> Prefix filter active </span>
       {/if}
     </div>
 
@@ -275,24 +267,24 @@
       {:else if q.length === 0}
         <Command.Empty class="py-8 text-center text-sm text-muted-foreground">
           Start typing to search. Use prefixes like <span class="font-mono">tag:</span>,
-          <span class="font-mono">title:</span>, <span class="font-mono">body:</span>,
-          <span class="font-mono">override:</span>, or <span class="font-mono">context:</span>.
+          <span class="font-mono">title:</span>, <span class="font-mono">body:</span>, or
+          <span class="font-mono">context:</span>.
         </Command.Empty>
       {/if}
 
       {#if directKbMatch}
         <Command.Group heading="Direct KB Match">
           <Command.Item
-            value="{directKbMatch.id} {directKbMatch.title}"
+            value="{directKbMatch.kbId} {directKbMatch.title}"
             onSelect={() => navigate(directKbMatch!.id)}
             class="flex-col items-start gap-0.5 py-2"
           >
             <div class="flex w-full items-center gap-2">
               <Hash class="size-3.5 shrink-0 text-primary" />
-              <span class="font-medium">{directKbMatch.id} - {directKbMatch.title}</span>
+              <span class="font-medium">{directKbMatch.kbId} - {directKbMatch.title}</span>
             </div>
             <span class="pl-5 text-xs text-muted-foreground">
-              {contextPath(directKbMatch.primary_context_id)}
+              {contextPath(directKbMatch.primaryContextId)}
             </span>
           </Command.Item>
         </Command.Group>
@@ -305,37 +297,38 @@
         <Command.Group heading="Articles">
           {#each articleResults as result (result.article.id)}
             <Command.Item
-              value="{result.article.id} {result.article.title} {result.fields.join(' ')} {result.snippet}"
+              value="{result.article.kbId} {result.article.title} {result.fields.join(' ')} {result.snippet}"
               onSelect={() => navigate(result.article.id)}
               class="flex-col items-start gap-1 py-2"
             >
               <div class="flex w-full items-center gap-2">
                 <FileText class="size-3.5 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate font-medium">{result.article.title}</span>
-                <span class="shrink-0 font-mono text-xs text-muted-foreground">{result.article.id}</span>
+                <span class="shrink-0 font-mono text-xs text-muted-foreground"
+                  >{result.article.kbId}</span
+                >
               </div>
               <div class="flex flex-wrap items-center gap-1.5 pl-5">
                 {#each result.fields as field (field)}
                   {@const Icon = fieldIcon(field)}
-                  <span class="inline-flex items-center gap-1 rounded border px-1.5 py-0 text-xs text-muted-foreground">
+                  <span
+                    class="inline-flex items-center gap-1 rounded border px-1.5 py-0 text-xs text-muted-foreground"
+                  >
                     <Icon class="size-3" />
                     {field}
                   </span>
                 {/each}
-                {#each result.article.tag_ids.slice(0, 3) as tagId (tagId)}
-                  {@const tag = wikiState.tags[tagId]}
-                  {#if tag}
-                    <span
-                      class="rounded px-1.5 py-0 text-xs"
-                      style="background-color: {tag.color}18; color: {tag.color}; border: 1px solid {tag.color}30"
-                    >
-                      {tag.label}
-                    </span>
-                  {/if}
+                {#each result.article.tags.slice(0, 3) as tag (tag.id)}
+                  <span
+                    class="rounded px-1.5 py-0 text-xs"
+                    style="background-color: {tag.color}18; color: {tag.color}; border: 1px solid {tag.color}30"
+                  >
+                    {tag.name}
+                  </span>
                 {/each}
               </div>
               <p class="line-clamp-1 pl-5 text-xs text-muted-foreground">
-                {result.snippet || contextPath(result.article.primary_context_id)}
+                {result.snippet || contextPath(result.article.primaryContextId)}
               </p>
             </Command.Item>
           {/each}
@@ -347,27 +340,29 @@
           <Command.Separator />
         {/if}
         <Command.Group heading="Contexts">
-          {#each contextResults as context (context.id)}
+          {#each contextResults as ctx (ctx.id)}
             <Command.Item
-              value="{context.id} {context.label} {context.path}"
-              onSelect={() => navigateContext(context.id)}
+              value="{ctx.id} {ctx.name} {ctx.path}"
+              onSelect={() => navigateContext(ctx.id)}
               class="flex-col items-start gap-0.5 py-2"
             >
               <div class="flex w-full items-center gap-2">
                 <Folder class="size-3.5 shrink-0 text-muted-foreground" />
-                <span class="min-w-0 flex-1 truncate font-medium">{context.label}</span>
+                <span class="min-w-0 flex-1 truncate font-medium">{ctx.name}</span>
               </div>
-              <span class="pl-5 text-xs text-muted-foreground">{context.path}</span>
+              <span class="pl-5 text-xs text-muted-foreground">{ctx.path}</span>
             </Command.Item>
           {/each}
         </Command.Group>
       {/if}
     </Command.List>
 
-    <div class="flex flex-wrap items-center gap-3 border-t px-3 py-2 text-xs text-muted-foreground">
+    <div
+      class="flex flex-wrap items-center gap-3 border-t px-3 py-2 text-xs text-muted-foreground"
+    >
       <span class="flex items-center gap-1">
         <Search class="size-3" />
-        Manual scopes map to future indexed DB fields.
+        Client-side search over cached data.
       </span>
       <span class="ml-auto">
         <kbd class="rounded bg-muted px-1 py-0 font-mono text-xs">Esc</kbd> close

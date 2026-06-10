@@ -1,5 +1,5 @@
 import { Node } from '@tiptap/core';
-import type { CalloutVariant } from '../../_mock-data.js';
+import type { CalloutVariant } from '../../_wiki-utils.js';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

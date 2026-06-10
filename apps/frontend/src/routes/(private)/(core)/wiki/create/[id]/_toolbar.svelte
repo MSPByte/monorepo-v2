@@ -26,7 +26,7 @@
   import Quote from '@lucide/svelte/icons/quote';
   import Code from '@lucide/svelte/icons/code';
   import MessageSquareQuote from '@lucide/svelte/icons/message-square-quote';
-  import type { CalloutVariant } from '../../_mock-data.js';
+  import type { CalloutVariant } from '../../_wiki-utils.js';
 
   const { tipex }: { tipex: TipexEditor } = $props();
 

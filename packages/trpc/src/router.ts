@@ -10,6 +10,7 @@ import { integrationLinksRouter } from './routers/integration-links.js';
 import { vendorRouter } from './routers/vendor.js';
 import { agentsRouter } from './routers/agents.js';
 import { pipelineRouter } from './routers/pipeline.js';
+import { wikiRouter } from './routers/wiki.js';
 
 export const appRouter = t.router({
   auth: authRouter,
@@ -22,7 +23,8 @@ export const appRouter = t.router({
   integrationLinks: integrationLinksRouter,
   vendor: vendorRouter,
   agents: agentsRouter,
-  pipeline: pipelineRouter
+  pipeline: pipelineRouter,
+  wiki: wikiRouter
 });
 
 export type AppRouter = typeof appRouter;
