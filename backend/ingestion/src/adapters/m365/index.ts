@@ -951,7 +951,7 @@ export const m365Adapter: ProviderAdapter = {
         if (rule.MoveToFolder && JUNK_FOLDERS.includes(rule.MoveToFolder))
           suspicionReasons.push('movesToJunk');
         return {
-          externalId: `${rule.MailboxUserPrincipalName.toLowerCase()}::${rule.Name}`,
+          externalId: `${rule.MailboxUserPrincipalName.toLowerCase()}::${rule.Identity ?? rule.Name}`,
           mailboxUpn: rule.MailboxUserPrincipalName,
           ruleName: rule.Name,
           ruleIdentity: rule.Identity ?? null,
