@@ -53,7 +53,7 @@
   const filteredOptions = $derived.by(() => {
     const sort = (options: Option[]) => {
       if (disableSort) return options;
-      return options.sort((a, b) => a.label.localeCompare(b.label));
+      return [...options].sort((a, b) => a.label.localeCompare(b.label));
     };
 
     if (onsearch) {

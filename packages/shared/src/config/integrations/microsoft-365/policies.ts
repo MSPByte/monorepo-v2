@@ -224,9 +224,14 @@ export const M365PoliciesShape: SchemaFields = {
             label: 'Include Roles',
             type: 'string',
             modality: 'array',
-            trackable: false,
+            trackable: true,
             ingestPath: 'conditions.users.includeRoles',
-            required: false
+            required: false,
+            reference: {
+              table: 'm365Roles',
+              valueColumn: 'templateId',
+              labelColumn: 'name'
+            }
           },
           excludeRoles: {
             label: 'Exclude Roles',
@@ -249,8 +254,8 @@ export const M365PoliciesShape: SchemaFields = {
           includeApplications: {
             label: 'Include Applications',
             type: 'enum',
-            modality: 'array',
-            trackable: false,
+            modality: 'single',
+            trackable: true,
             ingestPath: 'conditions.applications.includeApplications',
             required: true,
             options: [{ label: 'All', value: 'All' }]

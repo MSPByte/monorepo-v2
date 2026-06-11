@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, and, inArray, isNull, or } from 'drizzle-orm';
+import { eq, and, inArray, isNull, or, desc } from 'drizzle-orm';
 import {
   complianceFrameworks,
   complianceAssignments,
@@ -14,15 +14,31 @@ type FrameworkRow = typeof complianceFrameworks.$inferSelect;
 type CheckRow = typeof complianceFrameworkChecks.$inferSelect;
 type AssignmentRow = typeof complianceAssignments.$inferSelect;
 type ResultRow = typeof complianceResults.$inferSelect;
+type LinkRow = typeof integrationLinks.$inferSelect;
+
+function assignmentAppliesToLink(
+  assignment: Pick<AssignmentRow, 'siteId' | 'linkId'>,
+  link: Pick<LinkRow, 'id' | 'siteId'>
+) {
+  if (assignment.linkId) return assignment.linkId === link.id;
+  if (assignment.siteId) return assignment.siteId === link.siteId;
+  return false;
+}
 
 export const complianceRouter = t.router({
   // ── Existing procedures ─────────────────────────────────────────────────────
 
   frameworks: authProcedure
-    .input(z.object({ siteId: z.string().optional(), linkId: z.string().optional() }))
+    .input(
+      z.object({
+        siteId: z.string().optional(),
+        linkId: z.string().optional(),
+        integrationId: z.string().optional()
+      })
+    )
     .query(async ({ ctx, input }): Promise<FrameworkRow[]> => {
       let siteId = input.siteId;
-      let integrationId: string | undefined;
+      let integrationId = input.integrationId;
 
       if (input.linkId) {
         const [link] = await ctx.db
@@ -39,6 +55,66 @@ export const complianceRouter = t.router({
       }
 
       if (!integrationId) return [];
+
+      if (!input.linkId && !siteId) {
+        const links = await ctx.db
+          .select()
+          .from(integrationLinks)
+          .where(
+            and(
+              eq(integrationLinks.integrationId, integrationId),
+              eq(integrationLinks.status, 'active')
+            )
+          );
+
+        const assignments = await ctx.db
+          .select({
+            frameworkId: complianceAssignments.frameworkId,
+            siteId: complianceAssignments.siteId,
+            linkId: complianceAssignments.linkId
+          })
+          .from(complianceAssignments)
+          .innerJoin(
+            complianceFrameworks,
+            eq(complianceFrameworks.id, complianceAssignments.frameworkId)
+          )
+          .where(
+            and(
+              eq(complianceFrameworks.integrationId, integrationId),
+              or(
+                eq(complianceAssignments.integrationId, integrationId),
+                isNull(complianceAssignments.integrationId)
+              )
+            )
+          );
+
+        if (assignments.length === 0) return [];
+
+        const assignmentsByFramework = new Map<string, typeof assignments>();
+        for (const assignment of assignments) {
+          const rows = assignmentsByFramework.get(assignment.frameworkId) ?? [];
+          rows.push(assignment);
+          assignmentsByFramework.set(assignment.frameworkId, rows);
+        }
+
+        const frameworkIds = [...assignmentsByFramework.entries()]
+          .filter(([, rows]) => {
+            const hasGlobal = rows.some((row) => row.siteId === null && row.linkId === null);
+            if (hasGlobal) {
+              return links.some((link) => !rows.some((row) => assignmentAppliesToLink(row, link)));
+            }
+
+            return links.some((link) => rows.some((row) => assignmentAppliesToLink(row, link)));
+          })
+          .map(([frameworkId]) => frameworkId);
+
+        if (frameworkIds.length === 0) return [];
+
+        return ctx.db
+          .select()
+          .from(complianceFrameworks)
+          .where(inArray(complianceFrameworks.id, frameworkIds));
+      }
 
       const assignmentConditions = [
         and(isNull(complianceAssignments.siteId), isNull(complianceAssignments.linkId))
@@ -106,17 +182,89 @@ export const complianceRouter = t.router({
       z.object({
         siteId: z.string().optional(),
         linkId: z.string().optional(),
+        integrationId: z.string().optional(),
         frameworkId: z.string()
       })
     )
     .query(
-      async ({ ctx, input }): Promise<Array<{ check: CheckRow; result: ResultRow | null }>> => {
+      async ({
+        ctx,
+        input
+      }): Promise<Array<{ check: CheckRow; result: ResultRow | null; link: LinkRow | null }>> => {
         const checks = await ctx.db
           .select()
           .from(complianceFrameworkChecks)
           .where(eq(complianceFrameworkChecks.frameworkId, input.frameworkId));
 
         if (checks.length === 0) return [];
+
+        if (!input.linkId && !input.siteId && input.integrationId) {
+          const links = await ctx.db
+            .select()
+            .from(integrationLinks)
+            .where(
+              and(
+                eq(integrationLinks.integrationId, input.integrationId),
+                eq(integrationLinks.status, 'active')
+              )
+            );
+
+          if (links.length === 0) return [];
+
+          const assignments = await ctx.db
+            .select()
+            .from(complianceAssignments)
+            .where(
+              and(
+                eq(complianceAssignments.frameworkId, input.frameworkId),
+                or(
+                  eq(complianceAssignments.integrationId, input.integrationId),
+                  isNull(complianceAssignments.integrationId)
+                )
+              )
+            );
+
+          const hasGlobal = assignments.some(
+            (assignment) => assignment.siteId === null && assignment.linkId === null
+          );
+          const applicableLinks = links.filter((link) => {
+            const hasSpecificAssignment = assignments.some((assignment) =>
+              assignmentAppliesToLink(assignment, link)
+            );
+            return hasGlobal ? !hasSpecificAssignment : hasSpecificAssignment;
+          });
+
+          if (applicableLinks.length === 0) return [];
+
+          const results = await ctx.db
+            .select()
+            .from(complianceResults)
+            .where(
+              and(
+                inArray(
+                  complianceResults.frameworkCheckId,
+                  checks.map((c) => c.id)
+                ),
+                inArray(
+                  complianceResults.linkId,
+                  applicableLinks.map((link) => link.id)
+                )
+              )
+            )
+            .orderBy(desc(complianceResults.evaluatedAt));
+
+          return applicableLinks.flatMap((link) =>
+            checks.map((check) => ({
+              check,
+              link,
+              result:
+                results.find(
+                  (result) =>
+                    result.frameworkCheckId === check.id && result.linkId === link.id
+                ) ?? null
+            }))
+          );
+        }
 
         const scopeCondition = input.linkId
           ? eq(complianceResults.linkId, input.linkId)
@@ -135,10 +283,12 @@ export const complianceRouter = t.router({
                 checks.map((c) => c.id)
               )
             )
-          );
+          )
+          .orderBy(desc(complianceResults.evaluatedAt));
 
         return checks.map((check) => ({
           check,
+          link: null,
           result: results.find((r) => r.frameworkCheckId === check.id) ?? null
         }));
       }

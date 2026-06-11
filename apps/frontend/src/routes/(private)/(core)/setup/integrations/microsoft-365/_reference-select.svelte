@@ -21,7 +21,6 @@
   let loading = $state(false);
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // TODO: /api/table-reference route not yet implemented
   function buildUrl(query?: string, exactValue?: string): string {
     const params = new URLSearchParams({
       table: ref.table,

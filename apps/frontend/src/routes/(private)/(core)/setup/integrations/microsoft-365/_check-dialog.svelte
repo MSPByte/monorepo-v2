@@ -235,8 +235,33 @@
     return raw;
   }
 
+  function coerceConditionValue(condition: CheckCondition): CheckCondition {
+    if (!opNeedsValue(condition.op)) {
+      return { ...condition, value: undefined };
+    }
+
+    const flatField = trackableFields.find((f) => f.ingestPath === condition.field) ?? null;
+    if (!flatField) return condition;
+
+    if (opIsSize(condition.op)) {
+      return { ...condition, value: Number(condition.value) };
+    }
+
+    if (flatField.field.type === 'number') {
+      return { ...condition, value: Number(condition.value) };
+    }
+
+    if (flatField.field.type === 'boolean') {
+      return { ...condition, value: condition.value === true || condition.value === 'true' };
+    }
+
+    return condition;
+  }
+
   function buildConfig(): CheckConfig {
-    const validConditions = conditions.filter((c) => c.field.trim());
+    const validConditions = conditions
+      .filter((c) => c.field.trim())
+      .map((condition) => coerceConditionValue(condition));
     const filter =
       showConditions && validConditions.length > 0
         ? { logic: conditionLogic, conditions: validConditions }

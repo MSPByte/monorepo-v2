@@ -48,7 +48,7 @@
 
     // Sort selected items to the top (only when not actively searching)
     if (!search) {
-      return filtered.sort((a, b) => {
+      return [...filtered].sort((a, b) => {
         const aSelected = selected.includes(a.value);
         const bSelected = selected.includes(b.value);
         if (aSelected && !bSelected) return -1;

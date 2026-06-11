@@ -7,11 +7,13 @@
   import FadeIn from '$lib/components/transition/fade-in.svelte';
 
   const trpc = getContext<ReturnType<typeof createTrpcClient>>('trpc');
+  const integrationId = 'microsoft-365';
 
   const frameworksQuery = createQuery(() => ({
-    queryKey: ['compliance.frameworks', scopeStore.currentLink],
+    queryKey: ['compliance.frameworks', integrationId, scopeStore.currentLink],
     queryFn: () =>
       trpc.compliance.frameworks.query({
+        integrationId,
         linkId: scopeStore.currentLink || undefined,
       }),
   }));
@@ -29,22 +31,23 @@
 
   $effect(() => {
     // Reset selection when scope changes
-    if (scopeStore.currentLink) {
-      selectedFrameworkId = null;
-      statusFilter = 'fail';
-    }
+    scopeStore.currentLink;
+    selectedFrameworkId = null;
+    statusFilter = 'fail';
   });
 
   const resultsQuery = createQuery(() => ({
     queryKey: [
       'compliance.results',
       selectedFrameworkId,
+      integrationId,
       scopeStore.currentSite,
       scopeStore.currentLink,
     ],
     queryFn: () =>
       trpc.compliance.results.query({
         frameworkId: selectedFrameworkId!,
+        integrationId,
         siteId: scopeStore.currentSite ?? undefined,
         linkId: scopeStore.currentLink || undefined,
       }),
@@ -193,7 +196,7 @@
           {:else}
             {#each filteredResults
               .slice()
-              .sort((a, b) => (SEVERITY_ORDER[a.check.severity ?? ''] ?? 99) - (SEVERITY_ORDER[b.check.severity ?? ''] ?? 99)) as item (item.check.id)}
+              .sort((a, b) => (SEVERITY_ORDER[a.check.severity ?? ''] ?? 99) - (SEVERITY_ORDER[b.check.severity ?? ''] ?? 99)) as item (`${item.check.id}:${item.link?.id ?? 'scope'}`)}
               {@const status = item.result?.status ?? 'unknown'}
               <FadeIn class="rounded-lg border p-3 flex flex-col gap-1.5">
                 <div class="flex items-start justify-between gap-2">
@@ -201,6 +204,11 @@
                     <span class="font-medium text-sm">{item.check.name}</span>
                     {#if item.check.description}
                       <span class="text-xs text-muted-foreground">{item.check.description}</span>
+                    {/if}
+                    {#if item.link}
+                      <span class="text-xs text-muted-foreground"
+                        >{item.link.name ?? item.link.externalId ?? 'Unknown tenant'}</span
+                      >
                     {/if}
                   </div>
                   <span

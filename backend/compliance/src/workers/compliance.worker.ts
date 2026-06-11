@@ -3,7 +3,7 @@ import { QUEUES } from '@mspbyte/shared';
 import type { ComplianceJobData } from '@mspbyte/shared';
 import { getTenantServiceDbByOrgId, type TenantServiceDb } from '@mspbyte/drizzle-catalog';
 import { complianceFrameworkChecks, complianceResults } from '@mspbyte/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { checkTypeRegistry } from '../evaluators/registry.js';
 import { scoreFramework } from '../scoring.js';
 import { logger } from '../logger.js';
@@ -69,6 +69,16 @@ export function createComplianceWorker(redis: Redis, queueName: string = QUEUES.
 
         try {
           await db
+            .delete(complianceResults)
+            .where(
+              and(
+                eq(complianceResults.frameworkCheckId, check.id),
+                siteId ? eq(complianceResults.siteId, siteId) : isNull(complianceResults.siteId),
+                linkId ? eq(complianceResults.linkId, linkId) : isNull(complianceResults.linkId)
+              )
+            );
+
+          await db
             .insert(complianceResults)
             .values({
               frameworkCheckId: check.id,
@@ -77,14 +87,6 @@ export function createComplianceWorker(redis: Redis, queueName: string = QUEUES.
               status,
               detail,
               evaluatedAt: new Date().toISOString()
-            })
-            .onConflictDoUpdate({
-              target: [
-                complianceResults.frameworkCheckId,
-                complianceResults.siteId,
-                complianceResults.linkId
-              ],
-              set: { status, detail, evaluatedAt: new Date().toISOString() }
             });
         } catch (err) {
           logger.error(

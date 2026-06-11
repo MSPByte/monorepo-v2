@@ -48,9 +48,6 @@ export const complianceFrameworkChecks = complianceSchema.table(
     severity: text('severity').notNull().default('warning'),
     sortOrder: integer('sort_order').notNull().default(0),
     enabled: boolean('enabled').notNull().default(true),
-    onFailWorkflowId: uuid('on_fail_workflow_id'),
-    onPassWorkflowId: uuid('on_pass_workflow_id'),
-    onChangeWorkflowId: uuid('on_change_workflow_id'),
     siteId: uuid('site_id').references(() => sites.id),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
@@ -59,10 +56,7 @@ export const complianceFrameworkChecks = complianceSchema.table(
       .notNull()
       .defaultNow()
   },
-  (t) => [
-    unique().on(t.frameworkId, t.checkTypeId),
-    crudPolicy({ role: authenticatedRole, read: true, modify: true })
-  ]
+  (t) => [crudPolicy({ role: authenticatedRole, read: true, modify: true })]
 );
 
 export const complianceAssignments = complianceSchema.table(

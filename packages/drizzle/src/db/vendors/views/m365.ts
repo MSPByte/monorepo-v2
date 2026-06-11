@@ -34,7 +34,15 @@ export const m365TenantOverview = vendorsSchema
       select
         link_id,
         count(*)::int as compliance_failures
-      from compliance.results
+      from (
+        select distinct on (framework_check_id, link_id)
+          framework_check_id,
+          link_id,
+          status
+        from compliance.results
+        where link_id is not null
+        order by framework_check_id, link_id, evaluated_at desc
+      ) latest_results
       where status = 'fail'
       group by link_id
     )
