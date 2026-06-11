@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import { agents, agentLogs, sites } from '@mspbyte/drizzle';
+import { agents, sites } from '@mspbyte/drizzle';
 import { getTenantServiceDbByOrgId } from '@mspbyte/drizzle-catalog';
 import { logger } from '../logger.js';
 import { env } from '../env.js';
@@ -102,15 +102,6 @@ export function registerRoute(fastify: FastifyInstance) {
       agentId = created.id;
       logger.info({ agentId, hostname, siteId: site_id }, 'Agent registered');
     }
-
-    await db.insert(agentLogs).values({
-      agentId,
-      siteId: site_id,
-      method: 'POST',
-      message: `Agent registered: ${hostname} v${version} (${platform})`,
-      status: 200,
-      timeElapsedMs: 0
-    });
 
     return reply.status(200).send({ data: { device_id: agentId, guid: agentId } });
   });

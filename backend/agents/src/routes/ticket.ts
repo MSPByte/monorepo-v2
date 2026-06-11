@@ -274,6 +274,18 @@ export function ticketRoute(fastify: FastifyInstance) {
       ticketId = await connector.tickets.create(ticketBody);
     } catch (err) {
       logger.error({ err, hostname: agent.hostname }, 'Failed to create HaloPSA ticket');
+      try {
+        await db.insert(agentLogs).values({
+          agentId: agent.id,
+          siteId: site.id,
+          method: 'POST',
+          message: `Failed to create ticket: ${body.summary}`,
+          status: 500,
+          timeElapsedMs: 0
+        });
+      } catch {
+        // non-fatal
+      }
       return reply.status(500).send({
         error: {
           module: 'v1.0/ticket/create',
@@ -299,19 +311,6 @@ export function ticketRoute(fastify: FastifyInstance) {
       });
     } catch (err) {
       logger.warn({ err }, 'Failed to insert agentTickets record');
-    }
-
-    try {
-      await db.insert(agentLogs).values({
-        agentId: agent.id,
-        siteId: site.id,
-        method: 'POST',
-        message: `Ticket created: ${body.summary} (HaloPSA #${ticketId})`,
-        status: 200,
-        timeElapsedMs: 0
-      });
-    } catch {
-      // non-fatal
     }
 
     return reply.status(200).send({ data: ticketId });
