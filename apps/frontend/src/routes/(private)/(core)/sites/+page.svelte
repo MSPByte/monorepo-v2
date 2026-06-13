@@ -47,7 +47,8 @@
       cell: integrationsCell,
       filter: {
         type: 'select' as const,
-        operators: ['cs' as const],
+        operators: ['cs', 'not.cs'],
+        defaultOperator: 'cs',
         options: integrationOptions,
       },
     },
@@ -77,8 +78,12 @@
     let filtered = rows;
 
     for (const filter of opts.filters) {
-      if (filter.field === 'integrations' && filter.operator === 'cs') {
-        filtered = filtered.filter((r) => r.integrations.includes(filter.value));
+      if (filter.field === 'integrations') {
+        if (filter.operator === 'cs') {
+          filtered = filtered.filter((r) => r.integrations.includes(filter.value));
+        } else if (filter.operator === 'not.cs') {
+          filtered = filtered.filter((r) => !r.integrations.includes(filter.value));
+        }
       }
     }
 
